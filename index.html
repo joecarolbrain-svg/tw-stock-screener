@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>右側突破篩選器 — 雲端看板</title>
+
+  <!-- Tabulator -->
+  <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
+  <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">📈</span>
+      <span class="title">右側突破篩選器</span>
+      <span class="subtitle">雲端看板</span>
+    </div>
+    <div class="meta">
+      <span id="trading-date" class="badge">--</span>
+      <span id="regime-badge" class="badge regime-unknown">市況: --</span>
+      <span id="generated-at" class="muted">--</span>
+      <span id="row-count" class="muted">--</span>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="dashboard">📊 每日看板</button>
+    <button class="tab-btn" data-tab="industry-ranking">🏭 產業排行</button>
+    <button class="tab-btn" data-tab="flow">🌊 資金流向</button>
+    <button class="tab-btn" data-tab="concept">📍 題材資金流向</button>
+    <button class="tab-btn" data-tab="market">🏦 大盤狀態</button>
+  </nav>
+
+  <section class="tab-panel active" data-panel="dashboard">
+
+  <section class="filters">
+    <div class="filter-row">
+      <div class="filter-group filter-group-categories">
+        <label class="filter-label">分類（命中策略）</label>
+        <div id="cat-checkboxes" class="cat-grid"></div>
+        <div class="mode-toggle">
+          <label><input type="radio" name="mode" value="OR" checked /> OR（聯集）</label>
+          <label><input type="radio" name="mode" value="AND" /> AND（交集）</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="filter-row">
+      <div class="filter-group">
+        <label class="filter-label">代號/名稱搜尋</label>
+        <input type="text" id="search-input" placeholder="例如 2330 或 台積電" />
+      </div>
+
+      <div class="filter-group filter-group-dimension">
+        <label class="filter-label">分類維度</label>
+        <div class="dim-radio">
+          <label><input type="radio" name="dim" value="industry" checked /> 產業</label>
+          <label><input type="radio" name="dim" value="sector" /> 類股</label>
+          <label><input type="radio" name="dim" value="concept" /> 題材</label>
+        </div>
+        <input type="text" id="dim-search" placeholder="搜尋選項..." class="dim-search-input" />
+        <select id="dim-select" multiple size="6"></select>
+        <span class="muted" id="dim-source"></span>
+      </div>
+
+      <div class="filter-group small">
+        <label class="filter-label">分數 ≥</label>
+        <input type="number" id="score-min" step="1" value="0" />
+      </div>
+
+      <div class="filter-group small">
+        <label class="filter-label">RS ≥</label>
+        <input type="number" id="rs-min" step="1" value="0" />
+      </div>
+
+      <div class="filter-group small">
+        <label class="filter-label">出貨風險 ≤</label>
+        <input type="number" id="dist-risk-max" step="1" placeholder="不限" />
+      </div>
+
+      <div class="filter-group small">
+        <label class="filter-label">族群最高z ≥</label>
+        <input type="number" id="group-z-min" step="0.1" placeholder="不限" />
+      </div>
+    </div>
+
+    <div class="filter-row actions">
+      <button id="btn-clear" class="btn btn-ghost">清除全部</button>
+      <button id="btn-save-preset" class="btn btn-ghost">💾 儲存組合</button>
+      <select id="preset-select" class="preset-select">
+        <option value="">-- 載入組合 --</option>
+      </select>
+      <button id="btn-delete-preset" class="btn btn-ghost btn-danger">🗑</button>
+      <span class="filler"></span>
+      <span id="filter-summary" class="muted"></span>
+    </div>
+  </section>
+
+  <main>
+    <div id="main-table"></div>
+  </main>
+
+  </section><!-- /panel dashboard -->
+
+  <section class="tab-panel" data-panel="industry-ranking">
+    <div class="filters">
+      <div class="filter-row">
+        <div class="filter-group">
+          <label class="filter-label">回看期間</label>
+          <div class="radio-row">
+            <label><input type="radio" name="ind-days" value="5" /> 5 日</label>
+            <label><input type="radio" name="ind-days" value="10" /> 10 日</label>
+            <label><input type="radio" name="ind-days" value="20" checked /> 20 日 (~1月)</label>
+          </div>
+        </div>
+        <div class="filter-group small">
+          <label class="filter-label">每細產業前 N 強</label>
+          <select id="ind-topn">
+            <option value="3" selected>前 3 強</option>
+            <option value="5">前 5 強</option>
+            <option value="10">前 10 強</option>
+            <option value="20">前 20 強</option>
+            <option value="30">前 30 強</option>
+          </select>
+        </div>
+        <span class="filler"></span>
+        <span class="muted" id="ind-meta">--</span>
+      </div>
+    </div>
+
+    <div class="ranking-grid">
+      <div class="ranking-left">
+        <div class="panel-title">大產業漲幅排行</div>
+        <div id="industry-table"></div>
+      </div>
+      <div class="ranking-right">
+        <div class="panel-title">
+          <span id="selected-industry-name">點左側大產業列 → 看細產業明細</span>
+        </div>
+        <div id="sub-industry-table"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-panel" data-panel="flow">
+    <div class="filters">
+      <div class="filter-row">
+        <span class="muted" id="flow-meta">資金流向：以族群成交額佔大盤比，計算 N 日 z-score</span>
+        <span class="filler"></span>
+        <span class="muted" id="flow-updated"></span>
+      </div>
+      <div class="filter-row legend-row">
+        <span class="legend-label">欄位說明：</span>
+        <span class="legend-item"><b>z</b> 今日佔比偏離基期 N 個標準差（>1.5 顯著流入）</span>
+        <span class="legend-item"><b>超量比</b> 今日佔比 / 基期均佔比（&gt;1 表流入）</span>
+        <span class="legend-item"><b>Top1</b> ✅&lt;30% / ⚠️30-50% / 🚨≥50%（檢查 z 是否由單一股票灌出）</span>
+      </div>
+    </div>
+
+    <div class="flow-grid">
+      <div class="flow-pane">
+        <div class="panel-title">大產業資金流向（依 z-score 排序）</div>
+        <div id="flow-ind-table"></div>
+      </div>
+      <div class="flow-pane">
+        <div class="panel-title" id="flow-sub-title">細產業資金流向（點上方大產業可篩選）</div>
+        <div id="flow-sub-table"></div>
+      </div>
+      <div class="flow-pane">
+        <div class="panel-title" id="flow-stocks-title">個股貢獻（點族群列查看）</div>
+        <div id="flow-stocks-table"></div>
+      </div>
+      <div class="flow-pane">
+        <div class="panel-title" id="flow-history-title">20 日 z-score 歷史（點族群列查看）</div>
+        <div id="flow-history-table"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-panel" data-panel="concept">
+    <div class="filters">
+      <div class="filter-row">
+        <div class="subtab-row">
+          <button class="subtab-btn active" data-subtab="concept">🔥 概念股總覽</button>
+          <button class="subtab-btn" data-subtab="sector">🏷️ 類股總覽</button>
+        </div>
+        <span class="filler"></span>
+        <span class="muted" id="theme-updated"></span>
+      </div>
+      <div class="filter-row legend-row">
+        <span class="legend-label">欄位說明：</span>
+        <span class="legend-item"><b>z</b> N 日 z-score（&gt;1.5 顯著流入）</span>
+        <span class="legend-item"><b>超量比</b> 今日/基期均（&gt;1 流入）</span>
+        <span class="legend-item"><b>Top1</b> ✅&lt;30% / ⚠️30-50% / 🚨≥50%</span>
+        <span class="legend-item"><b>備註</b> 題材：1/k 攤分；類股：原值</span>
+      </div>
+    </div>
+
+    <div class="flow-grid">
+      <div class="flow-pane">
+        <div class="panel-title" id="theme-list-title">題材列表（依 z-score 排序）</div>
+        <div id="theme-list-table"></div>
+      </div>
+      <div class="flow-pane">
+        <div class="panel-title" id="theme-stocks-title">個股貢獻（點題材查看）</div>
+        <div id="theme-stocks-table"></div>
+      </div>
+      <div class="flow-pane flow-pane-wide">
+        <div class="panel-title" id="theme-history-title">20 日 z-score 歷史（點題材查看）</div>
+        <div id="theme-history-table"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-panel" data-panel="market">
+    <div id="market-content" class="market-content">
+      <div class="muted" style="padding:20px">載入中...</div>
+    </div>
+  </section>
+
+  <footer>
+    <span class="muted">資料來源：本地 Dash 篩選 / Schema v<span id="schema-version">--</span></span>
+    <span class="muted">點代號 → TradingView K 線</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

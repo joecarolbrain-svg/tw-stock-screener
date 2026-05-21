@@ -5,6 +5,95 @@
 
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
+// ── 日期 & gzip JSON 載入 ────────────────────────────
+// currentDate: 'YYYYMMDD'。null 時等同 index.json.latest_date
+let currentDate = null;
+let availableDates = [];     // 由 index.json 帶入
+let indexMeta = null;
+
+async function fetchJsonGz(path) {
+  const res = await fetch(`${path}?t=${Date.now()}`);
+  if (!res.ok) throw new Error(`fetch ${path} 失敗 (${res.status})`);
+  if (typeof DecompressionStream === 'undefined') {
+    throw new Error('瀏覽器不支援 DecompressionStream，請升級到 Chrome/Edge/Safari 最新版');
+  }
+  const ds = new DecompressionStream('gzip');
+  const stream = res.body.pipeThrough(ds);
+  const text = await new Response(stream).text();
+  return JSON.parse(text);
+}
+
+async function loadIndex() {
+  const res = await fetch(`data/index.json?t=${Date.now()}`);
+  if (!res.ok) throw new Error(`無法載入 index.json (${res.status})`);
+  indexMeta = await res.json();
+  // 日期下拉只列「有 latest 資料」的日期（只有 market 的日期不算可切）
+  availableDates = (indexMeta.dates || [])
+    .filter(e => (e.has || []).includes('latest'))
+    .map(e => e.date);
+  if (!currentDate) currentDate = indexMeta.latest_date;
+  return indexMeta;
+}
+
+function dailyPath(name) {
+  if (!currentDate) throw new Error('currentDate 尚未設定');
+  return `data/daily/${currentDate}/${name}.json.gz`;
+}
+
+function fmtDate8(s) {
+  // 20260521 → 2026-05-21
+  return s.length === 8 ? `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6)}` : s;
+}
+
+function renderDatePicker() {
+  const sel = document.getElementById('date-picker');
+  if (!sel) return;
+  sel.innerHTML = '';
+  availableDates.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d;
+    opt.textContent = `📅 ${fmtDate8(d)}${d === indexMeta.latest_date ? ' (最新)' : ''}`;
+    if (d === currentDate) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', onDateChange);
+}
+
+async function onDateChange(ev) {
+  const newDate = ev.target.value;
+  if (newDate === currentDate) return;
+  currentDate = newDate;
+
+  // 重設所有分頁的 loaded，下次切到時會重新 fetch
+  rankState.loaded = flowState.loaded = themeState.loaded = false;
+  rankState.data = flowState.data = themeState.data = null;
+  rankState.selectedIndustry = null;
+  flowState.selectedIndustry = flowState.selectedSub = null;
+  themeState.selectedItem = null;
+
+  // 重新載入主表（dashboard）
+  try {
+    const data = await loadData();
+    state.data = data;
+    data._catColor = {};
+    data.categories.forEach(c => { data._catColor[c.code] = c.color; });
+    renderMeta(data);
+    renderCategoryChips(data.categories);
+    renderDimensionOptions();
+    buildTable(data);
+    applyFilters();
+  } catch (err) {
+    console.error(err);
+    alert(`載入 ${newDate} 失敗：${err.message}`);
+  }
+
+  // 當前分頁若是其他 tab，馬上重 fetch
+  const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
+  if (activeTab === 'industry-ranking') loadIndustryRanking();
+  else if (activeTab === 'flow') loadIndustryFlow();
+  else if (activeTab === 'concept') loadThemeFlow();
+}
+
 // 市場別 -> TradingView 交易所代碼
 const TV_EXCHANGE = {
   TSE: 'TWSE',     // 上市
@@ -80,9 +169,7 @@ const rankState = {
 
 // ── 1. 載入 JSON ────────────────────────────────────
 async function loadData() {
-  const res = await fetch(`data/latest.json?t=${Date.now()}`);
-  if (!res.ok) throw new Error(`無法載入 latest.json (${res.status})`);
-  return await res.json();
+  return await fetchJsonGz(dailyPath('latest'));
 }
 
 // ── 2. 初始化 Header / Meta ─────────────────────────
@@ -465,9 +552,7 @@ function bindTabs() {
 async function loadIndustryRanking() {
   if (rankState.loaded) return;
   try {
-    const res = await fetch(`data/industry_ranking.json?t=${Date.now()}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    rankState.data = await res.json();
+    rankState.data = await fetchJsonGz(dailyPath('industry_ranking'));
     rankState.loaded = true;
     document.getElementById('ind-meta').textContent =
       `${rankState.data.data_source}｜更新於 ${rankState.data.generated_at.slice(11, 16)}`;
@@ -621,9 +706,7 @@ function bindRankingControls() {
 async function loadFlow() {
   if (flowState.loaded) return;
   try {
-    const res = await fetch(`data/industry_flow.json?t=${Date.now()}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    flowState.data = await res.json();
+    flowState.data = await fetchJsonGz(dailyPath('industry_flow'));
     flowState.loaded = true;
 
     document.getElementById('flow-meta').textContent =
@@ -890,9 +973,7 @@ function bindFlowTableClicks() {
 async function loadTheme() {
   if (themeState.loaded) return;
   try {
-    const res = await fetch(`data/theme_flow.json?t=${Date.now()}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    themeState.data = await res.json();
+    themeState.data = await fetchJsonGz(dailyPath('theme_flow'));
     themeState.loaded = true;
     document.getElementById('theme-updated').textContent =
       `${themeState.data.data_source}｜window=${themeState.data.window}｜更新 ${themeState.data.generated_at.slice(11, 16)}`;
@@ -1065,9 +1146,10 @@ function renderThemeHistory() {
 async function loadMarket() {
   if (marketState.loaded) return;
   try {
-    const res = await fetch(`data/market.json?t=${Date.now()}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const d = await res.json();
+    // market 永遠用「最新有 market 的日期」（chip 資料是當下狀態，可能比 screener 新一天）
+    const mDate = (indexMeta?.dates || []).find(e => (e.has || []).includes('market'))?.date
+                  || indexMeta?.latest_date || currentDate;
+    const d = await fetchJsonGz(`data/daily/${mDate}/market.json.gz`);
     marketState.loaded = true;
     renderMarket(d);
   } catch (err) {
@@ -1198,6 +1280,8 @@ function renderMarket(d) {
 // ── 9. 啟動 ─────────────────────────────────────────
 (async function init() {
   try {
+    await loadIndex();
+    renderDatePicker();
     const data = await loadData();
     state.data = data;
 

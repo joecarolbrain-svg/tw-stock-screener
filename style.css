@@ -30,6 +30,18 @@ body {
 
 .meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
+.date-picker {
+  background: #1a2233;
+  color: #cfe1ff;
+  border: 1px solid #2a3850;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.date-picker:hover { border-color: #4a90e2; }
+.date-picker:focus { outline: none; border-color: #4a90e2; }
+
 .badge {
   padding: 3px 10px;
   border-radius: 12px;

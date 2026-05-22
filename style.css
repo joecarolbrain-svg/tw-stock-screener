@@ -7,7 +7,10 @@ body {
   color: #e0e0e0;
   font-family: -apple-system, "Segoe UI", "Noto Sans TC", Roboto, sans-serif;
   font-size: 13px;
+  overflow-x: hidden;
 }
+html { overflow-x: hidden; }
+.tab-panel { max-width: 100vw; overflow-x: hidden; }
 
 .muted { color: #888; font-size: 12px; }
 
@@ -183,19 +186,16 @@ body {
 .subtab-btn:hover { background: #252544; color: #e0e0e0; }
 .subtab-btn.active { background: #00d4aa; color: #000; border-color: #00d4aa; }
 
-.flow-pane-wide { grid-column: span 2; }
-@media (max-width: 1200px) {
-  .flow-pane-wide { grid-column: auto; }
-}
+.flow-pane-wide { grid-column: auto; }
 
-/* ── Flow（資金流向）── */
+/* ── Flow（資金流向 / 產業排行 / 題材資金流向） — 垂直堆疊 ── */
 .flow-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: minmax(300px, 1fr) minmax(300px, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   padding: 0 12px 12px;
-  height: calc(100vh - 200px);
+  width: 100%;
+  box-sizing: border-box;
 }
 .flow-pane {
   background: #131326;
@@ -204,12 +204,16 @@ body {
   padding: 8px;
   display: flex;
   flex-direction: column;
+  height: 420px;        /* 每個 pane 固定高度，整頁靠瀏覽器 scroll */
   min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
-.flow-pane > [id$="-table"] { flex: 1; min-height: 0; }
+.flow-pane > [id$="-table"] { flex: 1; min-height: 0; overflow: auto; }
 
-@media (max-width: 1200px) {
-  .flow-grid { grid-template-columns: 1fr; grid-template-rows: repeat(4, minmax(280px, 1fr)); }
+@media (max-width: 900px) {
+  .flow-pane { height: 360px; }
 }
 
 /* ── Filters ─────────────────────────────────────── */
@@ -323,7 +327,8 @@ input:focus, select:focus { outline: 2px solid #00d4aa; outline-offset: -1px; }
 .filler { flex: 1; }
 
 /* ── Main table ──────────────────────────────────── */
-main { padding: 0 8px; }
+main { padding: 0 8px; max-width: 100vw; overflow-x: auto; box-sizing: border-box; }
+#main-table, #watchlist-table { max-width: 100%; }
 #main-table { margin: 8px 0; }
 
 /* Tabulator midnight tweaks */

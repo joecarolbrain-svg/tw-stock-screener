@@ -160,10 +160,12 @@ const flowState = {
 const rankState = {
   data: null,
   days: '20',
-  topN: 3,
   selectedIndustry: null,
+  selectedSub: null,         // 細產業選擇 → 個股/歷史以此為優先
   indTable: null,
   subTable: null,
+  stocksTable: null,
+  historyTable: null,
   loaded: false,
 };
 
@@ -535,8 +537,9 @@ function bindTabs() {
       // Resize tables after switch
       setTimeout(() => {
         if (state.table) state.table.redraw();
-        if (rankState.indTable) rankState.indTable.redraw();
-        if (rankState.subTable) rankState.subTable.redraw();
+        ['indTable','subTable','stocksTable','historyTable'].forEach(k => {
+          if (rankState[k]) rankState[k].redraw();
+        });
         ['indTable','subTable','stocksTable','historyTable'].forEach(k => {
           if (flowState[k]) flowState[k].redraw();
         });
@@ -557,19 +560,34 @@ async function loadIndustryRanking() {
     document.getElementById('ind-meta').textContent =
       `${rankState.data.data_source}｜更新於 ${rankState.data.generated_at.slice(11, 16)}`;
 
-    // 一次性綁原生 click delegation（Tabulator rowClick 在 v6 不可靠）
+    // 大產業列：點 → 篩細產業 + 該大產業個股 + 該大產業歷史
     document.getElementById('industry-table').addEventListener('click', (e) => {
       const rowEl = e.target.closest('.tabulator-row');
       if (!rowEl || !rankState.indTable) return;
       const tabRow = rankState.indTable.getRows().find(r => r.getElement() === rowEl);
       if (!tabRow) return;
       const ind = tabRow.getData().industry;
-      if (!ind || ind === rankState.selectedIndustry) return;
+      if (!ind) return;
       rankState.selectedIndustry = ind;
-      document.getElementById('selected-industry-name').textContent =
-        `🏭 ${ind} — 細產業明細`;
+      rankState.selectedSub = null;
       rankState.indTable.getRows().forEach(r => r.reformat());
       renderSubIndustry();
+      renderIndustryStocks('industry', ind);
+      renderIndustryHistory('industry', ind);
+    });
+
+    // 細產業列：點 → 個股 / 歷史改為該細產業
+    document.getElementById('sub-industry-table').addEventListener('click', (e) => {
+      const rowEl = e.target.closest('.tabulator-row');
+      if (!rowEl || !rankState.subTable) return;
+      const tabRow = rankState.subTable.getRows().find(r => r.getElement() === rowEl);
+      if (!tabRow) return;
+      const sub = tabRow.getData().sub_industry;
+      if (!sub) return;
+      rankState.selectedSub = sub;
+      rankState.subTable.getRows().forEach(r => r.reformat());
+      renderIndustryStocks('sub_industry', sub);
+      renderIndustryHistory('sub_industry', sub);
     });
 
     renderIndustryRanking();
@@ -580,24 +598,30 @@ async function loadIndustryRanking() {
   }
 }
 
+function _top1Cell(row) {
+  const warn = row.top1_warn || '';
+  const name = row.top1_name || '';
+  const code = row.top1_ticker || '';
+  const ret = row.top1_return;
+  if (!code) return '';
+  const sign = ret > 0 ? '+' : '';
+  const cls = ret > 0 ? 'num-pos' : 'num-neg';
+  const retStr = ret != null ? `${sign}${ret.toFixed(1)}%` : '';
+  return `<span title="${code} ${name} ${retStr}">${warn} <span class="${cls}">${retStr}</span></span>`;
+}
+
 function renderIndustryRanking() {
   const block = rankState.data?.by_days?.[rankState.days];
   if (!block) return;
 
-  // 大產業表（左）：name + bar + return + count
-  const indRows = block.industries.map(r => ({
-    industry: r.industry,
-    avg_return: r.avg_return,
-    stock_count: r.stock_count,
-  }));
-
+  const indRows = block.industries.map(r => ({ ...r }));
   const maxAbs = Math.max(1, ...indRows.map(r => Math.abs(r.avg_return)));
 
   if (rankState.indTable) rankState.indTable.destroy();
   rankState.indTable = new Tabulator('#industry-table', {
     data: indRows,
     layout: 'fitColumns',
-    height: 'calc(100vh - 240px)',
+    height: '100%',
     initialSort: [{ column: 'avg_return', dir: 'desc' }],
     rowFormatter: (row) => {
       const isSel = row.getData().industry === rankState.selectedIndustry;
@@ -605,18 +629,15 @@ function renderIndustryRanking() {
       row.getElement().style.cursor = 'pointer';
     },
     columns: [
+      { title: '大產業', field: 'industry', widthGrow: 1.8 },
       {
-        title: '大產業', field: 'industry', widthGrow: 2,
-      },
-      {
-        title: '平均漲幅%', field: 'avg_return', hozAlign: 'right', widthGrow: 1.4,
+        title: '平均漲幅%', field: 'avg_return', hozAlign: 'right', widthGrow: 1.2,
         sorter: 'number',
         formatter: (cell) => {
           const v = cell.getValue();
           const cls = v > 0 ? 'num-pos' : (v < 0 ? 'num-neg' : '');
-          // bar 設成 cell 背景，從右側往左/從左往右畫，獨立於文字長度
           const pct = Math.min(100, Math.abs(v) / maxAbs * 100);
-          const color = v < 0 ? 'rgba(239, 83, 80, 0.25)' : 'rgba(0, 212, 170, 0.25)';
+          const color = v < 0 ? 'rgba(74, 222, 128, 0.25)' : 'rgba(255, 107, 107, 0.25)';
           const dir = v < 0 ? 'to left' : 'to right';
           cell.getElement().style.backgroundImage =
             `linear-gradient(${dir}, ${color} ${pct}%, transparent ${pct}%)`;
@@ -624,66 +645,166 @@ function renderIndustryRanking() {
           return `<span class="${cls}" style="position:relative;z-index:1">${v > 0 ? '+' : ''}${v.toFixed(2)}%</span>`;
         },
       },
-      { title: '個股數', field: 'stock_count', hozAlign: 'right', widthGrow: 0.6, sorter: 'number' },
+      { title: '家數', field: 'stock_count', hozAlign: 'right', widthGrow: 0.5, sorter: 'number' },
+      {
+        title: 'Top1', field: 'top1_warn', widthGrow: 1, hozAlign: 'center',
+        headerSort: false,
+        formatter: (cell) => _top1Cell(cell.getRow().getData()),
+      },
     ],
   });
 
-  // 預設選第一名
   if (!rankState.selectedIndustry && indRows.length) {
     rankState.selectedIndustry = indRows[0].industry;
-    document.getElementById('selected-industry-name').textContent =
-      `🏭 ${rankState.selectedIndustry} — 細產業明細`;
   }
   renderSubIndustry();
+  if (rankState.selectedIndustry) {
+    renderIndustryStocks('industry', rankState.selectedIndustry);
+    renderIndustryHistory('industry', rankState.selectedIndustry);
+  }
 }
 
 function renderSubIndustry() {
   const block = rankState.data?.by_days?.[rankState.days];
   if (!block || !rankState.selectedIndustry) return;
 
-  const subs = block.sub_industries.filter(
-    s => s.industry === rankState.selectedIndustry
-  );
+  document.getElementById('sub-industry-title').textContent =
+    `🏭 ${rankState.selectedIndustry} — 細產業明細`;
 
-  const topN = rankState.topN;
-  const subRows = subs.map(s => ({
-    sub_industry: s.sub_industry,
-    avg_return: s.avg_return,
-    stock_count: s.stock_count,
-    top_stocks_text: s.top_stocks.slice(0, topN).map(
-      t => `${t.ticker} ${t.name}(${t.return > 0 ? '+' : ''}${t.return.toFixed(1)}%)`
-    ).join(', '),
-    _top_stocks: s.top_stocks.slice(0, topN),
-  }));
+  const subRows = block.sub_industries
+    .filter(s => s.industry === rankState.selectedIndustry)
+    .map(s => ({ ...s }));
 
   if (rankState.subTable) rankState.subTable.destroy();
   rankState.subTable = new Tabulator('#sub-industry-table', {
     data: subRows,
     layout: 'fitColumns',
-    height: 'calc(100vh - 240px)',
+    height: '100%',
     initialSort: [{ column: 'avg_return', dir: 'desc' }],
+    rowFormatter: (row) => {
+      const isSel = row.getData().sub_industry === rankState.selectedSub;
+      row.getElement().style.background = isSel ? 'rgba(0, 212, 170, 0.18)' : '';
+      row.getElement().style.cursor = 'pointer';
+    },
     columns: [
-      { title: '細產業', field: 'sub_industry', widthGrow: 1 },
+      { title: '細產業', field: 'sub_industry', widthGrow: 1.5 },
       {
-        title: '平均漲幅%', field: 'avg_return', hozAlign: 'right', widthGrow: 0.8, sorter: 'number',
+        title: '平均漲幅%', field: 'avg_return', hozAlign: 'right', widthGrow: 1,
+        sorter: 'number',
         formatter: (cell) => {
           const v = cell.getValue();
           const cls = v > 0 ? 'num-pos' : (v < 0 ? 'num-neg' : '');
           return `<span class="${cls}">${v > 0 ? '+' : ''}${v.toFixed(2)}%</span>`;
         },
       },
-      { title: '個股數', field: 'stock_count', hozAlign: 'right', widthGrow: 0.5, sorter: 'number' },
+      { title: '家數', field: 'stock_count', hozAlign: 'right', widthGrow: 0.5, sorter: 'number' },
       {
-        title: `前 ${topN} 強`, field: 'top_stocks_text', widthGrow: 3,
+        title: 'Top1', field: 'top1_warn', widthGrow: 1, hozAlign: 'center',
+        headerSort: false,
+        formatter: (cell) => _top1Cell(cell.getRow().getData()),
+      },
+    ],
+  });
+}
+
+function renderIndustryStocks(level, name) {
+  const block = rankState.data?.by_days?.[rankState.days];
+  if (!block) return;
+
+  let stocks = [];
+  if (level === 'sub_industry') {
+    const sub = block.sub_industries.find(s => s.sub_industry === name);
+    if (sub) stocks = sub.top_stocks;
+    document.getElementById('ind-stocks-title').textContent =
+      `📈 ${name} — 個股清單（${stocks.length} 檔）`;
+  } else {
+    // 大產業：合併底下所有 sub 的 top_stocks（去重）
+    const seen = new Set();
+    block.sub_industries
+      .filter(s => s.industry === name)
+      .forEach(s => s.top_stocks.forEach(t => {
+        if (!seen.has(t.ticker)) { seen.add(t.ticker); stocks.push(t); }
+      }));
+    stocks.sort((a, b) => b.return - a.return);
+    document.getElementById('ind-stocks-title').textContent =
+      `📈 ${name} — 個股清單（${stocks.length} 檔）`;
+  }
+
+  if (rankState.stocksTable) rankState.stocksTable.destroy();
+  rankState.stocksTable = new Tabulator('#ind-stocks-table', {
+    data: stocks,
+    layout: 'fitColumns',
+    height: '100%',
+    initialSort: [{ column: 'return', dir: 'desc' }],
+    columns: [
+      {
+        title: '代號', field: 'ticker', widthGrow: 0.8,
         formatter: (cell) => {
-          const tops = cell.getRow().getData()._top_stocks || [];
-          return tops.map(t => {
-            const cls = t.return > 0 ? 'num-pos' : 'num-neg';
-            const sign = t.return > 0 ? '+' : '';
-            return `<a class="ticker-link" href="${tvUrl(t.ticker, t.market)}" target="_blank">${t.ticker}${t.name}</a>(<span class="${cls}">${sign}${t.return.toFixed(1)}%</span>)`;
-          }).join(' ｜ ');
+          const r = cell.getRow().getData();
+          return `<a class="ticker-link" href="${tvUrl(r.ticker, r.market)}" target="_blank">${r.ticker}</a>`;
         },
       },
+      { title: '名稱', field: 'name', widthGrow: 1.2 },
+      {
+        title: `${rankState.days}日漲幅%`, field: 'return', hozAlign: 'right', widthGrow: 1,
+        sorter: 'number',
+        formatter: (cell) => {
+          const v = cell.getValue();
+          const cls = v > 0 ? 'num-pos' : (v < 0 ? 'num-neg' : '');
+          return `<span class="${cls}">${v > 0 ? '+' : ''}${v.toFixed(2)}%</span>`;
+        },
+      },
+    ],
+  });
+}
+
+function renderIndustryHistory(level, name) {
+  const block = rankState.data?.by_days?.[rankState.days];
+  if (!block) return;
+
+  let history = [];
+  if (level === 'sub_industry') {
+    const sub = block.sub_industries.find(s => s.sub_industry === name);
+    history = sub?.history || [];
+  } else {
+    const ind = block.industries.find(s => s.industry === name);
+    history = ind?.history || [];
+  }
+  document.getElementById('ind-history-title').textContent =
+    `📊 ${name} — 20 日每日平均漲跌（${history.length} 日）`;
+
+  const maxAbs = Math.max(0.1, ...history.map(h => Math.abs(h.avg_return)));
+  const rows = history.slice().reverse();  // 最新在上
+
+  if (rankState.historyTable) rankState.historyTable.destroy();
+  rankState.historyTable = new Tabulator('#ind-history-table', {
+    data: rows,
+    layout: 'fitColumns',
+    height: '100%',
+    columns: [
+      {
+        title: '日期', field: 'date', widthGrow: 1,
+        formatter: (cell) => {
+          const d = cell.getValue();
+          return d ? `${d.slice(4, 6)}/${d.slice(6, 8)}` : '';
+        },
+      },
+      {
+        title: '平均漲跌%', field: 'avg_return', hozAlign: 'right', widthGrow: 1.5,
+        sorter: 'number',
+        formatter: (cell) => {
+          const v = cell.getValue();
+          const cls = v > 0 ? 'num-pos' : (v < 0 ? 'num-neg' : '');
+          const pct = Math.min(100, Math.abs(v) / maxAbs * 100);
+          const color = v < 0 ? 'rgba(74, 222, 128, 0.28)' : 'rgba(255, 107, 107, 0.28)';
+          const dir = v < 0 ? 'to left' : 'to right';
+          cell.getElement().style.backgroundImage =
+            `linear-gradient(${dir}, ${color} ${pct}%, transparent ${pct}%)`;
+          cell.getElement().style.backgroundRepeat = 'no-repeat';
+          return `<span class="${cls}" style="position:relative;z-index:1">${v > 0 ? '+' : ''}${v.toFixed(2)}%</span>`;
+        },
+      },
+      { title: '家數', field: 'stock_count', hozAlign: 'right', widthGrow: 0.5, sorter: 'number' },
     ],
   });
 }
@@ -692,13 +813,16 @@ function bindRankingControls() {
   document.querySelectorAll('input[name="ind-days"]').forEach(r => {
     r.addEventListener('change', e => {
       rankState.days = e.target.value;
-      rankState.selectedIndustry = null;
+      // 切換 window 時保留 selectedIndustry/sub，重 render
       renderIndustryRanking();
+      if (rankState.selectedSub) {
+        renderIndustryStocks('sub_industry', rankState.selectedSub);
+        renderIndustryHistory('sub_industry', rankState.selectedSub);
+      } else if (rankState.selectedIndustry) {
+        renderIndustryStocks('industry', rankState.selectedIndustry);
+        renderIndustryHistory('industry', rankState.selectedIndustry);
+      }
     });
-  });
-  document.getElementById('ind-topn').addEventListener('change', e => {
-    rankState.topN = parseInt(e.target.value, 10);
-    renderSubIndustry();
   });
 }
 

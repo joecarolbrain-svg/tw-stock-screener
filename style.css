@@ -373,3 +373,31 @@ footer {
   .filter-group { min-width: 100%; }
   .filter-group.small { min-width: 45%; max-width: none; }
 }
+
+/* ── 細產業 前 N 強 chip ────────────────────────── */
+.top-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  padding: 4px 0;
+  white-space: normal;
+  line-height: 1.4;
+}
+.top-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  text-decoration: none;
+  border: 1px solid #2a3850;
+  background: #1a2233;
+  color: #cfe1ff;
+  transition: border-color 0.15s, background 0.15s;
+}
+.top-chip:hover { border-color: #4a90e2; background: #223149; }
+.top-chip .chip-code { font-weight: 600; }
+.top-chip .chip-name { color: #aab8cf; }
+.top-chip.chip-pos .chip-ret { color: #ff6b6b; font-weight: 600; }
+.top-chip.chip-neg .chip-ret { color: #4ade80; font-weight: 600; }

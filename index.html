@@ -117,31 +117,33 @@
             <label><input type="radio" name="ind-days" value="20" checked /> 20 日 (~1月)</label>
           </div>
         </div>
-        <div class="filter-group small">
-          <label class="filter-label">每細產業前 N 強</label>
-          <select id="ind-topn">
-            <option value="3" selected>前 3 強</option>
-            <option value="5">前 5 強</option>
-            <option value="10">前 10 強</option>
-            <option value="20">前 20 強</option>
-            <option value="30">前 30 強</option>
-          </select>
-        </div>
         <span class="filler"></span>
         <span class="muted" id="ind-meta">--</span>
       </div>
+      <div class="filter-row legend-row">
+        <span class="legend-label">欄位說明：</span>
+        <span class="legend-item"><b>平均漲幅</b> 該族群所有個股 N 日漲跌的算術平均</span>
+        <span class="legend-item"><b>Top1</b> ✅ 健康 / ⚠️ 領頭股 ≥族群均 2× / 🚨 ≥3×（避免單股拉抬）</span>
+        <span class="legend-item">點族群列 → 右側 / 下方更新對應個股與歷史</span>
+      </div>
     </div>
 
-    <div class="ranking-grid">
-      <div class="ranking-left">
+    <div class="flow-grid">
+      <div class="flow-pane">
         <div class="panel-title">大產業漲幅排行</div>
         <div id="industry-table"></div>
       </div>
-      <div class="ranking-right">
-        <div class="panel-title">
-          <span id="selected-industry-name">點左側大產業列 → 看細產業明細</span>
-        </div>
+      <div class="flow-pane">
+        <div class="panel-title" id="sub-industry-title">細產業明細（點左側大產業可篩選）</div>
         <div id="sub-industry-table"></div>
+      </div>
+      <div class="flow-pane">
+        <div class="panel-title" id="ind-stocks-title">個股清單（點族群列查看）</div>
+        <div id="ind-stocks-table"></div>
+      </div>
+      <div class="flow-pane">
+        <div class="panel-title" id="ind-history-title">20 日每日平均漲跌（點族群列查看）</div>
+        <div id="ind-history-table"></div>
       </div>
     </div>
   </section>

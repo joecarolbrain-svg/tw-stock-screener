@@ -1144,7 +1144,7 @@ function bindFlowWindowSelector() {
 }
 
 // ── 跨 window 排名 mini bar 渲染 ─────────────
-const FLOW_WINDOWS_ORDER = [3, 5, 10, 20, 40, 60];
+const FLOW_WINDOWS_ORDER = [1, 3, 5, 10, 20, 40, 60];
 function _rankClass(r) {
   if (r == null) return 'rk-none';
   if (r <= 5)  return 'rk-top5';

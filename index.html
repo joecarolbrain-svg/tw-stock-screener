@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260522j" />
+  <link rel="stylesheet" href="style.css?v=20260522k" />
 </head>
 <body>
   <header class="topbar">
@@ -192,6 +192,7 @@
         <span class="muted" id="flow-meta">資金流向：以族群成交額佔大盤比，計算 N 日 z-score</span>
         <label class="muted" style="margin-left:12px">回看：
           <select id="flow-window" class="inline-select">
+            <option value="1">當日</option>
             <option value="3">3 日</option>
             <option value="5">5 日</option>
             <option value="10">10 日</option>
@@ -240,6 +241,7 @@
         </div>
         <label class="muted" style="margin-left:12px">回看：
           <select id="theme-window" class="inline-select">
+            <option value="1">當日</option>
             <option value="3">3 日</option>
             <option value="5">5 日</option>
             <option value="10">10 日</option>
@@ -287,6 +289,6 @@
     <span class="muted">點代號 → TradingView K 線</span>
   </footer>
 
-  <script src="app.js?v=20260522j"></script>
+  <script src="app.js?v=20260522k"></script>
 </body>
 </html>

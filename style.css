@@ -454,3 +454,54 @@ footer {
 .rk-low,
 .rk-none  { background: #15192a; color: #555; }
 .rk-cur   { border-color: #00d4aa; box-shadow: 0 0 0 1px #00d4aa44; }
+
+/* ── 跨策略命中數欄 + 族群集中度欄 ──────────────── */
+.hits-strong {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #00ff9d;
+  color: #0d0d1a;
+  font-weight: 800;
+  font-size: 12px;
+}
+.hits-mid {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #00d4aa;
+  color: #0d0d1a;
+  font-weight: 700;
+  font-size: 12px;
+}
+.conc-high {
+  color: #ff5252;
+  font-weight: 700;
+}
+.conc-mid {
+  color: #ffb74d;
+  font-weight: 600;
+}
+
+/* ── 行內 checkbox 開關 ───────────────────────── */
+.check-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #aaa;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #2a2a3e;
+}
+.check-toggle:hover { color: #e0e0e0; border-color: #4a90e2; }
+.check-toggle input { margin: 0; cursor: pointer; }
+
+/* ── 自選股 watch list ──────────────────────── */
+[data-panel="watchlist"] main {
+  padding: 0 12px 12px;
+}
+[data-panel="watchlist"] #watchlist-table {
+  margin-top: 6px;
+}

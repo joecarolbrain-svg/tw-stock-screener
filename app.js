@@ -124,6 +124,14 @@ const state = {
   // 自選股
   pinned: new Set(JSON.parse(localStorage.getItem('pinnedTickers') || '[]')),
   onlyPinned: false,
+  // 只顯示族群 z≥1
+  onlyHotGroup: false,
+};
+
+// 自選股分頁狀態
+const watchState = {
+  table: null,
+  loaded: false,
 };
 
 function savePinned() {
@@ -342,6 +350,26 @@ function buildTable(data) {
         ).join('');
       };
     }
+    // 命中數欄：≥2 用螢光綠（DannyQuant Top 10 共振訊號）
+    if (c.id === 'hits') {
+      def.formatter = (cell) => {
+        const v = cell.getValue();
+        if (v == null || v === 0) return '<span class="muted">0</span>';
+        if (v >= 3) return `<span class="hits-strong">×${v}</span>`;
+        if (v >= 2) return `<span class="hits-mid">×${v}</span>`;
+        return `<span>${v}</span>`;
+      };
+    }
+    // 族群集中度欄：≥70 標紅、≥50 黃
+    if (c.id === 'ind_top3_share') {
+      def.formatter = (cell) => {
+        const v = cell.getValue();
+        if (v == null) return '';
+        const cls = v >= 70 ? 'conc-high' : (v >= 50 ? 'conc-mid' : '');
+        const icon = v >= 70 ? '🚨 ' : (v >= 50 ? '⚠️ ' : '');
+        return `<span class="${cls}" title="該產業前 3 大個股佔成交額${v.toFixed(1)}%">${icon}${v.toFixed(1)}</span>`;
+      };
+    }
     return def;
   })];
 
@@ -373,6 +401,8 @@ function applyFilters() {
   state.table.setFilter((row) => {
     // 只看勾選
     if (state.onlyPinned && !state.pinned.has(row.ticker)) return false;
+    // 只顯示族群 z≥1
+    if (state.onlyHotGroup && (row.max_group_z == null || row.max_group_z < 1)) return false;
     // 分類（AND/OR）
     if (state.selectedCats.size > 0) {
       const rowCats = new Set(row.categories || []);
@@ -470,6 +500,14 @@ function bindControls() {
   document.getElementById('btn-save-preset').addEventListener('click', saveCurrentPreset);
   document.getElementById('preset-select').addEventListener('change', loadPreset);
   document.getElementById('btn-delete-preset').addEventListener('click', deleteCurrentPreset);
+
+  const hotChk = document.getElementById('only-hot-group');
+  if (hotChk) {
+    hotChk.addEventListener('change', e => {
+      state.onlyHotGroup = e.target.checked;
+      applyFilters();
+    });
+  }
 
   document.getElementById('btn-only-pinned').addEventListener('click', (e) => {
     state.onlyPinned = !state.onlyPinned;
@@ -601,6 +639,134 @@ function deleteCurrentPreset() {
   sel.value = '';
 }
 
+// ── 自選股 watch list 分頁 ───────────────────────────
+function renderWatchlist() {
+  if (!state.data) return;
+  const pinned = state.pinned;
+  const rows = (state.data.rows || []).filter(r => pinned.has(r.ticker));
+
+  document.getElementById('watchlist-count').textContent = `${rows.length} 檔`;
+  const clr = document.getElementById('btn-watch-clear');
+  if (clr) clr.disabled = rows.length === 0;
+
+  const cmap = state.data._catColor || {};
+
+  if (watchState.table) watchState.table.destroy();
+
+  if (rows.length === 0) {
+    document.getElementById('watchlist-table').innerHTML =
+      `<div style="padding:30px;color:#888;text-align:center">
+        尚未勾選任何個股 — 到「📊 每日看板」點 ☆ 加入
+      </div>`;
+    watchState.table = null;
+    return;
+  }
+
+  watchState.table = new Tabulator('#watchlist-table', {
+    data: rows,
+    layout: 'fitColumns',
+    height: 'calc(100vh - 280px)',
+    initialSort: [{ column: 'hits', dir: 'desc' }, { column: 'score', dir: 'desc' }],
+    placeholder: '尚未勾選個股',
+    columns: [
+      {
+        title: '📌', field: '_pin', width: 44, hozAlign: 'center', headerSort: false,
+        formatter: () => '<span style="color:#ffd166;font-size:16px">★</span>',
+        cellClick: (e, cell) => {
+          const t = cell.getRow().getData().ticker;
+          togglePin(t);
+          renderWatchlist();
+        },
+      },
+      {
+        title: '代號', field: 'ticker', widthGrow: 0.6,
+        formatter: (cell) => {
+          const r = cell.getRow().getData();
+          return `<a class="ticker-link" href="${tvUrl(r.ticker, r.market)}" target="_blank">${r.ticker}</a>`;
+        },
+      },
+      { title: '名稱', field: 'name', widthGrow: 1 },
+      {
+        title: '當日%', field: 'chg_pct', hozAlign: 'right', widthGrow: 0.6, sorter: 'number',
+        formatter: (c) => {
+          const v = c.getValue();
+          if (v == null) return '';
+          const cls = v > 0 ? 'num-pos' : (v < 0 ? 'num-neg' : '');
+          return `<span class="${cls}">${v > 0 ? '+' : ''}${v.toFixed(2)}</span>`;
+        },
+      },
+      {
+        title: '命中數', field: 'hits', hozAlign: 'right', widthGrow: 0.5, sorter: 'number',
+        formatter: (c) => {
+          const v = c.getValue();
+          if (v == null || v === 0) return '<span class="muted">0</span>';
+          if (v >= 3) return `<span class="hits-strong">×${v}</span>`;
+          if (v >= 2) return `<span class="hits-mid">×${v}</span>`;
+          return `<span>${v}</span>`;
+        },
+      },
+      {
+        title: '命中策略', field: 'hit_strategy', widthGrow: 1.6, headerSort: false,
+        formatter: (cell) => {
+          const row = cell.getRow().getData();
+          const cats = row.categories || [];
+          return cats.map(code =>
+            `<span class="cat-tag" style="background:${cmap[code] || '#888'}">${code}</span>`
+          ).join('') || '<span class="muted">—</span>';
+        },
+      },
+      {
+        title: '分數', field: 'score', hozAlign: 'right', widthGrow: 0.5, sorter: 'number',
+        formatter: (c) => c.getValue() != null ? c.getValue().toFixed(1) : '',
+      },
+      { title: '產業', field: 'industry', widthGrow: 1 },
+      {
+        title: '族群集中%', field: 'ind_top3_share', hozAlign: 'right', widthGrow: 0.7, sorter: 'number',
+        formatter: (c) => {
+          const v = c.getValue();
+          if (v == null) return '';
+          const cls = v >= 70 ? 'conc-high' : (v >= 50 ? 'conc-mid' : '');
+          const icon = v >= 70 ? '🚨 ' : (v >= 50 ? '⚠️ ' : '');
+          return `<span class="${cls}">${icon}${v.toFixed(1)}</span>`;
+        },
+      },
+      {
+        title: '族群最高z', field: 'max_group_z', hozAlign: 'right', widthGrow: 0.6, sorter: 'number',
+        formatter: (c) => {
+          const v = c.getValue();
+          if (v == null) return '';
+          const cls = v >= 1.5 ? 'num-pos' : (v >= 0.5 ? 'num-pos-soft' : '');
+          return `<span class="${cls}">${v > 0 ? '+' : ''}${v.toFixed(2)}</span>`;
+        },
+      },
+      { title: '熱類股', field: 'hot_sector', widthGrow: 1.2, headerSort: false },
+      { title: '熱題材', field: 'hot_concept', widthGrow: 1.5, headerSort: false },
+      {
+        title: '收盤', field: 'close', hozAlign: 'right', widthGrow: 0.5, sorter: 'number',
+        formatter: (c) => c.getValue() != null ? c.getValue().toFixed(2) : '',
+      },
+    ],
+  });
+}
+
+function bindWatchlistControls() {
+  const clr = document.getElementById('btn-watch-clear');
+  if (clr) {
+    clr.addEventListener('click', () => {
+      if (!confirm(`清空全部勾選（${state.pinned.size} 檔）？`)) return;
+      state.pinned.clear();
+      savePinned();
+      updatePinSummary();
+      renderWatchlist();
+      // 主表也要刷新
+      if (state.table) {
+        state.table.getRows().forEach(row => { try { row.unfreeze(); } catch(_){} });
+        state.table.redraw(true);
+      }
+    });
+  }
+}
+
 // ── X. Tab 切換 ─────────────────────────────────────
 function bindTabs() {
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -611,6 +777,9 @@ function bindTabs() {
       document.querySelectorAll('.tab-panel').forEach(p =>
         p.classList.toggle('active', p.dataset.panel === tab));
       // Lazy load
+      if (tab === 'watchlist') {
+        renderWatchlist();   // 每次切到都重渲染，反應 pin 變更
+      }
       if (tab === 'industry-ranking' && !rankState.loaded) {
         loadIndustryRanking();
       }
@@ -1606,6 +1775,7 @@ function renderMarket(d) {
     buildTable(data);
     bindControls();
     bindTabs();
+    bindWatchlistControls();
     refreshPresetSelect();
     applyFilters();
   } catch (err) {

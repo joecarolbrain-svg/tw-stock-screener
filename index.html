@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260522g" />
+  <link rel="stylesheet" href="style.css?v=20260522h" />
 </head>
 <body>
   <header class="topbar">
@@ -29,6 +29,7 @@
 
   <nav class="tabs">
     <button class="tab-btn active" data-tab="dashboard">📊 每日看板</button>
+    <button class="tab-btn" data-tab="watchlist">⭐ 自選股</button>
     <button class="tab-btn" data-tab="industry-ranking">🏭 產業排行</button>
     <button class="tab-btn" data-tab="flow">🌊 資金流向</button>
     <button class="tab-btn" data-tab="concept">📍 題材資金流向</button>
@@ -99,6 +100,10 @@
       <button id="btn-only-pinned" class="btn btn-ghost" disabled>★ 只看勾選</button>
       <button id="btn-clear-pinned" class="btn btn-ghost btn-danger" disabled>清空勾選</button>
       <span id="pin-summary" class="muted"></span>
+      <span style="border-left:1px solid #2a2a3e;height:20px;margin:0 6px"></span>
+      <label class="check-toggle" title="只顯示族群最高 z ≥ 1 的個股（族群在熱區）">
+        <input type="checkbox" id="only-hot-group" /> 🌊 只顯示族群 z≥1
+      </label>
       <span class="filler"></span>
       <span id="filter-summary" class="muted"></span>
     </div>
@@ -109,6 +114,24 @@
   </main>
 
   </section><!-- /panel dashboard -->
+
+  <section class="tab-panel" data-panel="watchlist">
+    <div class="filters">
+      <div class="filter-row">
+        <span class="muted">⭐ 自選股 watch list — 顯示你勾選的個股，含跨策略命中數 / 族群集中度 / 熱類股 / 熱題材</span>
+        <span class="filler"></span>
+        <span class="muted" id="watchlist-count">0 檔</span>
+        <button id="btn-watch-clear" class="btn btn-ghost btn-danger" disabled>清空勾選</button>
+      </div>
+      <div class="filter-row legend-row">
+        <span class="legend-label">使用方式：</span>
+        <span class="legend-item">在「每日看板」點 ☆ → 加入自選</span>
+        <span class="legend-item"><b>命中數</b> 跨策略共振 ≥2 條 = DannyQuant Top 10 隱含訊號</span>
+        <span class="legend-item"><b>族群集中%</b> ≥70 標紅 = 行情可能由 Top3 拉抬</span>
+      </div>
+    </div>
+    <main><div id="watchlist-table"></div></main>
+  </section>
 
   <section class="tab-panel" data-panel="industry-ranking">
     <div class="filters">
@@ -260,6 +283,6 @@
     <span class="muted">點代號 → TradingView K 線</span>
   </footer>
 
-  <script src="app.js?v=20260522g"></script>
+  <script src="app.js?v=20260522h"></script>
 </body>
 </html>

@@ -592,16 +592,6 @@ function renderIndustryRanking() {
     layout: 'fitColumns',
     height: '100%',
     initialSort: [{ column: 'avg_return', dir: 'desc' }],
-    rowClick: (e, row) => {
-      const ind = row.getData().industry;
-      if (!ind) return;
-      rankState.selectedIndustry = ind;
-      rankState.selectedSub = null;
-      rankState.indTable.getRows().forEach(r => r.reformat());
-      renderSubIndustry();
-      renderIndustryStocks('industry', ind);
-      renderIndustryHistory('industry', ind);
-    },
     rowFormatter: (row) => {
       const isSel = row.getData().industry === rankState.selectedIndustry;
       row.getElement().style.background = isSel ? 'rgba(0, 212, 170, 0.18)' : '';
@@ -633,6 +623,17 @@ function renderIndustryRanking() {
     ],
   });
 
+  rankState.indTable.on('rowClick', (e, row) => {
+    const ind = row.getData().industry;
+    if (!ind) return;
+    rankState.selectedIndustry = ind;
+    rankState.selectedSub = null;
+    rankState.indTable.getRows().forEach(r => r.reformat());
+    renderSubIndustry();
+    renderIndustryStocks('industry', ind);
+    renderIndustryHistory('industry', ind);
+  });
+
   if (!rankState.selectedIndustry && indRows.length) {
     rankState.selectedIndustry = indRows[0].industry;
   }
@@ -660,14 +661,6 @@ function renderSubIndustry() {
     layout: 'fitColumns',
     height: '100%',
     initialSort: [{ column: 'avg_return', dir: 'desc' }],
-    rowClick: (e, row) => {
-      const sub = row.getData().sub_industry;
-      if (!sub) return;
-      rankState.selectedSub = sub;
-      rankState.subTable.getRows().forEach(r => r.reformat());
-      renderIndustryStocks('sub_industry', sub);
-      renderIndustryHistory('sub_industry', sub);
-    },
     rowFormatter: (row) => {
       const isSel = row.getData().sub_industry === rankState.selectedSub;
       row.getElement().style.background = isSel ? 'rgba(0, 212, 170, 0.18)' : '';
@@ -691,6 +684,15 @@ function renderSubIndustry() {
         formatter: (cell) => _top1Cell(cell.getRow().getData()),
       },
     ],
+  });
+
+  rankState.subTable.on('rowClick', (e, row) => {
+    const sub = row.getData().sub_industry;
+    if (!sub) return;
+    rankState.selectedSub = sub;
+    rankState.subTable.getRows().forEach(r => r.reformat());
+    renderIndustryStocks('sub_industry', sub);
+    renderIndustryHistory('sub_industry', sub);
   });
 }
 

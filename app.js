@@ -559,37 +559,6 @@ async function loadIndustryRanking() {
     rankState.loaded = true;
     document.getElementById('ind-meta').textContent =
       `${rankState.data.data_source}｜更新於 ${rankState.data.generated_at.slice(11, 16)}`;
-
-    // 大產業列：點 → 篩細產業 + 該大產業個股 + 該大產業歷史
-    document.getElementById('industry-table').addEventListener('click', (e) => {
-      const rowEl = e.target.closest('.tabulator-row');
-      if (!rowEl || !rankState.indTable) return;
-      const tabRow = rankState.indTable.getRows().find(r => r.getElement() === rowEl);
-      if (!tabRow) return;
-      const ind = tabRow.getData().industry;
-      if (!ind) return;
-      rankState.selectedIndustry = ind;
-      rankState.selectedSub = null;
-      rankState.indTable.getRows().forEach(r => r.reformat());
-      renderSubIndustry();
-      renderIndustryStocks('industry', ind);
-      renderIndustryHistory('industry', ind);
-    });
-
-    // 細產業列：點 → 個股 / 歷史改為該細產業
-    document.getElementById('sub-industry-table').addEventListener('click', (e) => {
-      const rowEl = e.target.closest('.tabulator-row');
-      if (!rowEl || !rankState.subTable) return;
-      const tabRow = rankState.subTable.getRows().find(r => r.getElement() === rowEl);
-      if (!tabRow) return;
-      const sub = tabRow.getData().sub_industry;
-      if (!sub) return;
-      rankState.selectedSub = sub;
-      rankState.subTable.getRows().forEach(r => r.reformat());
-      renderIndustryStocks('sub_industry', sub);
-      renderIndustryHistory('sub_industry', sub);
-    });
-
     renderIndustryRanking();
     bindRankingControls();
   } catch (err) {
@@ -623,6 +592,16 @@ function renderIndustryRanking() {
     layout: 'fitColumns',
     height: '100%',
     initialSort: [{ column: 'avg_return', dir: 'desc' }],
+    rowClick: (e, row) => {
+      const ind = row.getData().industry;
+      if (!ind) return;
+      rankState.selectedIndustry = ind;
+      rankState.selectedSub = null;
+      rankState.indTable.getRows().forEach(r => r.reformat());
+      renderSubIndustry();
+      renderIndustryStocks('industry', ind);
+      renderIndustryHistory('industry', ind);
+    },
     rowFormatter: (row) => {
       const isSel = row.getData().industry === rankState.selectedIndustry;
       row.getElement().style.background = isSel ? 'rgba(0, 212, 170, 0.18)' : '';
@@ -681,6 +660,14 @@ function renderSubIndustry() {
     layout: 'fitColumns',
     height: '100%',
     initialSort: [{ column: 'avg_return', dir: 'desc' }],
+    rowClick: (e, row) => {
+      const sub = row.getData().sub_industry;
+      if (!sub) return;
+      rankState.selectedSub = sub;
+      rankState.subTable.getRows().forEach(r => r.reformat());
+      renderIndustryStocks('sub_industry', sub);
+      renderIndustryHistory('sub_industry', sub);
+    },
     rowFormatter: (row) => {
       const isSel = row.getData().sub_industry === rankState.selectedSub;
       row.getElement().style.background = isSel ? 'rgba(0, 212, 170, 0.18)' : '';

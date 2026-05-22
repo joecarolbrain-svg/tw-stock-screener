@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260522e" />
+  <link rel="stylesheet" href="style.css?v=20260522f" />
 </head>
 <body>
   <header class="topbar">
@@ -95,6 +95,10 @@
         <option value="">-- 載入組合 --</option>
       </select>
       <button id="btn-delete-preset" class="btn btn-ghost btn-danger">🗑</button>
+      <span style="border-left:1px solid #2a2a3e;height:20px;margin:0 6px"></span>
+      <button id="btn-only-pinned" class="btn btn-ghost" disabled>★ 只看勾選</button>
+      <button id="btn-clear-pinned" class="btn btn-ghost btn-danger" disabled>清空勾選</button>
+      <span id="pin-summary" class="muted"></span>
       <span class="filler"></span>
       <span id="filter-summary" class="muted"></span>
     </div>
@@ -142,7 +146,14 @@
         <div id="ind-stocks-table"></div>
       </div>
       <div class="flow-pane">
-        <div class="panel-title" id="ind-history-title">20 日每日平均漲跌（點族群列查看）</div>
+        <div class="panel-title" id="ind-history-title">
+          <span id="ind-history-label">每日平均漲跌（點族群列查看）</span>
+          <select id="ind-history-n" class="inline-select" style="margin-left:8px">
+            <option value="5">最近 5 日</option>
+            <option value="10">最近 10 日</option>
+            <option value="20" selected>最近 20 日</option>
+          </select>
+        </div>
         <div id="ind-history-table"></div>
       </div>
     </div>
@@ -152,6 +163,12 @@
     <div class="filters">
       <div class="filter-row">
         <span class="muted" id="flow-meta">資金流向：以族群成交額佔大盤比，計算 N 日 z-score</span>
+        <label class="muted" style="margin-left:12px">回看：
+          <select id="flow-window" class="inline-select">
+            <option value="20" selected>20 日</option>
+            <option value="60">60 日</option>
+          </select>
+        </label>
         <span class="filler"></span>
         <span class="muted" id="flow-updated"></span>
       </div>
@@ -190,6 +207,12 @@
           <button class="subtab-btn active" data-subtab="concept">🔥 概念股總覽</button>
           <button class="subtab-btn" data-subtab="sector">🏷️ 類股總覽</button>
         </div>
+        <label class="muted" style="margin-left:12px">回看：
+          <select id="theme-window" class="inline-select">
+            <option value="20" selected>20 日</option>
+            <option value="60">60 日</option>
+          </select>
+        </label>
         <span class="filler"></span>
         <span class="muted" id="theme-updated"></span>
       </div>
@@ -229,6 +252,6 @@
     <span class="muted">點代號 → TradingView K 線</span>
   </footer>
 
-  <script src="app.js?v=20260522e"></script>
+  <script src="app.js?v=20260522f"></script>
 </body>
 </html>

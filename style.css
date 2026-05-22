@@ -401,3 +401,22 @@ footer {
 .top-chip .chip-name { color: #aab8cf; }
 .top-chip.chip-pos .chip-ret { color: #ff6b6b; font-weight: 600; }
 .top-chip.chip-neg .chip-ret { color: #4ade80; font-weight: 600; }
+
+/* ── 自選股 按鈕 active 樣式 ─────────────────────── */
+.btn.btn-active {
+  background: #2a5d4a;
+  color: #ffd166;
+  border-color: #00d4aa;
+}
+
+/* ── 歷史 pane 內嵌下拉 ─────────────────────────── */
+.inline-select {
+  background: #1a2233;
+  color: #cfe1ff;
+  border: 1px solid #2a3850;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.inline-select:hover { border-color: #4a90e2; }

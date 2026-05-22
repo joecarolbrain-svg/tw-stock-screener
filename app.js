@@ -121,7 +121,35 @@ const state = {
   distRiskMax: null,
   groupZMin: null,
   table: null,
+  // 自選股
+  pinned: new Set(JSON.parse(localStorage.getItem('pinnedTickers') || '[]')),
+  onlyPinned: false,
 };
+
+function savePinned() {
+  localStorage.setItem('pinnedTickers', JSON.stringify([...state.pinned]));
+}
+function togglePin(ticker) {
+  if (state.pinned.has(ticker)) state.pinned.delete(ticker);
+  else state.pinned.add(ticker);
+  savePinned();
+  updatePinSummary();
+  if (state.table) {
+    // 重新套用排序（pinned 自動置頂）
+    state.table.setSort(state.table.getSorters());
+    if (state.onlyPinned) state.table.refreshFilter();
+  }
+}
+function updatePinSummary() {
+  const el = document.getElementById('pin-summary');
+  if (!el) return;
+  const n = state.pinned.size;
+  el.textContent = n > 0 ? `已勾 ${n} 檔` : '';
+  const btn = document.getElementById('btn-only-pinned');
+  if (btn) btn.disabled = n === 0;
+  const clr = document.getElementById('btn-clear-pinned');
+  if (clr) clr.disabled = n === 0;
+}
 
 // 維度名 -> row 上對應的欄位
 const DIM_FIELD = {
@@ -136,6 +164,8 @@ const marketState = { loaded: false };
 // 題材資金流向分頁狀態
 const themeState = {
   data: null,
+  window: 20,
+  cache: {},
   subtab: 'concept',          // 'concept' | 'sector'
   selectedItem: null,
   listTable: null,
@@ -147,8 +177,10 @@ const themeState = {
 // 資金流向分頁狀態
 const flowState = {
   data: null,
-  selectedIndustry: null,     // 選中的大產業
-  selectedSub: null,          // 選中的細產業（優先用這個顯示 stocks/history）
+  window: 20,
+  cache: {},                  // {window: data}
+  selectedIndustry: null,
+  selectedSub: null,
   indTable: null,
   subTable: null,
   stocksTable: null,
@@ -160,6 +192,7 @@ const flowState = {
 const rankState = {
   data: null,
   days: '20',
+  historyN: 20,              // 歷史 pane 顯示最近 N 日
   selectedIndustry: null,
   selectedSub: null,         // 細產業選擇 → 個股/歷史以此為優先
   indTable: null,
@@ -242,7 +275,29 @@ function renderDimensionOptions() {
 
 // ── 5. 建表（Tabulator） ────────────────────────────
 function buildTable(data) {
-  const cols = data.column_meta.map(c => {
+  // pin 欄位（最前）
+  const pinCol = {
+    title: '📌', field: '_pin', width: 44, hozAlign: 'center',
+    frozen: true, headerSort: false,
+    formatter: (cell) => {
+      const t = cell.getRow().getData().ticker;
+      return state.pinned.has(t)
+        ? '<span style="color:#ffd166;font-size:16px">★</span>'
+        : '<span style="color:#555;font-size:16px">☆</span>';
+    },
+    cellClick: (e, cell) => {
+      e.stopPropagation();
+      const t = cell.getRow().getData().ticker;
+      togglePin(t);
+      // freeze/unfreeze 對應 row
+      const row = cell.getRow();
+      if (state.pinned.has(t)) row.freeze();
+      else row.unfreeze();
+      cell.getRow().reformat();
+    },
+  };
+
+  const cols = [pinCol, ...data.column_meta.map(c => {
     const def = {
       title: c.label,
       field: c.id,
@@ -260,9 +315,10 @@ function buildTable(data) {
         const p = c.precision != null ? c.precision : 2;
         const txt = Number(v).toFixed(p);
         // 漲跌幅/距高百分比類欄位上色
-        if (['dist_high', 'dist_year_high', 'risk_pct', 'stop_loss_pct'].includes(c.id)) {
+        if (['dist_high', 'dist_year_high', 'risk_pct', 'stop_loss_pct', 'chg_pct'].includes(c.id)) {
           const cls = v > 0 ? 'num-pos' : (v < 0 ? 'num-neg' : '');
-          return `<span class="${cls}">${txt}</span>`;
+          const sign = c.id === 'chg_pct' && v > 0 ? '+' : '';
+          return `<span class="${cls}">${sign}${txt}</span>`;
         }
         return txt;
       };
@@ -287,7 +343,7 @@ function buildTable(data) {
       };
     }
     return def;
-  });
+  })];
 
   state.table = new Tabulator('#main-table', {
     data: data.rows,
@@ -300,6 +356,14 @@ function buildTable(data) {
     initialSort: [{ column: 'score', dir: 'desc' }],
     placeholder: '🔍 沒有符合條件的個股',
   });
+
+  // 初始 freeze 已勾選的股票
+  state.table.on('tableBuilt', () => {
+    state.table.getRows().forEach(row => {
+      if (state.pinned.has(row.getData().ticker)) row.freeze();
+    });
+  });
+  updatePinSummary();
 }
 
 // ── 6. 篩選邏輯 ─────────────────────────────────────
@@ -307,6 +371,8 @@ function applyFilters() {
   if (!state.table) return;
 
   state.table.setFilter((row) => {
+    // 只看勾選
+    if (state.onlyPinned && !state.pinned.has(row.ticker)) return false;
     // 分類（AND/OR）
     if (state.selectedCats.size > 0) {
       const rowCats = new Set(row.categories || []);
@@ -404,6 +470,29 @@ function bindControls() {
   document.getElementById('btn-save-preset').addEventListener('click', saveCurrentPreset);
   document.getElementById('preset-select').addEventListener('change', loadPreset);
   document.getElementById('btn-delete-preset').addEventListener('click', deleteCurrentPreset);
+
+  document.getElementById('btn-only-pinned').addEventListener('click', (e) => {
+    state.onlyPinned = !state.onlyPinned;
+    e.target.classList.toggle('btn-active', state.onlyPinned);
+    e.target.textContent = state.onlyPinned ? '★ 只看勾選（開）' : '★ 只看勾選';
+    applyFilters();
+  });
+  document.getElementById('btn-clear-pinned').addEventListener('click', () => {
+    if (!confirm(`清空全部勾選（${state.pinned.size} 檔）？`)) return;
+    state.pinned.clear();
+    savePinned();
+    updatePinSummary();
+    if (state.table) {
+      state.table.getRows().forEach(row => { try { row.unfreeze(); } catch(_){} });
+      state.table.redraw(true);
+      if (state.onlyPinned) {
+        state.onlyPinned = false;
+        document.getElementById('btn-only-pinned').classList.remove('btn-active');
+        document.getElementById('btn-only-pinned').textContent = '★ 只看勾選';
+        applyFilters();
+      }
+    }
+  });
 }
 
 function clearAllFilters() {
@@ -759,8 +848,11 @@ function renderIndustryHistory(level, name) {
     const ind = block.industries.find(s => s.industry === name);
     history = ind?.history || [];
   }
-  document.getElementById('ind-history-title').textContent =
-    `📊 ${name} — 20 日每日平均漲跌（${history.length} 日）`;
+  // 切最近 N 日
+  const n = rankState.historyN || 20;
+  history = history.slice(-n);
+  document.getElementById('ind-history-label').textContent =
+    `📊 ${name} — 每日平均漲跌（${history.length} 日）`;
 
   const maxAbs = Math.max(0.1, ...history.map(h => Math.abs(h.avg_return)));
   const rows = history.slice().reverse();  // 最新在上
@@ -802,7 +894,6 @@ function bindRankingControls() {
   document.querySelectorAll('input[name="ind-days"]').forEach(r => {
     r.addEventListener('change', e => {
       rankState.days = e.target.value;
-      // 切換 window 時保留 selectedIndustry/sub，重 render
       renderIndustryRanking();
       if (rankState.selectedSub) {
         renderIndustryStocks('sub_industry', rankState.selectedSub);
@@ -813,14 +904,41 @@ function bindRankingControls() {
       }
     });
   });
+  // 歷史 pane N 日切換
+  const histN = document.getElementById('ind-history-n');
+  if (histN) {
+    histN.addEventListener('change', e => {
+      rankState.historyN = parseInt(e.target.value, 10);
+      const lvl = rankState.selectedSub ? 'sub_industry' : 'industry';
+      const name = rankState.selectedSub || rankState.selectedIndustry;
+      if (name) renderIndustryHistory(lvl, name);
+    });
+  }
 }
 
 // ── Z. 資金流向 ─────────────────────────────────────
 async function loadFlow() {
-  if (flowState.loaded) return;
+  if (flowState.loaded && flowState.window === 20) {
+    bindFlowWindowSelector();
+    return;
+  }
+  await _loadFlowWindow(flowState.window);
+  bindFlowWindowSelector();
+}
+
+async function _loadFlowWindow(win) {
   try {
-    flowState.data = await fetchJsonGz(dailyPath('industry_flow'));
+    if (flowState.cache[win]) {
+      flowState.data = flowState.cache[win];
+    } else {
+      const fname = win === 20 ? 'industry_flow' : `industry_flow_${win}`;
+      flowState.data = await fetchJsonGz(dailyPath(fname));
+      flowState.cache[win] = flowState.data;
+    }
+    flowState.window = win;
     flowState.loaded = true;
+    flowState.selectedIndustry = null;
+    flowState.selectedSub = null;
 
     document.getElementById('flow-meta').textContent =
       `${flowState.data.data_source}｜window=${flowState.data.window} 日`;
@@ -830,10 +948,29 @@ async function loadFlow() {
     bindFlowTableClicks();
     renderFlowIndTable();
     renderFlowSubTable();
+    // 清空右下兩格
+    ['flow-stocks-table', 'flow-history-table'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '';
+    });
+    ['stocksTable', 'historyTable'].forEach(k => {
+      if (flowState[k]) { flowState[k].destroy(); flowState[k] = null; }
+    });
   } catch (err) {
     document.getElementById('flow-ind-table').innerHTML =
-      `<div style="padding:30px;color:#ff6b6b">❌ 載入失敗：${err.message}</div>`;
+      `<div style="padding:30px;color:#ff6b6b">❌ 載入失敗：${err.message}（window=${win}）</div>`;
   }
+}
+
+let _flowSelectorBound = false;
+function bindFlowWindowSelector() {
+  if (_flowSelectorBound) return;
+  _flowSelectorBound = true;
+  const sel = document.getElementById('flow-window');
+  if (!sel) return;
+  sel.addEventListener('change', e => {
+    _loadFlowWindow(parseInt(e.target.value, 10));
+  });
 }
 
 function flowZColor(z) {
@@ -1049,7 +1186,10 @@ function renderFlowHistoryTable(level, name) {
   });
 }
 
+let _flowClicksBound = false;
 function bindFlowTableClicks() {
+  if (_flowClicksBound) return;
+  _flowClicksBound = true;
   document.getElementById('flow-ind-table').addEventListener('click', (e) => {
     const rowEl = e.target.closest('.tabulator-row');
     if (!rowEl || !flowState.indTable) return;
@@ -1084,48 +1224,74 @@ function bindFlowTableClicks() {
 
 // ── W. 題材資金流向 ─────────────────────────────────
 async function loadTheme() {
-  if (themeState.loaded) return;
+  if (themeState.loaded && themeState.window === 20) {
+    _bindThemeOnce();
+    return;
+  }
+  await _loadThemeWindow(themeState.window);
+  _bindThemeOnce();
+}
+
+async function _loadThemeWindow(win) {
   try {
-    themeState.data = await fetchJsonGz(dailyPath('theme_flow'));
+    if (themeState.cache[win]) {
+      themeState.data = themeState.cache[win];
+    } else {
+      const fname = win === 20 ? 'theme_flow' : `theme_flow_${win}`;
+      themeState.data = await fetchJsonGz(dailyPath(fname));
+      themeState.cache[win] = themeState.data;
+    }
+    themeState.window = win;
     themeState.loaded = true;
+    themeState.selectedItem = null;
     document.getElementById('theme-updated').textContent =
       `${themeState.data.data_source}｜window=${themeState.data.window}｜更新 ${themeState.data.generated_at.slice(11, 16)}`;
-
-    // sub-tab 切換
-    document.querySelectorAll('.subtab-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.subtab-btn').forEach(b => b.classList.toggle('active', b === btn));
-        themeState.subtab = btn.dataset.subtab;
-        themeState.selectedItem = null;
-        renderThemeList();
-        // 清空右側
-        document.getElementById('theme-stocks-title').textContent = '個股貢獻（點題材查看）';
-        document.getElementById('theme-history-title').textContent = '20 日 z-score 歷史（點題材查看）';
-        if (themeState.stocksTable) { themeState.stocksTable.destroy(); themeState.stocksTable = null; }
-        if (themeState.historyTable) { themeState.historyTable.destroy(); themeState.historyTable = null; }
-      });
-    });
-
-    // 一次性綁原生 click delegation
-    document.getElementById('theme-list-table').addEventListener('click', (e) => {
-      const rowEl = e.target.closest('.tabulator-row');
-      if (!rowEl || !themeState.listTable) return;
-      const tr = themeState.listTable.getRows().find(r => r.getElement() === rowEl);
-      if (!tr) return;
-      const label = themeState.subtab === 'concept' ? 'concept_name' : 'sector_name';
-      const name = tr.getData()[label];
-      if (!name) return;
-      themeState.selectedItem = name;
-      themeState.listTable.getRows().forEach(r => r.reformat());
-      renderThemeStocks();
-      renderThemeHistory();
-    });
-
+    document.getElementById('theme-stocks-title').textContent = '個股貢獻（點題材查看）';
+    document.getElementById('theme-history-title').textContent = `${win} 日 z-score 歷史（點題材查看）`;
+    if (themeState.stocksTable) { themeState.stocksTable.destroy(); themeState.stocksTable = null; }
+    if (themeState.historyTable) { themeState.historyTable.destroy(); themeState.historyTable = null; }
     renderThemeList();
   } catch (err) {
     document.getElementById('theme-list-table').innerHTML =
-      `<div style="padding:30px;color:#ff6b6b">❌ 載入失敗：${err.message}</div>`;
+      `<div style="padding:30px;color:#ff6b6b">❌ 載入失敗：${err.message}（window=${win}）</div>`;
   }
+}
+
+let _themeBound = false;
+function _bindThemeOnce() {
+  if (_themeBound) return;
+  _themeBound = true;
+  document.querySelectorAll('.subtab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.subtab-btn').forEach(b => b.classList.toggle('active', b === btn));
+      themeState.subtab = btn.dataset.subtab;
+      themeState.selectedItem = null;
+      renderThemeList();
+      document.getElementById('theme-stocks-title').textContent = '個股貢獻（點題材查看）';
+      document.getElementById('theme-history-title').textContent = `${themeState.window} 日 z-score 歷史（點題材查看）`;
+      if (themeState.stocksTable) { themeState.stocksTable.destroy(); themeState.stocksTable = null; }
+      if (themeState.historyTable) { themeState.historyTable.destroy(); themeState.historyTable = null; }
+    });
+  });
+
+  document.getElementById('theme-list-table').addEventListener('click', (e) => {
+    const rowEl = e.target.closest('.tabulator-row');
+    if (!rowEl || !themeState.listTable) return;
+    const tr = themeState.listTable.getRows().find(r => r.getElement() === rowEl);
+    if (!tr) return;
+    const label = themeState.subtab === 'concept' ? 'concept_name' : 'sector_name';
+    const name = tr.getData()[label];
+    if (!name) return;
+    themeState.selectedItem = name;
+    themeState.listTable.getRows().forEach(r => r.reformat());
+    renderThemeStocks();
+    renderThemeHistory();
+  });
+
+  const sel = document.getElementById('theme-window');
+  if (sel) sel.addEventListener('change', e => {
+    _loadThemeWindow(parseInt(e.target.value, 10));
+  });
 }
 
 function _currentThemeBlock() {

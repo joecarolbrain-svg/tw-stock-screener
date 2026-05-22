@@ -1060,8 +1060,9 @@ function renderIndustryHistory(level, name) {
 }
 
 function bindRankingControls() {
-  document.querySelectorAll('input[name="ind-days"]').forEach(r => {
-    r.addEventListener('change', e => {
+  const daysSel = document.getElementById('ind-days');
+  if (daysSel) {
+    daysSel.addEventListener('change', e => {
       rankState.days = e.target.value;
       renderIndustryRanking();
       if (rankState.selectedSub) {
@@ -1072,7 +1073,7 @@ function bindRankingControls() {
         renderIndustryHistory('industry', rankState.selectedIndustry);
       }
     });
-  });
+  }
   // 歷史 pane N 日切換
   const histN = document.getElementById('ind-history-n');
   if (histN) {

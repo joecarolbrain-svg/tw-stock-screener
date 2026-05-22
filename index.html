@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260522i" />
+  <link rel="stylesheet" href="style.css?v=20260522j" />
 </head>
 <body>
   <header class="topbar">
@@ -138,11 +138,15 @@
       <div class="filter-row">
         <div class="filter-group">
           <label class="filter-label">回看期間</label>
-          <div class="radio-row">
-            <label><input type="radio" name="ind-days" value="5" /> 5 日</label>
-            <label><input type="radio" name="ind-days" value="10" /> 10 日</label>
-            <label><input type="radio" name="ind-days" value="20" checked /> 20 日 (~1月)</label>
-          </div>
+          <select id="ind-days" class="inline-select">
+            <option value="1">當日</option>
+            <option value="3">3 日</option>
+            <option value="5">5 日</option>
+            <option value="10">10 日</option>
+            <option value="20" selected>20 日 (~1月)</option>
+            <option value="40">40 日 (~2月)</option>
+            <option value="60">60 日 (~3月)</option>
+          </select>
         </div>
         <span class="filler"></span>
         <span class="muted" id="ind-meta">--</span>
@@ -283,6 +287,6 @@
     <span class="muted">點代號 → TradingView K 線</span>
   </footer>
 
-  <script src="app.js?v=20260522i"></script>
+  <script src="app.js?v=20260522j"></script>
 </body>
 </html>

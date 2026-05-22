@@ -420,3 +420,37 @@ footer {
   cursor: pointer;
 }
 .inline-select:hover { border-color: #4a90e2; }
+
+/* ── 排名延續 mini bar ─────────────────────────── */
+.rk-row {
+  display: flex;
+  gap: 2px;
+  flex-wrap: nowrap;
+  align-items: center;
+  padding: 2px 0;
+  font-size: 11px;
+  line-height: 1.2;
+}
+.rk-cell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 28px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  background: #1a2233;
+  color: #889;
+}
+.rk-cell b {
+  font-size: 9px;
+  opacity: 0.6;
+  font-weight: 400;
+}
+.rk-top5  { background: #b91c1c; color: #fff; }
+.rk-top10 { background: #ea580c; color: #fff; }
+.rk-top20 { background: #ca8a04; color: #fff; }
+.rk-top50 { background: #2a3850; color: #cfe1ff; }
+.rk-low,
+.rk-none  { background: #15192a; color: #555; }
+.rk-cur   { border-color: #00d4aa; box-shadow: 0 0 0 1px #00d4aa44; }

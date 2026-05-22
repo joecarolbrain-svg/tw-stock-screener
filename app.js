@@ -973,6 +973,26 @@ function bindFlowWindowSelector() {
   });
 }
 
+// ── 跨 window 排名 mini bar 渲染 ─────────────
+const FLOW_WINDOWS_ORDER = [3, 5, 10, 20, 40, 60];
+function _rankClass(r) {
+  if (r == null) return 'rk-none';
+  if (r <= 5)  return 'rk-top5';
+  if (r <= 10) return 'rk-top10';
+  if (r <= 20) return 'rk-top20';
+  if (r <= 50) return 'rk-top50';
+  return 'rk-low';
+}
+function renderRankTrend(ranks, currentWin) {
+  if (!ranks) return '';
+  return '<div class="rk-row">' + FLOW_WINDOWS_ORDER.map(w => {
+    const r = ranks[String(w)];
+    const cls = _rankClass(r);
+    const cur = currentWin && String(w) === String(currentWin) ? ' rk-cur' : '';
+    const label = r != null ? `#${r}` : '–';
+    return `<span class="rk-cell ${cls}${cur}" title="${w}日: ${label}"><b>${w}</b>${label}</span>`;
+  }).join('') + '</div>';
+}
 function flowZColor(z) {
   if (z == null) return '';
   if (z >= 1.5) return 'num-pos';
@@ -990,7 +1010,7 @@ function flowCommonColumns(includeIndustry) {
   cols.push(
     { title: '細產業', field: 'sub_industry', widthGrow: 1, headerSort: true },
     {
-      title: '方向', field: 'direction', widthGrow: 0.4, hozAlign: 'center', headerSort: false,
+      title: '方向', field: 'direction', widthGrow: 0.8, hozAlign: 'center', headerSort: false,
     },
     {
       title: 'z', field: 'z_score', widthGrow: 0.5, hozAlign: 'right', sorter: 'number',
@@ -1016,7 +1036,10 @@ function flowCommonColumns(includeIndustry) {
         const name = row.top1_name || '';
         return `<span title="${name} ${share}">${warn}</span>`;
       } },
-    { title: '備註', field: 'note', widthGrow: 1, headerSort: false },
+    { title: '排名延續', field: 'ranks', widthGrow: 2.2, headerSort: false,
+      formatter: (c) => renderRankTrend(c.getValue(), flowState.window) },
+    { title: '持續', field: 'persistence', widthGrow: 1, headerSort: false },
+    { title: '備註', field: 'note', widthGrow: 0.8, headerSort: false },
   );
   return cols.filter(c => c.field !== 'sub_industry' || !includeIndustry || c.field === 'sub_industry');
 }
@@ -1036,7 +1059,7 @@ function renderFlowIndTable() {
     },
     columns: [
       { title: '大產業', field: 'industry', widthGrow: 1.2 },
-      { title: '方向', field: 'direction', widthGrow: 0.4, hozAlign: 'center', headerSort: false },
+      { title: '方向', field: 'direction', widthGrow: 0.8, hozAlign: 'center', headerSort: false },
       {
         title: 'z', field: 'z_score', widthGrow: 0.5, hozAlign: 'right', sorter: 'number',
         formatter: (c) => {
@@ -1058,7 +1081,10 @@ function renderFlowIndTable() {
           const row = c.getRow().getData();
           return `<span title="${row.top1_name || ''} ${row.top1_share != null ? row.top1_share + '%' : ''}">${row.top1_warn || ''}</span>`;
         } },
-      { title: '備註', field: 'note', widthGrow: 1, headerSort: false },
+      { title: '排名延續', field: 'ranks', widthGrow: 2.2, headerSort: false,
+        formatter: (c) => renderRankTrend(c.getValue(), flowState.window) },
+      { title: '持續', field: 'persistence', widthGrow: 1, headerSort: false },
+      { title: '備註', field: 'note', widthGrow: 0.8, headerSort: false },
     ],
   });
 }
@@ -1090,7 +1116,7 @@ function renderFlowSubTable() {
     columns: [
       { title: '細產業', field: 'sub_industry', widthGrow: 1.2 },
       { title: '大產業', field: 'industry', widthGrow: 0.8 },
-      { title: '方向', field: 'direction', widthGrow: 0.4, hozAlign: 'center', headerSort: false },
+      { title: '方向', field: 'direction', widthGrow: 0.8, hozAlign: 'center', headerSort: false },
       {
         title: 'z', field: 'z_score', widthGrow: 0.5, hozAlign: 'right', sorter: 'number',
         formatter: (c) => {
@@ -1110,6 +1136,9 @@ function renderFlowSubTable() {
           const row = c.getRow().getData();
           return `<span title="${row.top1_name || ''} ${row.top1_share != null ? row.top1_share + '%' : ''}">${row.top1_warn || ''}</span>`;
         } },
+      { title: '排名延續', field: 'ranks', widthGrow: 2.2, headerSort: false,
+        formatter: (c) => renderRankTrend(c.getValue(), flowState.window) },
+      { title: '持續', field: 'persistence', widthGrow: 1, headerSort: false },
       { title: '備註', field: 'note', widthGrow: 0.8, headerSort: false },
     ],
   });
@@ -1322,7 +1351,7 @@ function renderThemeList() {
     },
     columns: [
       { title: titleName, field: label, widthGrow: 1.4 },
-      { title: '方向', field: 'direction', widthGrow: 0.4, hozAlign: 'center', headerSort: false },
+      { title: '方向', field: 'direction', widthGrow: 0.8, hozAlign: 'center', headerSort: false },
       {
         title: 'z', field: 'z_score', widthGrow: 0.5, hozAlign: 'right', sorter: 'number',
         formatter: (c) => {
@@ -1344,6 +1373,9 @@ function renderThemeList() {
           const row = c.getRow().getData();
           return `<span title="${row.top1_name || ''} ${row.top1_share != null ? row.top1_share + '%' : ''}">${row.top1_warn || ''}</span>`;
         } },
+      { title: '排名延續', field: 'ranks', widthGrow: 2.2, headerSort: false,
+        formatter: (c) => renderRankTrend(c.getValue(), themeState.window) },
+      { title: '持續', field: 'persistence', widthGrow: 1, headerSort: false },
       { title: '備註', field: 'note', widthGrow: 0.8, headerSort: false },
     ],
   });

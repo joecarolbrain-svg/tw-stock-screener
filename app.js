@@ -169,6 +169,14 @@ const DIM_FIELD = {
 // 大盤狀態分頁
 const marketState = { loaded: false };
 
+// 權證精選分頁
+const warrantState = {
+  loaded: false,
+  data: null,     // 整檔 warrants.json
+  table: null,    // Tabulator 物件
+  loadedDate: null,
+};
+
 // 題材資金流向分頁狀態
 const themeState = {
   data: null,
@@ -792,6 +800,9 @@ function bindTabs() {
       if (tab === 'market' && !marketState.loaded) {
         loadMarket();
       }
+      if (tab === 'warrant') {
+        loadWarrants();
+      }
       // Resize tables after switch
       setTimeout(() => {
         if (state.table) state.table.redraw();
@@ -1021,7 +1032,7 @@ function renderIndustryHistory(level, name) {
   const n = rankState.historyN || 20;
   history = history.slice(-n);
   document.getElementById('ind-history-label').textContent =
-    `📊 ${name} — 每日平均漲跌（${history.length} 日）`;
+    `📊 ${name} — 平均漲跌（${history.length} 日）`;
 
   const maxAbs = Math.max(0.1, ...history.map(h => Math.abs(h.avg_return)));
   const rows = history.slice().reverse();  // 最新在上
@@ -1785,3 +1796,129 @@ function renderMarket(d) {
     console.error(err);
   }
 })();
+
+
+// ─── 權證精選分頁 ────────────────────────────────────
+async function loadWarrants() {
+  // 切日期會 invalidate
+  if (warrantState.loaded && warrantState.loadedDate === currentDate) {
+    renderWarrant();
+    return;
+  }
+  const metaEl = document.getElementById('warrant-meta');
+  const sumEl  = document.getElementById('warrant-summary');
+  const dateOk = (indexMeta?.dates || []).some(
+    e => e.date === currentDate && (e.has || []).includes('warrants'));
+  if (!dateOk) {
+    metaEl.textContent = `⚠️ 日期 ${currentDate} 沒有權證資料`;
+    sumEl.innerHTML = `<div style="padding:20px;color:#ff9d00">
+      該日期未提供權證排名。請選有 warrants 的日期，或在本地跑 export_warrants_to_json.py 推上來。
+    </div>`;
+    document.getElementById('warrant-table').innerHTML = '';
+    return;
+  }
+  try {
+    metaEl.textContent = '載入中...';
+    warrantState.data = await fetchJsonGz(`data/daily/${currentDate}/warrants.json.gz`);
+    warrantState.loaded = true;
+    warrantState.loadedDate = currentDate;
+    metaEl.textContent =
+      `資料日 ${warrantState.data.date}　|　${warrantState.data.underlying_count} 標的　|　` +
+      `每策略 top ${warrantState.data.top_per_strategy}　|　更新 ${warrantState.data.generated_at.slice(11,16)}`;
+    bindWarrantControls();
+    renderWarrant();
+  } catch (err) {
+    metaEl.textContent = `❌ ${err.message}`;
+    console.error(err);
+  }
+}
+
+function bindWarrantControls() {
+  if (bindWarrantControls._done) return;
+  bindWarrantControls._done = true;
+  document.getElementById('warrant-query-btn').addEventListener('click', renderWarrant);
+  document.getElementById('warrant-stock').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') renderWarrant();
+  });
+  document.getElementById('warrant-strategy').addEventListener('change', renderWarrant);
+  document.getElementById('warrant-limit').addEventListener('change', renderWarrant);
+}
+
+const WARRANT_COLS = [
+  { title: '排名', field: '排名', width: 60, hozAlign: 'center', sorter: 'number' },
+  { title: '權證代號', field: '權證代號', width: 90,
+    formatter: (c) => `<a class="ticker-link" href="https://tw.tradingview.com/symbols/TPE-${c.getValue()}/" target="_blank">${c.getValue()}</a>` },
+  { title: '名稱', field: '權證名稱', widthGrow: 1.6 },
+  { title: '券商', field: '發行券商', width: 70, hozAlign: 'center' },
+  { title: '剩餘天', field: '剩餘天數', width: 80, hozAlign: 'right', sorter: 'number' },
+  { title: '價內外%', field: '價內外', width: 90, hozAlign: 'right', sorter: 'number',
+    formatter: (c) => { const v = c.getValue(); return v == null ? '' : (v > 0 ? '+' : '') + v.toFixed(2); } },
+  { title: '有效槓桿', field: '有效槓桿', width: 90, hozAlign: 'right', sorter: 'number',
+    formatter: (c) => { const v = c.getValue(); return v == null ? '' : v.toFixed(2); } },
+  { title: 'IV%', field: '隱含波動率', width: 80, hozAlign: 'right', sorter: 'number',
+    formatter: (c) => { const v = c.getValue(); return v == null ? '' : v.toFixed(1); } },
+  { title: 'HV%', field: '歷史波動率', width: 80, hozAlign: 'right', sorter: 'number',
+    formatter: (c) => { const v = c.getValue(); return v == null ? '' : v.toFixed(1); } },
+  { title: '成交量(張)', field: '成交量', width: 100, hozAlign: 'right', sorter: 'number',
+    formatter: (c) => { const v = c.getValue(); return v == null ? '' : v.toLocaleString(); } },
+  { title: '成交額(元)', field: '成交金額', width: 120, hozAlign: 'right', sorter: 'number',
+    formatter: (c) => { const v = c.getValue(); return v == null ? '' : v.toLocaleString(); } },
+  { title: '收盤', field: '權證收盤價', width: 80, hozAlign: 'right', sorter: 'number',
+    formatter: (c) => { const v = c.getValue(); return v == null ? '' : v.toFixed(2); } },
+  { title: '流通%', field: '流通比例', width: 80, hozAlign: 'right', sorter: 'number',
+    formatter: (c) => { const v = c.getValue(); return v == null ? '' : v.toFixed(1); } },
+  { title: '分數', field: '分數', width: 80, hozAlign: 'right', sorter: 'number',
+    formatter: (c) => {
+      const v = c.getValue();
+      if (v == null) return '';
+      const cls = v >= 75 ? 'num-pos' : (v < 55 ? 'num-neg' : '');
+      return `<span class="${cls}">${v.toFixed(2)}</span>`;
+    } },
+];
+
+function renderWarrant() {
+  if (!warrantState.data) return;
+  const stock = String(document.getElementById('warrant-stock').value || '').trim();
+  const strat = document.getElementById('warrant-strategy').value;
+  const limit = parseInt(document.getElementById('warrant-limit').value, 10);
+  const sumEl = document.getElementById('warrant-summary');
+  const tblEl = document.getElementById('warrant-table');
+
+  if (!stock) {
+    sumEl.innerHTML = '<div class="muted">請輸入股號</div>';
+    tblEl.innerHTML = '';
+    return;
+  }
+  const u = warrantState.data.underlyings[stock];
+  if (!u) {
+    sumEl.innerHTML =
+      `<div style="color:#ff9d00">⚠️ 找不到 ${stock}（可能是該標的無認購權證或檔數 &lt; 3）</div>`;
+    if (warrantState.table) { warrantState.table.destroy(); warrantState.table = null; }
+    tblEl.innerHTML = '';
+    return;
+  }
+  let rows = (u.strategies[strat] || []).slice();
+  if (limit > 0) rows = rows.slice(0, limit);
+
+  sumEl.innerHTML =
+    `<span style="font-size:18px;font-weight:700;color:#00d4aa">${stock} ${u.name || ''}</span>` +
+    `<span style="margin-left:14px">現價 <b>${u.price != null ? u.price.toFixed(2) : '—'}</b></span>` +
+    `<span style="margin-left:14px;color:#aaa">認購權證 ${u.warrant_count} 檔</span>` +
+    `<span style="margin-left:14px;color:#aaa">平均 IV ${u.avg_iv ?? '—'}%</span>` +
+    `<span style="margin-left:14px;color:#aaa">平均剩餘 ${u.avg_days_left ?? '—'} 天</span>` +
+    `<span style="margin-left:14px;color:#888">策略：<b>${strat}</b>　|　顯示 ${rows.length} / ${u.strategies[strat]?.length || 0}</span>`;
+
+  if (warrantState.table) warrantState.table.destroy();
+  if (rows.length === 0) {
+    tblEl.innerHTML = `<div style="padding:30px;color:#888;text-align:center">該策略下無排名</div>`;
+    warrantState.table = null;
+    return;
+  }
+  warrantState.table = new Tabulator('#warrant-table', {
+    data: rows,
+    layout: 'fitColumns',
+    height: 'calc(100vh - 320px)',
+    columns: WARRANT_COLS,
+    placeholder: '無資料',
+  });
+}

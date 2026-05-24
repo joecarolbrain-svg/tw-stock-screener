@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260522k" />
+  <link rel="stylesheet" href="style.css?v=20260524w" />
 </head>
 <body>
   <header class="topbar">
@@ -34,6 +34,7 @@
     <button class="tab-btn" data-tab="flow">🌊 資金流向</button>
     <button class="tab-btn" data-tab="concept">📍 題材資金流向</button>
     <button class="tab-btn" data-tab="market">🏦 大盤狀態</button>
+    <button class="tab-btn" data-tab="warrant">🎯 權證精選</button>
   </nav>
 
   <section class="tab-panel active" data-panel="dashboard">
@@ -174,11 +175,15 @@
       </div>
       <div class="flow-pane">
         <div class="panel-title" id="ind-history-title">
-          <span id="ind-history-label">每日平均漲跌（點族群列查看）</span>
+          <span id="ind-history-label">平均漲跌（點族群列查看）</span>
           <select id="ind-history-n" class="inline-select" style="margin-left:8px">
+            <option value="1">當日</option>
+            <option value="3">最近 3 日</option>
             <option value="5">最近 5 日</option>
             <option value="10">最近 10 日</option>
             <option value="20" selected>最近 20 日</option>
+            <option value="40">最近 40 日</option>
+            <option value="60">最近 60 日</option>
           </select>
         </div>
         <div id="ind-history-table"></div>
@@ -284,11 +289,54 @@
     </div>
   </section>
 
+  <section class="tab-panel" data-panel="warrant">
+    <div class="filters">
+      <div class="filter-row">
+        <div class="filter-group small">
+          <label class="filter-label">股號</label>
+          <input type="text" id="warrant-stock" placeholder="例如 2330" value="2330" style="width:120px" />
+        </div>
+        <div class="filter-group small">
+          <label class="filter-label">策略</label>
+          <select id="warrant-strategy" class="inline-select">
+            <option value="短進短出">短進短出</option>
+            <option value="短打" selected>短打</option>
+            <option value="波段">波段</option>
+            <option value="流動性">流動性</option>
+            <option value="IV低估">IV低估</option>
+          </select>
+        </div>
+        <div class="filter-group small">
+          <label class="filter-label">顯示</label>
+          <select id="warrant-limit" class="inline-select">
+            <option value="10" selected>10 檔</option>
+            <option value="20">20 檔</option>
+            <option value="30">30 檔</option>
+            <option value="0">全部</option>
+          </select>
+        </div>
+        <button id="warrant-query-btn" class="btn">🔍 查詢</button>
+        <span class="filler"></span>
+        <span class="muted" id="warrant-meta">--</span>
+      </div>
+      <div class="filter-row legend-row">
+        <span class="legend-label">說明：</span>
+        <span class="legend-item">5 策略中「短進短出/短打/波段」沿用實戰參數（價內外+有效槓桿+IV）</span>
+        <span class="legend-item"><b>流動性</b> log(成交量+成交額) z 分數</span>
+        <span class="legend-item"><b>IV低估</b> IV − HV 越負越好</span>
+      </div>
+    </div>
+    <main>
+      <div id="warrant-summary" style="padding:8px 12px;color:#e0e0e0"></div>
+      <div id="warrant-table"></div>
+    </main>
+  </section>
+
   <footer>
     <span class="muted">資料來源：本地 Dash 篩選 / Schema v<span id="schema-version">--</span></span>
     <span class="muted">點代號 → TradingView K 線</span>
   </footer>
 
-  <script src="app.js?v=20260522k"></script>
+  <script src="app.js?v=20260524w"></script>
 </body>
 </html>

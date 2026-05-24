@@ -1844,29 +1844,53 @@ function bindWarrantControls() {
   document.getElementById('warrant-limit').addEventListener('change', renderWarrant);
 }
 
+const _fmtNum  = (d) => (c) => { const v = c.getValue(); return v == null ? '' : v.toFixed(d); };
+const _fmtPct  = (d) => (c) => { const v = c.getValue(); return v == null ? '' : (v > 0 ? '+' : '') + v.toFixed(d); };
+const _fmtInt  = () => (c) => { const v = c.getValue(); return v == null ? '' : v.toLocaleString(); };
+
 const WARRANT_COLS = [
-  { title: '排名', field: '排名', width: 60, hozAlign: 'center', sorter: 'number' },
-  { title: '權證代號', field: '權證代號', width: 90,
+  // ─── 身分 ───
+  { title: '排名', field: '排名', width: 60, hozAlign: 'center', sorter: 'number', frozen: true },
+  { title: '權證代號', field: '權證代號', width: 90, frozen: true,
     formatter: (c) => `<a class="ticker-link" href="https://tw.tradingview.com/symbols/TPE-${c.getValue()}/" target="_blank">${c.getValue()}</a>` },
-  { title: '名稱', field: '權證名稱', widthGrow: 1.6 },
+  { title: '權證名稱', field: '權證名稱', minWidth: 180, frozen: true },
   { title: '券商', field: '發行券商', width: 70, hozAlign: 'center' },
+  // ─── 條款 ───
   { title: '剩餘天', field: '剩餘天數', width: 80, hozAlign: 'right', sorter: 'number' },
-  { title: '價內外%', field: '價內外', width: 90, hozAlign: 'right', sorter: 'number',
-    formatter: (c) => { const v = c.getValue(); return v == null ? '' : (v > 0 ? '+' : '') + v.toFixed(2); } },
-  { title: '有效槓桿', field: '有效槓桿', width: 90, hozAlign: 'right', sorter: 'number',
-    formatter: (c) => { const v = c.getValue(); return v == null ? '' : v.toFixed(2); } },
-  { title: 'IV%', field: '隱含波動率', width: 80, hozAlign: 'right', sorter: 'number',
-    formatter: (c) => { const v = c.getValue(); return v == null ? '' : v.toFixed(1); } },
-  { title: 'HV%', field: '歷史波動率', width: 80, hozAlign: 'right', sorter: 'number',
-    formatter: (c) => { const v = c.getValue(); return v == null ? '' : v.toFixed(1); } },
-  { title: '成交量(張)', field: '成交量', width: 100, hozAlign: 'right', sorter: 'number',
-    formatter: (c) => { const v = c.getValue(); return v == null ? '' : v.toLocaleString(); } },
-  { title: '成交額(元)', field: '成交金額', width: 120, hozAlign: 'right', sorter: 'number',
-    formatter: (c) => { const v = c.getValue(); return v == null ? '' : v.toLocaleString(); } },
-  { title: '收盤', field: '權證收盤價', width: 80, hozAlign: 'right', sorter: 'number',
-    formatter: (c) => { const v = c.getValue(); return v == null ? '' : v.toFixed(2); } },
-  { title: '流通%', field: '流通比例', width: 80, hozAlign: 'right', sorter: 'number',
-    formatter: (c) => { const v = c.getValue(); return v == null ? '' : v.toFixed(1); } },
+  { title: '履約價', field: '履約價', width: 90, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(2) },
+  { title: '標的現價', field: '標的現價', width: 90, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(2) },
+  { title: '價內外%', field: '價內外', width: 80, hozAlign: 'right', sorter: 'number', formatter: _fmtPct(2) },
+  // ─── 績效 ───
+  { title: '收盤', field: '權證收盤價', width: 80, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(2) },
+  { title: '當日%', field: '權證ROI(%)', width: 80, hozAlign: 'right', sorter: 'number',
+    formatter: (c) => {
+      const v = c.getValue();
+      if (v == null) return '';
+      const cls = v > 0 ? 'num-pos' : (v < 0 ? 'num-neg' : '');
+      return `<span class="${cls}">${v > 0 ? '+' : ''}${v.toFixed(2)}</span>`;
+    } },
+  { title: '溢價%', field: '溢價比率', width: 80, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(2) },
+  // ─── 槓桿 + 波動 ───
+  { title: '有效槓桿', field: '有效槓桿', width: 90, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(2) },
+  { title: '成本槓桿', field: '成本槓桿', width: 90, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(2) },
+  { title: 'IV%', field: '隱含波動率', width: 70, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(1) },
+  { title: 'HV%', field: '歷史波動率', width: 70, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(1) },
+  // ─── 希臘字母 ───
+  { title: 'DELTA', field: 'DELTA', width: 80, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(4) },
+  { title: 'GAMMA', field: 'GAMMA', width: 80, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(4) },
+  { title: 'VEGA',  field: 'VEGA',  width: 80, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(4) },
+  { title: 'THETA', field: 'THETA', width: 80, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(4) },
+  // ─── 理論值 ───
+  { title: '理論價', field: '權證理論價格', width: 90, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(2) },
+  { title: '高估元', field: '權證高估(元)', width: 80, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(2) },
+  { title: '高估%',  field: '權證高估率',   width: 80, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(2) },
+  { title: '內含值', field: '內含價值',     width: 80, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(2) },
+  { title: '時間值', field: '時間價值',     width: 80, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(2) },
+  // ─── 量能 ───
+  { title: '成交量(張)', field: '成交量',  width: 100, hozAlign: 'right', sorter: 'number', formatter: _fmtInt() },
+  { title: '成交額(元)', field: '成交金額', width: 130, hozAlign: 'right', sorter: 'number', formatter: _fmtInt() },
+  { title: '流通%', field: '流通比例', width: 80, hozAlign: 'right', sorter: 'number', formatter: _fmtNum(1) },
+  // ─── 排名分數 ───
   { title: '分數', field: '分數', width: 80, hozAlign: 'right', sorter: 'number',
     formatter: (c) => {
       const v = c.getValue();
@@ -1916,7 +1940,7 @@ function renderWarrant() {
   }
   warrantState.table = new Tabulator('#warrant-table', {
     data: rows,
-    layout: 'fitColumns',
+    layout: 'fitDataTable',   // 欄位多，讓水平捲動
     height: 'calc(100vh - 320px)',
     columns: WARRANT_COLS,
     placeholder: '無資料',

@@ -175,7 +175,11 @@ const warrantState = {
   data: null,     // 整檔 warrants.json
   table: null,    // Tabulator 物件
   loadedDate: null,
+  issuerSel: null,     // Set<string>，null = 全選
+  allIssuers: [],      // 所有可選券商（依出現次數排序）
 };
+
+const WARRANT_MAJOR_ISSUERS = ['元大', '群益', '凱基', '永豐'];
 
 // 題材資金流向分頁狀態
 const themeState = {
@@ -1824,7 +1828,9 @@ async function loadWarrants() {
     warrantState.loadedDate = currentDate;
     metaEl.textContent =
       `資料日 ${warrantState.data.date}　|　${warrantState.data.underlying_count} 標的　|　` +
-      `每策略 top ${warrantState.data.top_per_strategy}　|　更新 ${warrantState.data.generated_at.slice(11,16)}`;
+      `每策略 top ${warrantState.data.top_per_strategy || '不限'}　|　更新 ${warrantState.data.generated_at.slice(11,16)}`;
+    collectIssuers();
+    renderIssuerChecks();
     bindWarrantControls();
     renderWarrant();
   } catch (err) {
@@ -1842,6 +1848,57 @@ function bindWarrantControls() {
   });
   document.getElementById('warrant-strategy').addEventListener('change', renderWarrant);
   document.getElementById('warrant-limit').addEventListener('change', renderWarrant);
+  document.getElementById('warrant-issuer-all').addEventListener('click', () => {
+    warrantState.issuerSel = new Set(WARRANT_MAJOR_ISSUERS.filter(i => warrantState.allIssuers.includes(i)));
+    renderIssuerChecks(); renderWarrant();
+  });
+  document.getElementById('warrant-issuer-clear').addEventListener('click', () => {
+    warrantState.issuerSel = null;   // null = 全選
+    renderIssuerChecks(); renderWarrant();
+  });
+  document.getElementById('warrant-issuer-none').addEventListener('click', () => {
+    warrantState.issuerSel = new Set();
+    renderIssuerChecks(); renderWarrant();
+  });
+}
+
+function collectIssuers() {
+  const counts = {};
+  const us = warrantState.data?.underlyings || {};
+  for (const code in us) {
+    for (const strat in us[code].strategies) {
+      for (const row of us[code].strategies[strat]) {
+        const iss = row['發行券商'];
+        if (iss) counts[iss] = (counts[iss] || 0) + 1;
+      }
+    }
+  }
+  warrantState.allIssuers = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(e => e[0]);
+}
+
+function renderIssuerChecks() {
+  const box = document.getElementById('warrant-issuer-checks');
+  if (!box) return;
+  const sel = warrantState.issuerSel;   // null = 全選
+  box.innerHTML = warrantState.allIssuers.map(iss => {
+    const checked = (sel == null || sel.has(iss)) ? 'checked' : '';
+    const major = WARRANT_MAJOR_ISSUERS.includes(iss) ? 'style="color:#ffd166;font-weight:600"' : '';
+    return `<label ${major}><input type="checkbox" data-issuer="${iss}" ${checked} /> ${iss}</label>`;
+  }).join('');
+  box.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      // 第一次勾選/取消 → 把 null 物質化成 Set
+      if (warrantState.issuerSel == null) {
+        warrantState.issuerSel = new Set(warrantState.allIssuers);
+      }
+      const iss = cb.dataset.issuer;
+      if (cb.checked) warrantState.issuerSel.add(iss);
+      else            warrantState.issuerSel.delete(iss);
+      renderWarrant();
+    });
+  });
 }
 
 const _fmtNum  = (d) => (c) => { const v = c.getValue(); return v == null ? '' : v.toFixed(d); };
@@ -1922,7 +1979,19 @@ function renderWarrant() {
     return;
   }
   let rows = (u.strategies[strat] || []).slice();
+  const totalBeforeFilter = rows.length;
+
+  // 券商過濾（null = 全選 / 空 Set = 都不選）
+  const sel = warrantState.issuerSel;
+  if (sel != null) {
+    rows = rows.filter(r => sel.has(r['發行券商']));
+  }
+
   if (limit > 0) rows = rows.slice(0, limit);
+
+  const issuerSummary = sel == null
+    ? '全部券商'
+    : (sel.size === 0 ? '未選券商' : `${sel.size} 個券商`);
 
   sumEl.innerHTML =
     `<span style="font-size:18px;font-weight:700;color:#00d4aa">${stock} ${u.name || ''}</span>` +
@@ -1930,7 +1999,7 @@ function renderWarrant() {
     `<span style="margin-left:14px;color:#aaa">認購權證 ${u.warrant_count} 檔</span>` +
     `<span style="margin-left:14px;color:#aaa">平均 IV ${u.avg_iv ?? '—'}%</span>` +
     `<span style="margin-left:14px;color:#aaa">平均剩餘 ${u.avg_days_left ?? '—'} 天</span>` +
-    `<span style="margin-left:14px;color:#888">策略：<b>${strat}</b>　|　顯示 ${rows.length} / ${u.strategies[strat]?.length || 0}</span>`;
+    `<span style="margin-left:14px;color:#888">策略：<b>${strat}</b>　|　${issuerSummary}　|　顯示 ${rows.length} / ${totalBeforeFilter}</span>`;
 
   if (warrantState.table) warrantState.table.destroy();
   if (rows.length === 0) {

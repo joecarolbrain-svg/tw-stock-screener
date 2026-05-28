@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260524w4" />
+  <link rel="stylesheet" href="style.css?v=20260528cb1" />
 </head>
 <body>
   <header class="topbar">
@@ -35,6 +35,7 @@
     <button class="tab-btn" data-tab="concept">📍 題材資金流向</button>
     <button class="tab-btn" data-tab="market">🏦 大盤狀態</button>
     <button class="tab-btn" data-tab="warrant">🎯 權證精選</button>
+    <button class="tab-btn" data-tab="cb">💎 可轉債監控</button>
   </nav>
 
   <section class="tab-panel active" data-panel="dashboard">
@@ -340,11 +341,58 @@
     </main>
   </section>
 
+  <section class="tab-panel" data-panel="cb">
+    <div class="filters">
+      <div class="filter-row">
+        <div class="filter-group small">
+          <label class="filter-label">標籤</label>
+          <select id="cb-tag" class="inline-select">
+            <option value="all">全部</option>
+            <option value="套利窗" selected>🟢 套利窗</option>
+            <option value="賣回套利">🎯 賣回套利</option>
+            <option value="觀察">🟡 觀察</option>
+            <option value="高溢價">🔴 高溢價</option>
+            <option value="殭屍">⚠️ 殭屍</option>
+          </select>
+        </div>
+        <div class="filter-group small">
+          <label class="filter-label">代號/名稱</label>
+          <input type="text" id="cb-search" placeholder="例如 1717 或 長興" style="width:180px" />
+        </div>
+        <div class="filter-group small">
+          <label class="filter-label">TCRI ≤</label>
+          <input type="number" id="cb-tcri-max" step="1" placeholder="不限" style="width:80px" />
+        </div>
+        <div class="filter-group small">
+          <label class="filter-label">5日均量 ≥</label>
+          <input type="number" id="cb-vol-min" step="1" placeholder="不限" style="width:80px" />
+        </div>
+        <div class="filter-group small">
+          <label class="filter-label">溢價% ≤</label>
+          <input type="number" id="cb-prem-max" step="1" placeholder="不限" style="width:80px" />
+        </div>
+        <span class="filler"></span>
+        <span class="muted" id="cb-meta">--</span>
+      </div>
+      <div class="filter-row legend-row">
+        <span class="legend-label">說明：</span>
+        <span class="legend-item">🟢 <b>套利窗</b> 溢價&lt;5% + 有量 + TCRI≤5</span>
+        <span class="legend-item">🎯 <b>賣回套利</b> 距賣回&lt;1年 + CB&lt;賣回價</span>
+        <span class="legend-item"><b>Parity</b> CB×轉換價/100 = 理論股價</span>
+        <span class="legend-item"><b>溢價率</b> = CB相對轉換價值的溢價</span>
+      </div>
+    </div>
+    <main>
+      <div id="cb-summary" style="padding:8px 12px;color:#e0e0e0"></div>
+      <div id="cb-table"></div>
+    </main>
+  </section>
+
   <footer>
     <span class="muted">資料來源：本地 Dash 篩選 / Schema v<span id="schema-version">--</span></span>
     <span class="muted">點代號 → TradingView K 線</span>
   </footer>
 
-  <script src="app.js?v=20260524w4"></script>
+  <script src="app.js?v=20260528cb1"></script>
 </body>
 </html>

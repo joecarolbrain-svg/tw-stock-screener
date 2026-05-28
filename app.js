@@ -181,6 +181,14 @@ const warrantState = {
 
 const WARRANT_MAJOR_ISSUERS = ['元大', '群益', '凱基', '永豐'];
 
+// CB 監控分頁
+const cbState = {
+  loaded: false,
+  data: null,
+  table: null,
+  loadedDate: null,
+};
+
 // 題材資金流向分頁狀態
 const themeState = {
   data: null,
@@ -806,6 +814,9 @@ function bindTabs() {
       }
       if (tab === 'warrant') {
         loadWarrants();
+      }
+      if (tab === 'cb') {
+        loadCB();
       }
       // Resize tables after switch
       setTimeout(() => {
@@ -2015,3 +2026,140 @@ function renderWarrant() {
     placeholder: '無資料',
   });
 }
+
+// ── CB 可轉債監控 ─────────────────────────────────────
+const CB_TAG_ICON = {
+  '套利窗': '🟢', '賣回套利': '🎯', '觀察': '🟡',
+  '高溢價': '🔴', '殭屍': '⚠️', '—': '—',
+};
+
+function _cbNum(c, digits) {
+  const v = c.getValue();
+  if (v == null) return '';
+  return Number(v).toFixed(digits);
+}
+
+const CB_COLS = [
+  { title: '標籤', field: 'tag', width: 96, headerSort: true,
+    formatter: c => `${CB_TAG_ICON[c.getValue()] || ''} ${c.getValue() || ''}` },
+  { title: 'CB代號', field: 'cb_code', width: 90 },
+  { title: 'CB名稱', field: 'cb_name', width: 110 },
+  { title: '母股', field: 'stock_code', width: 80,
+    formatter: c => {
+      const code = c.getValue(); if (!code) return '';
+      return `<a href="https://www.tradingview.com/chart/?symbol=TWSE%3A${code}" target="_blank" style="color:#00d4aa">${code}</a>`;
+    } },
+  { title: '現股價', field: 'stock_price', width: 90, hozAlign: 'right', sorter: 'number',
+    formatter: c => _cbNum(c, 2) },
+  { title: '轉換價', field: 'conv_price', width: 90, hozAlign: 'right', sorter: 'number',
+    formatter: c => _cbNum(c, 2) },
+  { title: 'CB市價', field: 'cb_price', width: 90, hozAlign: 'right', sorter: 'number',
+    formatter: c => _cbNum(c, 2) },
+  { title: 'Parity (理論股價)', field: 'parity', width: 130, hozAlign: 'right', sorter: 'number',
+    formatter: c => _cbNum(c, 2) },
+  { title: '溢價率 %', field: 'premium_pct', width: 100, hozAlign: 'right', sorter: 'number',
+    formatter: c => {
+      const v = c.getValue(); if (v == null) return '';
+      const cls = v < 5 ? 'num-pos' : (v > 30 ? 'num-neg' : '');
+      return `<span class="${cls}">${v.toFixed(2)}</span>`;
+    } },
+  { title: '賣回殖利率', field: 'yield_pct', width: 100, hozAlign: 'right', sorter: 'number',
+    formatter: c => {
+      const v = c.getValue(); if (v == null) return '';
+      const cls = v > 5 ? 'num-pos' : '';
+      return `<span class="${cls}">${v.toFixed(2)}</span>`;
+    } },
+  { title: '存續(年)', field: 'duration_yr', width: 90, hozAlign: 'right', sorter: 'number',
+    formatter: c => _cbNum(c, 2) },
+  { title: 'TCRI', field: 'tcri', width: 70, hozAlign: 'center', sorter: 'number' },
+  { title: '5日均量', field: 'vol_5d', width: 90, hozAlign: 'right', sorter: 'number',
+    formatter: c => _cbNum(c, 1) },
+  { title: '20日均量', field: 'vol_20d', width: 90, hozAlign: 'right', sorter: 'number',
+    formatter: c => _cbNum(c, 1) },
+  { title: '賣回價', field: 'redeem_price', width: 90, hozAlign: 'right', sorter: 'number',
+    formatter: c => _cbNum(c, 2) },
+  { title: '賣回日', field: 'redeem_date', width: 105 },
+  { title: '到期日', field: 'maturity_date', width: 105 },
+];
+
+async function loadCB() {
+  if (cbState.loaded && cbState.loadedDate === currentDate) {
+    renderCB(); return;
+  }
+  const metaEl = document.getElementById('cb-meta');
+  const sumEl  = document.getElementById('cb-summary');
+  const entry = (indexMeta?.dates || []).find(
+    e => e.date === currentDate && (e.has || []).includes('cb'));
+  let cbDate = currentDate;
+  if (!entry) {
+    // 找最近一個有 cb 的日期
+    const fallback = (indexMeta?.dates || []).find(e => (e.has || []).includes('cb'));
+    if (!fallback) {
+      metaEl.textContent = '無 CB 資料';
+      sumEl.innerHTML = '<div style="padding:20px;color:#aaa">該日期未提供 CB 監控資料。請跑 export_cb_to_json.py。</div>';
+      document.getElementById('cb-table').innerHTML = '';
+      return;
+    }
+    cbDate = fallback.date;
+  }
+  metaEl.textContent = `載入中... (${cbDate})`;
+  try {
+    cbState.data = await fetchJsonGz(`data/daily/${cbDate}/cb.json.gz`);
+    cbState.loaded = true;
+    cbState.loadedDate = currentDate;
+    metaEl.textContent = `資料日 ${cbState.data.date}　|　${cbState.data.count} 檔　|　更新 ${cbState.data.generated_at.slice(11,16)}`;
+    renderCB();
+  } catch (err) {
+    metaEl.textContent = `載入失敗：${err.message}`;
+  }
+}
+
+function renderCB() {
+  if (!cbState.data) return;
+  const tag = document.getElementById('cb-tag').value;
+  const q = String(document.getElementById('cb-search').value || '').trim().toLowerCase();
+  const tcriMax = parseFloat(document.getElementById('cb-tcri-max').value);
+  const volMin = parseFloat(document.getElementById('cb-vol-min').value);
+  const premMax = parseFloat(document.getElementById('cb-prem-max').value);
+
+  let rows = cbState.data.rows.slice();
+  if (tag !== 'all') rows = rows.filter(r => r.tag === tag);
+  if (q) rows = rows.filter(r =>
+    (r.cb_code || '').toLowerCase().includes(q) ||
+    (r.cb_name || '').toLowerCase().includes(q) ||
+    (r.stock_code || '').toLowerCase().includes(q));
+  if (!isNaN(tcriMax)) rows = rows.filter(r => r.tcri != null && r.tcri <= tcriMax);
+  if (!isNaN(volMin)) rows = rows.filter(r => r.vol_5d != null && r.vol_5d >= volMin);
+  if (!isNaN(premMax)) rows = rows.filter(r => r.premium_pct != null && r.premium_pct <= premMax);
+
+  // 預設排序：套利窗按 5日量 desc；其他按溢價率 asc
+  if (tag === '套利窗') rows.sort((a,b)=>(b.vol_5d||0)-(a.vol_5d||0));
+  else if (tag === '賣回套利') rows.sort((a,b)=>(b.yield_pct||0)-(a.yield_pct||0));
+  else rows.sort((a,b)=>(a.premium_pct||0)-(b.premium_pct||0));
+
+  const tc = cbState.data.tag_counts || {};
+  document.getElementById('cb-summary').innerHTML =
+    `<span style="font-size:15px;font-weight:600">標籤分布：</span>` +
+    Object.entries(tc).map(([k,v]) =>
+      `<span style="margin-left:10px">${CB_TAG_ICON[k]||''} ${k} <b>${v}</b></span>`).join('') +
+    `<span style="margin-left:14px;color:#888">顯示 ${rows.length} 檔</span>`;
+
+  if (cbState.table) cbState.table.destroy();
+  cbState.table = new Tabulator('#cb-table', {
+    data: rows,
+    layout: 'fitDataTable',
+    height: 'calc(100vh - 320px)',
+    columns: CB_COLS,
+    placeholder: '無符合條件的 CB',
+  });
+}
+
+function initCBControls() {
+  ['cb-tag','cb-search','cb-tcri-max','cb-vol-min','cb-prem-max'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const ev = el.tagName === 'SELECT' ? 'change' : 'input';
+    el.addEventListener(ev, () => { if (cbState.loaded) renderCB(); });
+  });
+}
+document.addEventListener('DOMContentLoaded', initCBControls);

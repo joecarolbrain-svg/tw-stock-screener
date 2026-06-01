@@ -39,6 +39,7 @@
     <button class="tab-btn" data-tab="market">🏦 大盤狀態</button>
     <button class="tab-btn" data-tab="warrant">🎯 權證精選</button>
     <button class="tab-btn" data-tab="cb">💎 可轉債監控</button>
+    <button class="tab-btn" data-tab="calc">🧮 期貨計算機</button>
   </nav>
 
   <section class="tab-panel active" data-panel="dashboard">
@@ -391,6 +392,21 @@
     </main>
   </section>
 
+  <section class="tab-panel" data-panel="calc">
+    <div class="filters">
+      <div class="filter-row" style="align-items:center">
+        <div class="filter-group small">
+          <label class="filter-label">股票代號</label>
+          <input type="text" id="calc-ticker-input" placeholder="例如 2327" style="width:140px" />
+        </div>
+        <button id="calc-ticker-go" class="btn">🔍 帶入</button>
+        <span class="filler"></span>
+        <span class="muted">市場數據自動帶 · 口數/均價/現金手動 · 工具給線、人決定</span>
+      </div>
+    </div>
+    <main><div id="calc-tab-body"></div></main>
+  </section>
+
   <footer>
     <span class="muted">資料來源：本地 Dash 篩選 / Schema v<span id="schema-version">--</span></span>
     <span class="muted">點代號 → 站內 K 線（含均線 / 法人 / 融資券）</span>
@@ -411,15 +427,23 @@
         </div>
       </div>
       <div class="kline-legend" id="kline-legend"></div>
+      <div class="kl-subtabs">
+        <button class="kl-subtab-btn active" data-kltab="kline">K 線</button>
+        <button class="kl-subtab-btn" data-kltab="build">🧮 建倉</button>
+      </div>
       <div class="kline-body">
-        <div id="kc-price" class="kc-chart kc-price"></div>
-        <div id="kc-inst"  class="kc-chart kc-sub"></div>
-        <div id="kc-margin" class="kc-chart kc-sub"></div>
-        <div id="kline-status" class="kline-status muted"></div>
+        <div id="kc-klinewrap">
+          <div id="kc-price" class="kc-chart kc-price"></div>
+          <div id="kc-inst"  class="kc-chart kc-sub"></div>
+          <div id="kc-margin" class="kc-chart kc-sub"></div>
+          <div id="kline-status" class="kline-status muted"></div>
+        </div>
+        <div id="kc-build" style="display:none"></div>
       </div>
     </div>
   </div>
 
   <script src="app.js?v=20260531a"></script>
+  <script src="calc.js?v=20260601a"></script>
 </body>
 </html>

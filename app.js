@@ -2336,6 +2336,10 @@ async function openKlineModal(ticker, name, market) {
   document.getElementById('kline-tv').href = tvUrl(ticker, market);
   document.getElementById('kline-status').textContent = '載入中...';
   document.getElementById('kline-legend').innerHTML = '';
+  // 每次開新代號回到 K 線 subtab
+  document.querySelectorAll('.kl-subtab-btn').forEach(b => b.classList.toggle('active', b.dataset.kltab === 'kline'));
+  const klw = document.getElementById('kc-klinewrap'); if (klw) klw.style.display = '';
+  const kcb = document.getElementById('kc-build'); if (kcb) kcb.style.display = 'none';
   klDestroy();
 
   try {
@@ -2346,6 +2350,7 @@ async function openKlineModal(ticker, name, market) {
     }
     klineState.current = d;
     klBuild(d);
+    if (window.QEFCalc) window.QEFCalc.onKline(ticker, name, d);
   } catch (err) {
     console.error(err);
     document.getElementById('kline-status').textContent =

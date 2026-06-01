@@ -198,6 +198,9 @@
       const el = container.querySelector(`#${px}-${s}`);
       if (el) el.addEventListener('input', () => recompute(ctx));
     });
+    // 防呆：滾輪不要改到口數/均價等數字（財務工具誤滾很危險）
+    container.querySelectorAll('input[type=number]').forEach(el =>
+      el.addEventListener('wheel', (e) => { if (document.activeElement === el) e.preventDefault(); }, { passive: false }));
     recompute(ctx);
   }
 

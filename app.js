@@ -351,12 +351,16 @@ function buildTable(data) {
         return txt;
       };
     }
-    // ticker 欄位轉成 TradingView 連結（依市場別決定 exchange）
+    // ticker 欄位：點代號 → 站內 K 線彈窗
     if (c.id === 'ticker') {
       def.formatter = (cell) => {
-        const row = cell.getRow().getData();
         const t = cell.getValue();
-        return `<a class="ticker-link" href="${tvUrl(t, row.market)}" target="_blank">${t}</a>`;
+        return `<a class="ticker-link" href="#" data-kline-ticker="${t}">${t}</a>`;
+      };
+      def.cellClick = (e, cell) => {
+        e.preventDefault();
+        const row = cell.getRow().getData();
+        openKlineModal(cell.getValue(), row.name, row.market);
       };
     }
     // 命中策略欄：渲染分類色塊
@@ -2163,3 +2167,210 @@ function initCBControls() {
   });
 }
 document.addEventListener('DOMContentLoaded', initCBControls);
+
+// ═════════════════════════════════════════════════════════
+//  站內 K 線彈窗（lightweight-charts v4）
+//  價格主圖（K + SMA20/VWAP20/MA60 + 量 + 訊號marker）
+//  + 法人副圖（外資 net 量柱 + 投信線）+ 融資券副圖
+// ═════════════════════════════════════════════════════════
+const klineState = {
+  charts: [],          // [priceChart, instChart, marginChart]
+  candleSeries: null,
+  syncing: false,
+  cache: {},           // ticker -> payload
+  current: null,
+};
+
+const LC = () => window.LightweightCharts;
+
+function klBaseOpts(height) {
+  return {
+    autoSize: true,
+    height,
+    layout: { background: { color: '#16161f' }, textColor: '#c8c8d4', fontSize: 11 },
+    grid: { vertLines: { color: '#23232f' }, horzLines: { color: '#23232f' } },
+    rightPriceScale: { borderColor: '#2a2a3e' },
+    timeScale: { borderColor: '#2a2a3e', rightOffset: 4 },
+    crosshair: { mode: 0 },
+    handleScale: { axisPressedMouseMove: true },
+  };
+}
+
+// 把 (dates[], values[]) 轉成 lightweight-charts 資料，跳過 null
+function klSeriesData(dates, vals) {
+  const out = [];
+  for (let i = 0; i < dates.length; i++) {
+    const v = vals ? vals[i] : null;
+    if (v == null) continue;
+    out.push({ time: dates[i], value: v });
+  }
+  return out;
+}
+
+function klDestroy() {
+  klineState.charts.forEach(c => { try { c.remove(); } catch (e) {} });
+  klineState.charts = [];
+  klineState.candleSeries = null;
+  ['kc-price', 'kc-inst', 'kc-margin'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+}
+
+// 三圖時間軸同步
+function klSyncTimeScales() {
+  const charts = klineState.charts;
+  charts.forEach((src) => {
+    src.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+      if (klineState.syncing || !range) return;
+      klineState.syncing = true;
+      charts.forEach((dst) => {
+        if (dst !== src) dst.timeScale().setVisibleLogicalRange(range);
+      });
+      klineState.syncing = false;
+    });
+  });
+}
+
+function klBuild(d) {
+  if (!LC()) { document.getElementById('kline-status').textContent = '圖表庫載入失敗'; return; }
+  klDestroy();
+
+  const showMA     = document.getElementById('kl-ma').checked;
+  const showInst   = document.getElementById('kl-inst').checked && d.has_inst;
+  const showMargin = document.getElementById('kl-margin').checked && d.has_margin;
+
+  document.getElementById('kc-inst').style.display   = showInst ? '' : 'none';
+  document.getElementById('kc-margin').style.display = showMargin ? '' : 'none';
+
+  // ── 價格主圖 ──
+  const priceEl = document.getElementById('kc-price');
+  const pChart = LC().createChart(priceEl, klBaseOpts(360));
+  const candle = pChart.addCandlestickSeries({
+    upColor: '#ef5350', downColor: '#26a69a',       // 台股紅漲綠跌
+    wickUpColor: '#ef5350', wickDownColor: '#26a69a', borderVisible: false,
+  });
+  const candleData = d.dates.map((t, i) => ({
+    time: t, open: d.o[i], high: d.h[i], low: d.l[i], close: d.c[i],
+  })).filter(x => x.open != null && x.close != null);
+  candle.setData(candleData);
+  klineState.candleSeries = candle;
+
+  // 均線
+  if (showMA) {
+    const sma = pChart.addLineSeries({ color: '#42a5f5', lineWidth: 1, lastValueVisible: false, priceLineVisible: false });
+    sma.setData(klSeriesData(d.dates, d.sma20));
+    const vwap = pChart.addLineSeries({ color: '#ffa726', lineWidth: 1, lastValueVisible: false, priceLineVisible: false });
+    vwap.setData(klSeriesData(d.dates, d.vwap20));
+    const ma60 = pChart.addLineSeries({ color: '#ab47bc', lineWidth: 1, lastValueVisible: false, priceLineVisible: false });
+    ma60.setData(klSeriesData(d.dates, d.ma60));
+  }
+
+  // 量（疊在主圖底部）
+  const vol = pChart.addHistogramSeries({
+    priceFormat: { type: 'volume' }, priceScaleId: '', lastValueVisible: false,
+  });
+  vol.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+  vol.setData(d.dates.map((t, i) => ({
+    time: t, value: d.v[i],
+    color: (d.c[i] >= d.o[i]) ? 'rgba(239,83,80,0.45)' : 'rgba(38,166,154,0.45)',
+  })).filter(x => x.value != null));
+
+  // 自家訊號 marker
+  if (d.markers && d.markers.length) {
+    candle.setMarkers(d.markers.map(m => ({
+      time: m.date, position: 'belowBar', color: '#FFD700',
+      shape: 'arrowUp', text: m.type,
+    })));
+  }
+
+  klineState.charts.push(pChart);
+
+  // ── 法人副圖 ──
+  if (showInst) {
+    const ic = LC().createChart(document.getElementById('kc-inst'), klBaseOpts(120));
+    const fh = ic.addHistogramSeries({ priceFormat: { type: 'volume' }, lastValueVisible: false, title: '外資' });
+    fh.setData(d.dates.map((t, i) => ({
+      time: t, value: d.inst_foreign[i],
+      color: (d.inst_foreign[i] >= 0) ? 'rgba(239,83,80,0.6)' : 'rgba(38,166,154,0.6)',
+    })).filter(x => x.value != null));
+    const tl = ic.addLineSeries({ color: '#ffca28', lineWidth: 1, lastValueVisible: false, priceLineVisible: false, title: '投信' });
+    tl.setData(klSeriesData(d.dates, d.inst_trust));
+    klineState.charts.push(ic);
+  }
+
+  // ── 融資券副圖 ──
+  if (showMargin) {
+    const mc = LC().createChart(document.getElementById('kc-margin'), klBaseOpts(120));
+    const ml = mc.addLineSeries({ color: '#ffd54f', lineWidth: 1, lastValueVisible: false, priceLineVisible: false, title: '融資餘' });
+    ml.setData(klSeriesData(d.dates, d.margin_bal));
+    const sl = mc.addLineSeries({ color: '#4dd0e1', lineWidth: 1, lastValueVisible: false, priceLineVisible: false, title: '融券餘' });
+    sl.setData(klSeriesData(d.dates, d.short_bal));
+    klineState.charts.push(mc);
+  }
+
+  klSyncTimeScales();
+  klineState.charts.forEach(c => c.timeScale().fitContent());
+
+  // legend
+  const parts = [];
+  if (showMA) parts.push('<span style="color:#42a5f5">━ SMA20</span>',
+                         '<span style="color:#ffa726">━ VWAP20</span>',
+                         '<span style="color:#ab47bc">━ MA60</span>');
+  if (showInst)   parts.push('｜法人：<span style="color:#ef5350">外資量柱</span> <span style="color:#ffca28">投信線</span>');
+  if (showMargin) parts.push('｜<span style="color:#ffd54f">融資餘</span> <span style="color:#4dd0e1">融券餘</span>');
+  document.getElementById('kline-legend').innerHTML = parts.join('  ');
+
+  const warn = [];
+  if (!d.has_inst)   warn.push('無法人資料');
+  if (!d.has_margin) warn.push('融資券資料稀疏');
+  document.getElementById('kline-status').textContent =
+    `${d.dates.length} 個交易日　${d.dates[0]} ~ ${d.dates[d.dates.length - 1]}` +
+    (warn.length ? `　（${warn.join('、')}）` : '');
+}
+
+async function openKlineModal(ticker, name, market) {
+  const modal = document.getElementById('kline-modal');
+  modal.hidden = false;
+  document.getElementById('kline-title').textContent = `${ticker}　${name || ''}`;
+  document.getElementById('kline-tv').href = tvUrl(ticker, market);
+  document.getElementById('kline-status').textContent = '載入中...';
+  document.getElementById('kline-legend').innerHTML = '';
+  klDestroy();
+
+  try {
+    let d = klineState.cache[ticker];
+    if (!d) {
+      d = await fetchJsonGz(`data/kline/${ticker}.json.gz`);
+      klineState.cache[ticker] = d;
+    }
+    klineState.current = d;
+    klBuild(d);
+  } catch (err) {
+    console.error(err);
+    document.getElementById('kline-status').textContent =
+      `載入 ${ticker} K 線失敗：${err.message}`;
+  }
+}
+
+function closeKlineModal() {
+  document.getElementById('kline-modal').hidden = true;
+  klDestroy();
+  klineState.current = null;
+}
+
+function initKlineModal() {
+  document.querySelectorAll('[data-kline-close]').forEach(el =>
+    el.addEventListener('click', closeKlineModal));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !document.getElementById('kline-modal').hidden)
+      closeKlineModal();
+  });
+  ['kl-ma', 'kl-inst', 'kl-margin'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', () => {
+      if (klineState.current) klBuild(klineState.current);
+    });
+  });
+}
+document.addEventListener('DOMContentLoaded', initKlineModal);

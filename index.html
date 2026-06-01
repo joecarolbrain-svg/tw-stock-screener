@@ -9,7 +9,10 @@
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260528cb1" />
+  <!-- lightweight-charts（K 線彈窗用） -->
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+
+  <link rel="stylesheet" href="style.css?v=20260531a" />
 </head>
 <body>
   <header class="topbar">
@@ -390,9 +393,33 @@
 
   <footer>
     <span class="muted">資料來源：本地 Dash 篩選 / Schema v<span id="schema-version">--</span></span>
-    <span class="muted">點代號 → TradingView K 線</span>
+    <span class="muted">點代號 → 站內 K 線（含均線 / 法人 / 融資券）</span>
   </footer>
 
-  <script src="app.js?v=20260528cb1"></script>
+  <!-- ── 站內 K 線彈窗 ───────────────────────────────────── -->
+  <div id="kline-modal" class="kline-modal" hidden>
+    <div class="kline-backdrop" data-kline-close></div>
+    <div class="kline-dialog">
+      <div class="kline-head">
+        <span class="kline-title" id="kline-title">--</span>
+        <div class="kline-toggles">
+          <label><input type="checkbox" id="kl-ma" checked> 均線</label>
+          <label><input type="checkbox" id="kl-inst" checked> 法人</label>
+          <label><input type="checkbox" id="kl-margin" checked> 融資券</label>
+          <a id="kline-tv" href="#" target="_blank" class="kline-tv" title="在 TradingView 開啟">TradingView ↗</a>
+          <button class="kline-x" data-kline-close title="關閉 (Esc)">✕</button>
+        </div>
+      </div>
+      <div class="kline-legend" id="kline-legend"></div>
+      <div class="kline-body">
+        <div id="kc-price" class="kc-chart kc-price"></div>
+        <div id="kc-inst"  class="kc-chart kc-sub"></div>
+        <div id="kc-margin" class="kc-chart kc-sub"></div>
+        <div id="kline-status" class="kline-status muted"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=20260531a"></script>
 </body>
 </html>

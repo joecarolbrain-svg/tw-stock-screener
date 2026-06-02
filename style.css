@@ -631,3 +631,8 @@ footer {
   .qef-grid { grid-template-columns: 1fr 1fr; }
   .qef-line .ql-px { font-size: 17px; min-width: 62px; }
 }
+
+/* 主升策略篩選 */
+.filter-group-mainup .mainup-mode label { color: #ffb347; }
+.mainup-sigs { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0; }
+.mainup-sigs label { font-size: 12px; color: #ffd9a8; display: inline-flex; align-items: center; gap: 3px; }

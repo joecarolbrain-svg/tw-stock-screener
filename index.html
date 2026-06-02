@@ -12,7 +12,7 @@
   <!-- lightweight-charts（K 線彈窗用） -->
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260531a" />
+  <link rel="stylesheet" href="style.css?v=20260602a" />
 </head>
 <body>
   <header class="topbar">
@@ -53,6 +53,26 @@
           <label><input type="radio" name="mode" value="OR" checked /> OR（聯集）</label>
           <label><input type="radio" name="mode" value="AND" /> AND（交集）</label>
         </div>
+      </div>
+    </div>
+
+    <div class="filter-row">
+      <div class="filter-group filter-group-mainup">
+        <label class="filter-label" style="color:#ffb347">主升（朱家泓飆股5訊號）</label>
+        <div class="mode-toggle mainup-mode">
+          <label><input type="radio" name="mainup-mode" value="off" checked /> 關</label>
+          <label><input type="radio" name="mainup-mode" value="sig" /> 訊號</label>
+          <label><input type="radio" name="mainup-mode" value="A" /> 穩健A</label>
+          <label><input type="radio" name="mainup-mode" value="B" /> 獵飆B</label>
+        </div>
+        <div id="mainup-signals" class="mainup-sigs">
+          <label><input type="checkbox" name="mainup-sig" value="s1" checked /> S1長底</label>
+          <label><input type="checkbox" name="mainup-sig" value="s2" checked /> S2爆量</label>
+          <label><input type="checkbox" name="mainup-sig" value="s3" checked /> S3多排</label>
+          <label><input type="checkbox" name="mainup-sig" value="s4" checked /> S4突破</label>
+          <label><input type="checkbox" name="mainup-sig" value="s5" checked /> S5題材</label>
+        </div>
+        <span class="muted" style="font-size:11px">訊號模式：勾選的全中才留（S1×S4 互斥，建議取消）</span>
       </div>
     </div>
 
@@ -443,7 +463,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260531a"></script>
+  <script src="app.js?v=20260602a"></script>
   <script src="calc.js?v=20260601a"></script>
 </body>
 </html>

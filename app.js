@@ -126,6 +126,9 @@ const state = {
   onlyPinned: false,
   // 只顯示族群 z≥1
   onlyHotGroup: false,
+  // 主升策略：off|sig|A|B；sig 模式用 mainupSignals 勾選的訊號
+  mainupMode: 'off',
+  mainupSignals: new Set(['s1', 's2', 's3', 's4', 's5']),
 };
 
 // 自選股分頁狀態
@@ -464,16 +467,35 @@ function applyFilters() {
     if (state.distRiskMax != null && (row.dist_risk ?? Infinity) > state.distRiskMax) return false;
     if (state.groupZMin != null && (row.max_group_z ?? -Infinity) < state.groupZMin) return false;
 
+    // 主升策略：sig=勾選訊號全中｜A=高勝率3且非出貨｜B=Z_主升飆股🔥
+    if (state.mainupMode === 'sig') {
+      for (const s of state.mainupSignals) if (row[s] !== 1) return false;
+    } else if (state.mainupMode === 'A') {
+      if ((row.win_n ?? 0) < 3) return false;
+      if (row.mainup_dist === 1) return false;
+    } else if (state.mainupMode === 'B') {
+      if (!(row.mainup_tag && String(row.mainup_tag).includes('飆股'))) return false;
+    }
+
     return true;
   });
+
+  // 主升 sig/B 模式：依量比由大到小排序
+  if (state.mainupMode === 'sig' || state.mainupMode === 'B') {
+    state.table.setSort('vol_ratio', 'desc');
+  }
 
   // 更新計數摘要
   setTimeout(() => {
     const visible = state.table.getDataCount('active');
     const total = state.table.getDataCount();
     document.getElementById('row-count').textContent = `${visible}/${total} 檔`;
+    const mu = state.mainupMode === 'off' ? '關'
+             : (state.mainupMode === 'sig'
+                ? `訊號(${[...state.mainupSignals].join('+') || '未勾'})`
+                : state.mainupMode);
     document.getElementById('filter-summary').textContent =
-      `${state.mode}｜分類 ${state.selectedCats.size}｜產業 ${state.industries.size}`;
+      `${state.mode}｜分類 ${state.selectedCats.size}｜主升 ${mu}`;
   }, 0);
 }
 
@@ -485,6 +507,18 @@ function bindControls() {
 
   document.getElementById('search-input').addEventListener('input', e => {
     state.search = e.target.value.trim(); applyFilters();
+  });
+
+  // 主升模式 radio + 5 訊號 checkbox
+  document.querySelectorAll('input[name="mainup-mode"]').forEach(r => {
+    r.addEventListener('change', e => { state.mainupMode = e.target.value; applyFilters(); });
+  });
+  document.querySelectorAll('input[name="mainup-sig"]').forEach(cb => {
+    cb.addEventListener('change', e => {
+      if (e.target.checked) state.mainupSignals.add(e.target.value);
+      else state.mainupSignals.delete(e.target.value);
+      applyFilters();
+    });
   });
 
   document.querySelectorAll('input[name="dim"]').forEach(r => {
@@ -568,9 +602,14 @@ function clearAllFilters() {
   state.rsMin = 0;
   state.distRiskMax = null;
   state.groupZMin = null;
+  state.mainupMode = 'off';
+  state.mainupSignals = new Set(['s1', 's2', 's3', 's4', 's5']);
 
   document.querySelectorAll('.cat-chip input').forEach(cb => { cb.checked = false; cb.parentElement.classList.remove('checked'); });
   document.querySelector('input[name="mode"][value="OR"]').checked = true;
+  const muOff = document.querySelector('input[name="mainup-mode"][value="off"]');
+  if (muOff) muOff.checked = true;
+  document.querySelectorAll('input[name="mainup-sig"]').forEach(cb => { cb.checked = true; });
   document.querySelector('input[name="dim"][value="industry"]').checked = true;
   document.getElementById('dim-search').value = '';
   renderDimensionOptions();

@@ -490,18 +490,113 @@ function applyFilters() {
     state.table.setSort('vol_ratio', 'desc');
   }
 
-  // 更新計數摘要
+  // 更新計數摘要 + 已選條件列 + 分組徽章
   setTimeout(() => {
     const visible = state.table.getDataCount('active');
     const total = state.table.getDataCount();
     document.getElementById('row-count').textContent = `${visible}/${total} 檔`;
-    const mu = state.mainupMode === 'off' ? '關'
-             : (state.mainupMode === 'sig'
-                ? `訊號(${[...state.mainupSignals].join('+') || '未勾'})`
-                : state.mainupMode);
-    document.getElementById('filter-summary').textContent =
-      `${state.mode}｜分類 ${state.selectedCats.size}｜主升 ${mu}`;
+    renderActiveFilters();
+    updateGroupCounts();
   }, 0);
+}
+
+// ── 6b. 已選條件 chip 列 / 分組徽章 / 收合 ───────────────
+const DIM_LABEL = { industry: '產業', sector: '類股', concept: '題材' };
+const MAINUP_MODE_LABEL = { sig: '自訂', A: '穩健A', B: '獵飆B' };
+
+function renderActiveFilters() {
+  const bar = document.getElementById('active-filters');
+  if (!bar) return;
+  const chips = [];
+  const add = (key, label) => chips.push({ key, label });
+  if (state.selectedCats.size) add('cat', `分類:${state.selectedCats.size}(${state.mode})`);
+  if (state.mainupMode !== 'off') {
+    let l = `主升:${MAINUP_MODE_LABEL[state.mainupMode]}`;
+    if (state.mainupMode === 'sig') l += `(${[...state.mainupSignals].length}旗標)`;
+    add('mainup', l);
+  }
+  if (state.mainupEntry) add('mainupEntry', `進場:${state.mainupEntry}`);
+  if (state.mainupExclDist) add('mainupExcl', '排除出貨');
+  if (state.dimSelected.size) add('dim', `${DIM_LABEL[state.dim]}:${state.dimSelected.size}`);
+  if (state.search) add('search', `搜尋:${state.search}`);
+  if (state.scoreMin > 0) add('scoreMin', `分數≥${state.scoreMin}`);
+  if (state.rsMin > 0) add('rsMin', `RS≥${state.rsMin}`);
+  if (state.distRiskMax != null) add('distRiskMax', `出貨風險≤${state.distRiskMax}`);
+  if (state.groupZMin != null) add('groupZMin', `族群z≥${state.groupZMin}`);
+  if (state.onlyHotGroup) add('onlyHotGroup', '族群z≥1');
+  if (state.onlyPinned) add('onlyPinned', '只看勾選');
+
+  if (!chips.length) {
+    bar.innerHTML = '<span class="af-empty">未套用任何篩選</span>';
+    return;
+  }
+  bar.innerHTML = chips.map(c =>
+    `<span class="afchip">${c.label}<button class="afx" data-key="${c.key}" title="移除">✕</button></span>`
+  ).join('');
+  bar.querySelectorAll('.afx').forEach(b =>
+    b.addEventListener('click', () => removeFilter(b.dataset.key)));
+}
+
+function updateGroupCounts() {
+  const set = (id, n) => { const e = document.getElementById(id); if (e) e.textContent = n ? ` ${n}` : ''; };
+  set('fgc-cat', state.selectedCats.size);
+  set('fgc-mainup', (state.mainupMode !== 'off' ? 1 : 0) +
+                    (state.mainupEntry ? 1 : 0) + (state.mainupExclDist ? 1 : 0));
+  set('fgc-dim', state.dimSelected.size);
+  set('fgc-thresh', (state.scoreMin > 0 ? 1 : 0) + (state.rsMin > 0 ? 1 : 0) +
+                    (state.distRiskMax != null ? 1 : 0) + (state.groupZMin != null ? 1 : 0));
+}
+
+function removeFilter(key) {
+  switch (key) {
+    case 'cat':
+      state.selectedCats.clear();
+      document.querySelectorAll('.cat-chip input').forEach(cb => { cb.checked = false; cb.parentElement.classList.remove('checked'); });
+      break;
+    case 'mainup':
+      state.mainupMode = 'off';
+      document.querySelector('input[name="mainup-mode"][value="off"]').checked = true;
+      { const s = document.getElementById('mainup-signals'); if (s) s.hidden = true; }
+      break;
+    case 'mainupEntry':
+      state.mainupEntry = ''; { const e = document.getElementById('mainup-entry'); if (e) e.value = ''; }
+      break;
+    case 'mainupExcl':
+      state.mainupExclDist = false; { const e = document.getElementById('mainup-excl-dist'); if (e) e.checked = false; }
+      break;
+    case 'dim':
+      state.dimSelected.clear();
+      [...document.getElementById('dim-select').options].forEach(o => o.selected = false);
+      break;
+    case 'search':
+      state.search = ''; document.getElementById('search-input').value = '';
+      break;
+    case 'scoreMin': state.scoreMin = 0; document.getElementById('score-min').value = 0; break;
+    case 'rsMin': state.rsMin = 0; document.getElementById('rs-min').value = 0; break;
+    case 'distRiskMax': state.distRiskMax = null; document.getElementById('dist-risk-max').value = ''; break;
+    case 'groupZMin': state.groupZMin = null; document.getElementById('group-z-min').value = ''; break;
+    case 'onlyHotGroup': state.onlyHotGroup = false; document.getElementById('only-hot-group').checked = false; break;
+    case 'onlyPinned': {
+      state.onlyPinned = false;
+      const b = document.getElementById('btn-only-pinned');
+      if (b) { b.classList.remove('btn-active'); b.textContent = '★ 只看勾選'; }
+      break;
+    }
+  }
+  applyFilters();
+}
+
+function bindGroupToggles() {
+  document.querySelectorAll('.fg-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const g = btn.dataset.group;
+      const body = document.querySelector(`.fg-body[data-group="${g}"]`);
+      if (!body) return;
+      const willOpen = body.hidden;
+      body.hidden = !willOpen;
+      btn.classList.toggle('open', willOpen);
+    });
+  });
 }
 
 // ── 7. 綁定篩選控制項 ───────────────────────────────
@@ -516,7 +611,12 @@ function bindControls() {
 
   // 主升模式 radio + 5 訊號 checkbox
   document.querySelectorAll('input[name="mainup-mode"]').forEach(r => {
-    r.addEventListener('change', e => { state.mainupMode = e.target.value; applyFilters(); });
+    r.addEventListener('change', e => {
+      state.mainupMode = e.target.value;
+      const sigBox = document.getElementById('mainup-signals');  // 漸進揭露：只在「自訂」顯示
+      if (sigBox) sigBox.hidden = (e.target.value !== 'sig');
+      applyFilters();
+    });
   });
   document.querySelectorAll('input[name="mainup-sig"]').forEach(cb => {
     cb.addEventListener('change', e => {
@@ -621,6 +721,7 @@ function clearAllFilters() {
   const muOff = document.querySelector('input[name="mainup-mode"][value="off"]');
   if (muOff) muOff.checked = true;
   document.querySelectorAll('input[name="mainup-sig"]').forEach(cb => { cb.checked = true; });
+  const muSig = document.getElementById('mainup-signals'); if (muSig) muSig.hidden = true;
   const muE = document.getElementById('mainup-entry'); if (muE) muE.value = '';
   const muD = document.getElementById('mainup-excl-dist'); if (muD) muD.checked = false;
   document.querySelector('input[name="dim"][value="industry"]').checked = true;
@@ -1857,6 +1958,7 @@ function renderMarket(d) {
     renderDimensionOptions();
     buildTable(data);
     bindControls();
+    bindGroupToggles();
     bindTabs();
     bindWatchlistControls();
     refreshPresetSelect();

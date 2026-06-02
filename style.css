@@ -640,3 +640,27 @@ footer {
 .mainup-extra { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0; align-items: center; }
 .mainup-extra label { font-size: 12px; color: #ffd9a8; display: inline-flex; align-items: center; gap: 4px; }
 .mainup-extra select { font-size: 12px; }
+
+/* ── 篩選區重構：已選條件列 + 分組收合 ───────────────── */
+.active-filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  padding: 6px 10px; min-height: 30px; border-bottom: 1px solid #2a2a3e; }
+.active-filters .af-empty { color: #666; font-size: 12px; }
+.afchip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px;
+  color: #cfe3ff; background: #1b2a44; border: 1px solid #2d4a6e; border-radius: 12px;
+  padding: 2px 4px 2px 10px; }
+.afchip .afx { background: none; border: none; color: #8aa6d0; cursor: pointer;
+  font-size: 11px; line-height: 1; padding: 2px 4px; border-radius: 8px; }
+.afchip .afx:hover { background: #33507a; color: #fff; }
+
+.group-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; }
+.group-bar .search-box { width: 200px; padding: 5px 8px; background: #0d0d1a;
+  border: 1px solid #2a2a3e; border-radius: 6px; color: #e0e0e0; font-size: 13px; }
+.fg-toggle { background: #14142a; border: 1px solid #2a2a3e; color: #cfd3e0;
+  border-radius: 6px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
+.fg-toggle::before { content: '▸ '; color: #888; }
+.fg-toggle.open { background: #1d2748; border-color: #3a4a7a; color: #fff; }
+.fg-toggle.open::before { content: '▾ '; color: #6ea8ff; }
+.fg-toggle .fg-count { color: #ffb347; font-weight: 700; }
+.fg-body { padding: 10px 14px; background: #0d0d1a; border-bottom: 1px solid #2a2a3e;
+  display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-start; }
+.fg-body[data-group="mainup"] { flex-direction: column; gap: 6px; }

@@ -12,7 +12,7 @@
   <!-- lightweight-charts（K 線彈窗用） -->
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260602b" />
+  <link rel="stylesheet" href="style.css?v=20260602c" />
 </head>
 <body>
   <header class="topbar">
@@ -45,63 +45,80 @@
   <section class="tab-panel active" data-panel="dashboard">
 
   <section class="filters">
-    <div class="filter-row">
-      <div class="filter-group filter-group-categories">
-        <label class="filter-label">分類（命中策略）</label>
-        <div id="cat-checkboxes" class="cat-grid"></div>
-        <div class="mode-toggle">
-          <label><input type="radio" name="mode" value="OR" checked /> OR（聯集）</label>
-          <label><input type="radio" name="mode" value="AND" /> AND（交集）</label>
-        </div>
+    <!-- 已選條件 chip 列 -->
+    <div id="active-filters" class="active-filters"></div>
+
+    <!-- 工具列：搜尋 + 分組收合 toggle + 動作 -->
+    <div class="filter-row group-bar">
+      <input type="text" id="search-input" class="search-box" placeholder="🔍 代號/名稱（例 2330）" />
+      <button class="fg-toggle" data-group="cat">分類<span class="fg-count" id="fgc-cat"></span></button>
+      <button class="fg-toggle" data-group="mainup">主升<span class="fg-count" id="fgc-mainup"></span></button>
+      <button class="fg-toggle" data-group="dim">維度<span class="fg-count" id="fgc-dim"></span></button>
+      <button class="fg-toggle" data-group="thresh">門檻<span class="fg-count" id="fgc-thresh"></span></button>
+      <span class="filler"></span>
+      <button id="btn-clear" class="btn btn-ghost">清除全部</button>
+      <button id="btn-save-preset" class="btn btn-ghost">💾 組合</button>
+      <select id="preset-select" class="preset-select">
+        <option value="">-- 載入 --</option>
+      </select>
+      <button id="btn-delete-preset" class="btn btn-ghost btn-danger">🗑</button>
+      <button id="btn-only-pinned" class="btn btn-ghost" disabled>★ 只看勾選</button>
+      <button id="btn-clear-pinned" class="btn btn-ghost btn-danger" disabled>清空</button>
+      <span id="pin-summary" class="muted"></span>
+      <label class="check-toggle" title="只顯示族群最高 z ≥ 1 的個股（族群在熱區）">
+        <input type="checkbox" id="only-hot-group" /> 🌊 族群z≥1
+      </label>
+      <span id="filter-summary" class="muted"></span>
+    </div>
+
+    <!-- 分類 -->
+    <div class="fg-body" data-group="cat" hidden>
+      <div id="cat-checkboxes" class="cat-grid"></div>
+      <div class="mode-toggle">
+        <label><input type="radio" name="mode" value="OR" checked /> OR（聯集）</label>
+        <label><input type="radio" name="mode" value="AND" /> AND（交集）</label>
       </div>
     </div>
 
-    <div class="filter-row">
-      <div class="filter-group filter-group-mainup">
-        <label class="filter-label" style="color:#ffb347">主升（朱家泓飆股5訊號+3條件）</label>
-        <div class="mode-toggle mainup-mode">
-          <label><input type="radio" name="mainup-mode" value="off" checked /> 關</label>
-          <label><input type="radio" name="mainup-mode" value="sig" /> 自訂</label>
-          <label><input type="radio" name="mainup-mode" value="A" /> 穩健A</label>
-          <label><input type="radio" name="mainup-mode" value="B" /> 獵飆B</label>
-        </div>
-        <div id="mainup-signals" class="mainup-sigs">
-          <span class="mu-sub">5訊號</span>
-          <label><input type="checkbox" name="mainup-sig" value="s1" checked /> S1長底</label>
-          <label><input type="checkbox" name="mainup-sig" value="s2" checked /> S2爆量</label>
-          <label><input type="checkbox" name="mainup-sig" value="s3" checked /> S3多排</label>
-          <label><input type="checkbox" name="mainup-sig" value="s4" checked /> S4突破</label>
-          <label><input type="checkbox" name="mainup-sig" value="s5" checked /> S5題材</label>
-          <span class="mu-sub">3條件</span>
-          <label><input type="checkbox" name="mainup-sig" value="c1" checked /> C1多頭</label>
-          <label><input type="checkbox" name="mainup-sig" value="c2" checked /> C2黃金交叉</label>
-          <label><input type="checkbox" name="mainup-sig" value="c3" checked /> C3進場點</label>
-          <span class="mu-sub">setup</span>
-          <label><input type="checkbox" name="mainup-sig" value="mainup_ma60" checked /> 季線突破</label>
-        </div>
-        <div class="mainup-extra">
-          <label>進場型態
-            <select id="mainup-entry">
-              <option value="">不限</option>
-              <option value="回後買上漲">回後買上漲</option>
-              <option value="盤整突破">盤整突破</option>
-              <option value="⚠過高勿追">⚠過高勿追</option>
-            </select>
-          </label>
-          <label><input type="checkbox" id="mainup-excl-dist" /> 排除出貨警訊</label>
-        </div>
-        <span class="muted" style="font-size:11px">自訂模式：勾選旗標全中才留（S1×S4/C1 互斥，建議取消）；進場型態/排除出貨任何模式皆生效</span>
+    <!-- 主升 -->
+    <div class="fg-body" data-group="mainup" hidden>
+      <div class="mode-toggle mainup-mode">
+        <label><input type="radio" name="mainup-mode" value="off" checked /> 關</label>
+        <label><input type="radio" name="mainup-mode" value="sig" /> 自訂</label>
+        <label><input type="radio" name="mainup-mode" value="A" /> 穩健A</label>
+        <label><input type="radio" name="mainup-mode" value="B" /> 獵飆B</label>
       </div>
+      <div id="mainup-signals" class="mainup-sigs" hidden>
+        <span class="mu-sub">5訊號</span>
+        <label><input type="checkbox" name="mainup-sig" value="s1" checked /> S1長底</label>
+        <label><input type="checkbox" name="mainup-sig" value="s2" checked /> S2爆量</label>
+        <label><input type="checkbox" name="mainup-sig" value="s3" checked /> S3多排</label>
+        <label><input type="checkbox" name="mainup-sig" value="s4" checked /> S4突破</label>
+        <label><input type="checkbox" name="mainup-sig" value="s5" checked /> S5題材</label>
+        <span class="mu-sub">3條件</span>
+        <label><input type="checkbox" name="mainup-sig" value="c1" checked /> C1多頭</label>
+        <label><input type="checkbox" name="mainup-sig" value="c2" checked /> C2黃金交叉</label>
+        <label><input type="checkbox" name="mainup-sig" value="c3" checked /> C3進場點</label>
+        <span class="mu-sub">setup</span>
+        <label><input type="checkbox" name="mainup-sig" value="mainup_ma60" checked /> 季線突破</label>
+      </div>
+      <div class="mainup-extra">
+        <label>進場型態
+          <select id="mainup-entry">
+            <option value="">不限</option>
+            <option value="回後買上漲">回後買上漲</option>
+            <option value="盤整突破">盤整突破</option>
+            <option value="⚠過高勿追">⚠過高勿追</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="mainup-excl-dist" /> 排除出貨警訊</label>
+      </div>
+      <span class="muted" style="font-size:11px">自訂模式：勾選旗標全中才留（S1×S4/C1 互斥，建議取消）；進場型態/排除出貨任何模式皆生效</span>
     </div>
 
-    <div class="filter-row">
-      <div class="filter-group">
-        <label class="filter-label">代號/名稱搜尋</label>
-        <input type="text" id="search-input" placeholder="例如 2330 或 台積電" />
-      </div>
-
+    <!-- 維度 -->
+    <div class="fg-body" data-group="dim" hidden>
       <div class="filter-group filter-group-dimension">
-        <label class="filter-label">分類維度</label>
         <div class="dim-radio">
           <label><input type="radio" name="dim" value="industry" checked /> 產業</label>
           <label><input type="radio" name="dim" value="sector" /> 類股</label>
@@ -111,45 +128,26 @@
         <select id="dim-select" multiple size="6"></select>
         <span class="muted" id="dim-source"></span>
       </div>
+    </div>
 
+    <!-- 門檻 -->
+    <div class="fg-body" data-group="thresh" hidden>
       <div class="filter-group small">
         <label class="filter-label">分數 ≥</label>
         <input type="number" id="score-min" step="1" value="0" />
       </div>
-
       <div class="filter-group small">
         <label class="filter-label">RS ≥</label>
         <input type="number" id="rs-min" step="1" value="0" />
       </div>
-
       <div class="filter-group small">
         <label class="filter-label">出貨風險 ≤</label>
         <input type="number" id="dist-risk-max" step="1" placeholder="不限" />
       </div>
-
       <div class="filter-group small">
         <label class="filter-label">族群最高z ≥</label>
         <input type="number" id="group-z-min" step="0.1" placeholder="不限" />
       </div>
-    </div>
-
-    <div class="filter-row actions">
-      <button id="btn-clear" class="btn btn-ghost">清除全部</button>
-      <button id="btn-save-preset" class="btn btn-ghost">💾 儲存組合</button>
-      <select id="preset-select" class="preset-select">
-        <option value="">-- 載入組合 --</option>
-      </select>
-      <button id="btn-delete-preset" class="btn btn-ghost btn-danger">🗑</button>
-      <span style="border-left:1px solid #2a2a3e;height:20px;margin:0 6px"></span>
-      <button id="btn-only-pinned" class="btn btn-ghost" disabled>★ 只看勾選</button>
-      <button id="btn-clear-pinned" class="btn btn-ghost btn-danger" disabled>清空勾選</button>
-      <span id="pin-summary" class="muted"></span>
-      <span style="border-left:1px solid #2a2a3e;height:20px;margin:0 6px"></span>
-      <label class="check-toggle" title="只顯示族群最高 z ≥ 1 的個股（族群在熱區）">
-        <input type="checkbox" id="only-hot-group" /> 🌊 只顯示族群 z≥1
-      </label>
-      <span class="filler"></span>
-      <span id="filter-summary" class="muted"></span>
     </div>
   </section>
 
@@ -481,7 +479,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260602b"></script>
+  <script src="app.js?v=20260602c"></script>
   <script src="calc.js?v=20260601a"></script>
 </body>
 </html>

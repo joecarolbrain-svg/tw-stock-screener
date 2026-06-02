@@ -126,9 +126,11 @@ const state = {
   onlyPinned: false,
   // 只顯示族群 z≥1
   onlyHotGroup: false,
-  // 主升策略：off|sig|A|B；sig 模式用 mainupSignals 勾選的訊號
+  // 主升策略：off|sig|A|B；sig 模式用 mainupSignals 勾選的旗標(5訊號+3條件+季線突破)
   mainupMode: 'off',
-  mainupSignals: new Set(['s1', 's2', 's3', 's4', 's5']),
+  mainupSignals: new Set(['s1', 's2', 's3', 's4', 's5', 'c1', 'c2', 'c3', 'mainup_ma60']),
+  mainupEntry: '',        // 進場型態篩選（空=不限）；任何模式皆生效
+  mainupExclDist: false,  // 排除出貨警訊；任何模式皆生效
 };
 
 // 自選股分頁狀態
@@ -467,7 +469,7 @@ function applyFilters() {
     if (state.distRiskMax != null && (row.dist_risk ?? Infinity) > state.distRiskMax) return false;
     if (state.groupZMin != null && (row.max_group_z ?? -Infinity) < state.groupZMin) return false;
 
-    // 主升策略：sig=勾選訊號全中｜A=高勝率3且非出貨｜B=Z_主升飆股🔥
+    // 主升策略：sig=勾選旗標全中｜A=高勝率3且非出貨｜B=Z_主升飆股🔥
     if (state.mainupMode === 'sig') {
       for (const s of state.mainupSignals) if (row[s] !== 1) return false;
     } else if (state.mainupMode === 'A') {
@@ -476,6 +478,9 @@ function applyFilters() {
     } else if (state.mainupMode === 'B') {
       if (!(row.mainup_tag && String(row.mainup_tag).includes('飆股'))) return false;
     }
+    // 進場型態 / 排除出貨：任何模式皆生效（獨立精修）
+    if (state.mainupEntry && row.mainup_entry !== state.mainupEntry) return false;
+    if (state.mainupExclDist && row.mainup_dist === 1) return false;
 
     return true;
   });
@@ -520,6 +525,10 @@ function bindControls() {
       applyFilters();
     });
   });
+  const muEntry = document.getElementById('mainup-entry');
+  if (muEntry) muEntry.addEventListener('change', e => { state.mainupEntry = e.target.value; applyFilters(); });
+  const muExcl = document.getElementById('mainup-excl-dist');
+  if (muExcl) muExcl.addEventListener('change', e => { state.mainupExclDist = e.target.checked; applyFilters(); });
 
   document.querySelectorAll('input[name="dim"]').forEach(r => {
     r.addEventListener('change', e => {
@@ -603,13 +612,17 @@ function clearAllFilters() {
   state.distRiskMax = null;
   state.groupZMin = null;
   state.mainupMode = 'off';
-  state.mainupSignals = new Set(['s1', 's2', 's3', 's4', 's5']);
+  state.mainupSignals = new Set(['s1', 's2', 's3', 's4', 's5', 'c1', 'c2', 'c3', 'mainup_ma60']);
+  state.mainupEntry = '';
+  state.mainupExclDist = false;
 
   document.querySelectorAll('.cat-chip input').forEach(cb => { cb.checked = false; cb.parentElement.classList.remove('checked'); });
   document.querySelector('input[name="mode"][value="OR"]').checked = true;
   const muOff = document.querySelector('input[name="mainup-mode"][value="off"]');
   if (muOff) muOff.checked = true;
   document.querySelectorAll('input[name="mainup-sig"]').forEach(cb => { cb.checked = true; });
+  const muE = document.getElementById('mainup-entry'); if (muE) muE.value = '';
+  const muD = document.getElementById('mainup-excl-dist'); if (muD) muD.checked = false;
   document.querySelector('input[name="dim"][value="industry"]').checked = true;
   document.getElementById('dim-search').value = '';
   renderDimensionOptions();

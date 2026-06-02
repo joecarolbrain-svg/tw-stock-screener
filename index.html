@@ -58,21 +58,39 @@
 
     <div class="filter-row">
       <div class="filter-group filter-group-mainup">
-        <label class="filter-label" style="color:#ffb347">主升（朱家泓飆股5訊號）</label>
+        <label class="filter-label" style="color:#ffb347">主升（朱家泓飆股5訊號+3條件）</label>
         <div class="mode-toggle mainup-mode">
           <label><input type="radio" name="mainup-mode" value="off" checked /> 關</label>
-          <label><input type="radio" name="mainup-mode" value="sig" /> 訊號</label>
+          <label><input type="radio" name="mainup-mode" value="sig" /> 自訂</label>
           <label><input type="radio" name="mainup-mode" value="A" /> 穩健A</label>
           <label><input type="radio" name="mainup-mode" value="B" /> 獵飆B</label>
         </div>
         <div id="mainup-signals" class="mainup-sigs">
+          <span class="mu-sub">5訊號</span>
           <label><input type="checkbox" name="mainup-sig" value="s1" checked /> S1長底</label>
           <label><input type="checkbox" name="mainup-sig" value="s2" checked /> S2爆量</label>
           <label><input type="checkbox" name="mainup-sig" value="s3" checked /> S3多排</label>
           <label><input type="checkbox" name="mainup-sig" value="s4" checked /> S4突破</label>
           <label><input type="checkbox" name="mainup-sig" value="s5" checked /> S5題材</label>
+          <span class="mu-sub">3條件</span>
+          <label><input type="checkbox" name="mainup-sig" value="c1" checked /> C1多頭</label>
+          <label><input type="checkbox" name="mainup-sig" value="c2" checked /> C2黃金交叉</label>
+          <label><input type="checkbox" name="mainup-sig" value="c3" checked /> C3進場點</label>
+          <span class="mu-sub">setup</span>
+          <label><input type="checkbox" name="mainup-sig" value="mainup_ma60" checked /> 季線突破</label>
         </div>
-        <span class="muted" style="font-size:11px">訊號模式：勾選的全中才留（S1×S4 互斥，建議取消）</span>
+        <div class="mainup-extra">
+          <label>進場型態
+            <select id="mainup-entry">
+              <option value="">不限</option>
+              <option value="回後買上漲">回後買上漲</option>
+              <option value="盤整突破">盤整突破</option>
+              <option value="⚠過高勿追">⚠過高勿追</option>
+            </select>
+          </label>
+          <label><input type="checkbox" id="mainup-excl-dist" /> 排除出貨警訊</label>
+        </div>
+        <span class="muted" style="font-size:11px">自訂模式：勾選旗標全中才留（S1×S4/C1 互斥，建議取消）；進場型態/排除出貨任何模式皆生效</span>
       </div>
     </div>
 

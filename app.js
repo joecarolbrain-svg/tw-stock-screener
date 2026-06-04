@@ -2430,12 +2430,18 @@ function klBuild(d) {
     color: (d.c[i] >= d.o[i]) ? 'rgba(239,83,80,0.45)' : 'rgba(38,166,154,0.45)',
   })).filter(x => x.value != null));
 
-  // 自家訊號 marker
-  if (d.markers && d.markers.length) {
-    candle.setMarkers(d.markers.map(m => ({
-      time: m.date, position: 'belowBar', color: '#FFD700',
-      shape: 'arrowUp', text: m.type,
-    })));
+  // 自家訊號 marker（anchor 進場 ↑ + §5 出貨警訊 ↓）
+  const _mk = [];
+  if (d.markers) d.markers.forEach(m => _mk.push({
+    time: m.date, position: 'belowBar', color: '#FFD700', shape: 'arrowUp', text: m.type,
+  }));
+  if (d.dist_markers) d.dist_markers.forEach(m => _mk.push({
+    time: m.date, position: 'aboveBar', color: '#ef5350', shape: 'arrowDown',
+    text: '出貨' + (m.vr ? ' ' + m.vr + 'x' : ''),
+  }));
+  if (_mk.length) {
+    _mk.sort((a, b) => (a.time < b.time ? -1 : (a.time > b.time ? 1 : 0)));  // LC 要求時間遞增
+    candle.setMarkers(_mk);
   }
 
   klineState.charts.push(pChart);
@@ -2473,6 +2479,7 @@ function klBuild(d) {
                          '<span style="color:#ab47bc">━ MA60</span>');
   if (showInst)   parts.push('｜法人：<span style="color:#ef5350">外資量柱</span> <span style="color:#ffca28">投信線</span>');
   if (showMargin) parts.push('｜<span style="color:#ffd54f">融資餘</span> <span style="color:#4dd0e1">融券餘</span>');
+  if (d.dist_markers && d.dist_markers.length) parts.push('｜<span style="color:#ef5350">▽ 出貨警訊</span>');
   document.getElementById('kline-legend').innerHTML = parts.join('  ');
 
   const warn = [];

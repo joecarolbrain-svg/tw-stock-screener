@@ -961,6 +961,9 @@ function bindTabs() {
       if (tab === 'hanku') {
         loadHanku();
       }
+      if (tab === 'sector-flow') {
+        loadSectorFlow();
+      }
       if (tab === 'industry-ranking' && !rankState.loaded) {
         loadIndustryRanking();
       }
@@ -2435,6 +2438,110 @@ function initHankuControls() {
   });
 }
 document.addEventListener('DOMContentLoaded', initHankuControls);
+
+// ═════════════════════════════════════════════════════════
+//  族群資金流向（sector-flow）— 三大法人合計淨買超+加速度四象限
+//  讀 data/daily/{date}/sector_flow.json.gz；引擎 services/sector_flow_service.py
+// ═════════════════════════════════════════════════════════
+const sectorFlowState = { loaded: false, loadedDate: null, data: null, table: null, stockTable: null };
+
+const _sfNum = (dp) => (cell) => {
+  const v = cell.getValue();
+  return (v == null || isNaN(v)) ? '' : Number(v).toFixed(dp);
+};
+const _sfYi = (cell) => {
+  const v = cell.getValue();
+  if (v == null || isNaN(v)) return '';
+  const s = Number(v), c = s > 0 ? '#00d4aa' : (s < 0 ? '#ef5350' : '#aaa');
+  return `<span style="color:${c}">${s > 0 ? '+' : ''}${s.toFixed(1)}</span>`;
+};
+
+const SECTORFLOW_COLS = [
+  { title: '族群', field: 'sector', width: 150, frozen: true },
+  { title: '狀態', field: 'state', width: 90, hozAlign: 'center' },
+  { title: '當日淨買(億)', field: 'net_1d', width: 110, hozAlign: 'right', sorter: 'number', formatter: _sfYi },
+  { title: '近5日淨買(億)', field: 'net_5d', width: 120, hozAlign: 'right', sorter: 'number', formatter: _sfYi },
+  { title: '近20日累計(億)', field: 'net_20d', width: 124, hozAlign: 'right', sorter: 'number', formatter: _sfYi },
+  { title: '加速度', field: 'accel', width: 90, hozAlign: 'right', sorter: 'number', formatter: _sfNum(2) },
+  { title: 'RFI', field: 'rfi', width: 80, hozAlign: 'right', sorter: 'number', formatter: _sfNum(3) },
+  { title: '位置', field: 'position', width: 72, hozAlign: 'right', sorter: 'number', formatter: _sfNum(0) },
+  { title: '5日漲幅%', field: 'chg_5d', width: 90, hozAlign: 'right', sorter: 'number', formatter: _sfNum(1) },
+  { title: '檔數', field: 'n', width: 62, hozAlign: 'right', sorter: 'number' },
+  { title: '黑馬', field: 'hm', width: 74, hozAlign: 'center' },
+];
+const SECTORFLOW_STOCK_COLS = [
+  { title: '代號', field: 'code', width: 80, frozen: true,
+    formatter: (c) => `<a class="ticker-link" href="#" data-kline-ticker="${c.getValue()}">${c.getValue()}</a>`,
+    cellClick: (e, c) => { e.preventDefault(); const r = c.getRow().getData(); openKlineModal(c.getValue(), r.name, r.market); } },
+  { title: '名稱', field: 'name', width: 100, frozen: true },
+  { title: '收盤', field: 'close', width: 80, hozAlign: 'right', sorter: 'number', formatter: _sfNum(2) },
+  { title: '漲跌%', field: 'pct_change', width: 80, hozAlign: 'right', sorter: 'number', formatter: _sfNum(2) },
+  { title: '近5日淨買(億)', field: 'net5_yi', width: 120, hozAlign: 'right', sorter: 'number', formatter: _sfYi },
+  { title: 'RFI', field: 'rfi', width: 80, hozAlign: 'right', sorter: 'number', formatter: _sfNum(3) },
+  { title: '位置', field: 'position', width: 72, hozAlign: 'right', sorter: 'number', formatter: _sfNum(0) },
+];
+
+async function loadSectorFlow() {
+  if (sectorFlowState.loaded && sectorFlowState.loadedDate === currentDate) { renderSectorFlow(); return; }
+  const metaEl = document.getElementById('sf-meta');
+  metaEl.textContent = '載入中...';
+  try {
+    sectorFlowState.data = await fetchJsonGz(dailyPath('sector_flow'));
+    sectorFlowState.loaded = true;
+    sectorFlowState.loadedDate = currentDate;
+    const d = sectorFlowState.data;
+    metaEl.textContent = `資料日 ${d.as_of}　|　大盤：${d.regime}　|　${d.sectors.length} 族群　|　更新 ${(d.generated_at || '').slice(11, 16)}`;
+    renderSectorFlow();
+  } catch (err) {
+    metaEl.textContent = `載入失敗：${err.message}（該日無 sector_flow）`;
+    document.getElementById('sf-table').innerHTML = '';
+  }
+}
+
+function renderSectorFlow() {
+  if (!sectorFlowState.data) return;
+  const stSel = document.getElementById('sf-state').value;
+  const q = String(document.getElementById('sf-search').value || '').trim().toLowerCase();
+  let rows = sectorFlowState.data.sectors.slice();
+  if (stSel !== 'all') rows = rows.filter(r => r.state === stSel);
+  if (q) rows = rows.filter(r => (r.sector || '').toLowerCase().includes(q));
+
+  const sm = {};
+  sectorFlowState.data.sectors.forEach(r => { sm[r.state] = (sm[r.state] || 0) + 1; });
+  document.getElementById('sf-summary').innerHTML =
+    `<span style="font-weight:600">狀態分布：</span>` +
+    ['🟢主力', '🟡輪動', '⚪觀望', '🔴退潮'].map(s => `<span style="margin-left:10px">${s} <b>${sm[s] || 0}</b></span>`).join('') +
+    `<span style="margin-left:14px;color:#888">顯示 ${rows.length} 族群</span>`;
+
+  if (sectorFlowState.table) sectorFlowState.table.destroy();
+  sectorFlowState.table = new Tabulator('#sf-table', {
+    data: rows, layout: 'fitDataTable', height: 'calc(100vh - 430px)',
+    columns: SECTORFLOW_COLS, placeholder: '無符合條件的族群',
+    initialSort: [{ column: 'net_5d', dir: 'desc' }],
+  });
+  sectorFlowState.table.on('rowClick', (e, row) => renderSectorFlowStocks(row.getData().sector));
+}
+
+function renderSectorFlowStocks(sector) {
+  const stocks = (sectorFlowState.data.stocks || {})[sector] || [];
+  document.getElementById('sf-stocks-title').textContent = `　${sector}　成分股（依近5日淨買排序）`;
+  if (sectorFlowState.stockTable) sectorFlowState.stockTable.destroy();
+  sectorFlowState.stockTable = new Tabulator('#sf-stocks-table', {
+    data: stocks, layout: 'fitDataTable', height: '320px',
+    columns: SECTORFLOW_STOCK_COLS, placeholder: '無成分股資料',
+    initialSort: [{ column: 'net5_yi', dir: 'desc' }],
+  });
+}
+
+function initSectorFlowControls() {
+  ['sf-state', 'sf-search'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const ev = el.tagName === 'SELECT' ? 'change' : 'input';
+    el.addEventListener(ev, () => { if (sectorFlowState.loaded) renderSectorFlow(); });
+  });
+}
+document.addEventListener('DOMContentLoaded', initSectorFlowControls);
 
 // ═════════════════════════════════════════════════════════
 //  站內 K 線彈窗（lightweight-charts v4）

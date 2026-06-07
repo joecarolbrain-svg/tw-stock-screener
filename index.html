@@ -34,9 +34,7 @@
     <button class="tab-btn active" data-tab="dashboard">📊 每日看板</button>
     <button class="tab-btn" data-tab="watchlist">⭐ 自選股</button>
     <button class="tab-btn" data-tab="hanku">🌀 Hanku波段</button>
-    <button class="tab-btn" data-tab="industry-ranking">🏭 產業排行</button>
-    <button class="tab-btn" data-tab="flow">🌊 資金流向</button>
-    <button class="tab-btn" data-tab="concept">📍 題材資金流向</button>
+    <button class="tab-btn" data-tab="sector-flow">🌊 族群資金流向</button>
     <button class="tab-btn" data-tab="market">🏦 大盤狀態</button>
     <button class="tab-btn" data-tab="warrant">🎯 權證精選</button>
     <button class="tab-btn" data-tab="cb">💎 可轉債監控</button>
@@ -209,6 +207,42 @@
     <main>
       <div id="hanku-summary" style="padding:8px 12px;color:#e0e0e0"></div>
       <div id="hanku-table"></div>
+    </main>
+  </section>
+
+  <section class="tab-panel" data-panel="sector-flow">
+    <div class="filters">
+      <div class="filter-row">
+        <div class="filter-group small">
+          <label class="filter-label">狀態</label>
+          <select id="sf-state" class="inline-select">
+            <option value="all" selected>全部</option>
+            <option value="🟢主力">🟢 主力</option>
+            <option value="🟡輪動">🟡 輪動</option>
+            <option value="⚪觀望">⚪ 觀望</option>
+            <option value="🔴退潮">🔴 退潮</option>
+          </select>
+        </div>
+        <div class="filter-group small">
+          <label class="filter-label">族群</label>
+          <input type="text" id="sf-search" placeholder="例如 PCB / HBM / 散熱" style="width:160px" />
+        </div>
+        <span class="filler"></span>
+        <span class="muted" id="sf-meta">--</span>
+      </div>
+      <div class="filter-row legend-row">
+        <span class="legend-label">說明：</span>
+        <span class="legend-item">三大法人合計淨買超(絕對億)＋加速度 → 🟢主力/🟡輪動/⚪觀望/🔴退潮</span>
+        <span class="legend-item">回測：主力族群後續贏母體（全 regime，盤整最威）</span>
+        <span class="legend-item">🐎黑馬＝低基期被偷買（僅空頭顯示）</span>
+        <span class="legend-item">點族群列 → 展開成分股（依近5日淨買排序）</span>
+      </div>
+    </div>
+    <main>
+      <div id="sf-summary" style="padding:8px 12px;color:#e0e0e0"></div>
+      <div id="sf-table"></div>
+      <div id="sf-stocks-title" style="padding:12px 12px 4px;color:#00d4aa;font-weight:600"></div>
+      <div id="sf-stocks-table"></div>
     </main>
   </section>
 

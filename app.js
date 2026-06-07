@@ -92,6 +92,7 @@ async function onDateChange(ev) {
   if (activeTab === 'industry-ranking') loadIndustryRanking();
   else if (activeTab === 'flow') loadIndustryFlow();
   else if (activeTab === 'concept') loadThemeFlow();
+  else if (activeTab === 'hanku') loadHanku();
 }
 
 // 市場別 -> TradingView 交易所代碼
@@ -956,6 +957,9 @@ function bindTabs() {
       // Lazy load
       if (tab === 'watchlist') {
         renderWatchlist();   // 每次切到都重渲染，反應 pin 變更
+      }
+      if (tab === 'hanku') {
+        loadHanku();
       }
       if (tab === 'industry-ranking' && !rankState.loaded) {
         loadIndustryRanking();
@@ -2323,6 +2327,116 @@ function initCBControls() {
 document.addEventListener('DOMContentLoaded', initCBControls);
 
 // ═════════════════════════════════════════════════════════
+//  🌀 Hanku 波段（週4/9 金叉狀態機）分頁
+//  讀 data/daily/{date}/hanku.json.gz → 狀態清單 + 點代號開 K 線(含疊加)
+// ═════════════════════════════════════════════════════════
+const hankuState = { loaded: false, loadedDate: null, data: null, table: null };
+
+function _hkNum(prec) {
+  return (cell) => { const v = cell.getValue(); return (v == null) ? '' : Number(v).toFixed(prec); };
+}
+function _hkPct(prec) {
+  return (cell) => {
+    const v = cell.getValue();
+    if (v == null) return '';
+    const c = v > 0 ? '#ef5350' : (v < 0 ? '#26a69a' : '#9aa');
+    return `<span style="color:${c}">${v > 0 ? '+' : ''}${Number(v).toFixed(prec)}</span>`;
+  };
+}
+
+const HANKU_COLS = [
+  { title: '代號', field: 'ticker', width: 80, frozen: true,
+    formatter: (cell) => `<a class="ticker-link" href="#" data-kline-ticker="${cell.getValue()}">${cell.getValue()}</a>`,
+    cellClick: (e, cell) => {
+      e.preventDefault();
+      const r = cell.getRow().getData();
+      openKlineModal(cell.getValue(), r.name, r.market);
+    } },
+  { title: '名稱', field: 'name', width: 100, frozen: true },
+  { title: '狀態', field: 'state', width: 135 },
+  { title: '當日%', field: 'chg_pct', width: 78, hozAlign: 'right', sorter: 'number', formatter: _hkPct(2) },
+  { title: '現價', field: 'close', width: 76, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
+  { title: '報酬%', field: 'ret_pct', width: 80, hozAlign: 'right', sorter: 'number', formatter: _hkPct(1) },
+  { title: '進場日', field: 'entry_date', width: 104 },
+  { title: '進場價', field: 'entry_px', width: 78, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
+  { title: '發散%', field: 'gap', width: 74, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
+  { title: '週9停損', field: 'w9_stop', width: 84, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
+  { title: '距9週%', field: 'dist_w9', width: 80, hozAlign: 'right', sorter: 'number', formatter: _hkPct(1) },
+  { title: '週4守線', field: 'w4', width: 84, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
+  { title: '日47', field: 'ma47', width: 76, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
+  { title: '破47', field: 'warn47', width: 58, hozAlign: 'center', formatter: (c) => c.getValue() ? '⚠️' : '' },
+  { title: '出場日', field: 'exit_date', width: 104 },
+];
+
+async function loadHanku() {
+  if (hankuState.loaded && hankuState.loadedDate === currentDate) { renderHanku(); return; }
+  const metaEl = document.getElementById('hanku-meta');
+  const sumEl = document.getElementById('hanku-summary');
+  const entry = (indexMeta?.dates || []).find(
+    e => e.date === currentDate && (e.has || []).includes('hanku'));
+  let hkDate = currentDate;
+  if (!entry) {
+    const fb = (indexMeta?.dates || []).find(e => (e.has || []).includes('hanku'));
+    if (!fb) {
+      metaEl.textContent = '無 Hanku 資料';
+      sumEl.innerHTML = '<div style="padding:20px;color:#aaa">該日期未提供 Hanku 波段資料。請跑 export_hanku_to_json.py。</div>';
+      document.getElementById('hanku-table').innerHTML = '';
+      return;
+    }
+    hkDate = fb.date;
+  }
+  metaEl.textContent = `載入中... (${hkDate})`;
+  try {
+    hankuState.data = await fetchJsonGz(`data/daily/${hkDate}/hanku.json.gz`);
+    hankuState.loaded = true;
+    hankuState.loadedDate = currentDate;
+    const d = hankuState.data;
+    metaEl.textContent = `資料日 ${d.trading_date}　|　${d.rows.length} 檔　|　更新 ${(d.generated_at || '').slice(11, 16)}`;
+    renderHanku();
+  } catch (err) {
+    metaEl.textContent = `載入失敗：${err.message}`;
+  }
+}
+
+function renderHanku() {
+  if (!hankuState.data) return;
+  const stSel = document.getElementById('hanku-state').value;
+  const q = String(document.getElementById('hanku-search').value || '').trim().toLowerCase();
+
+  let rows = hankuState.data.rows.slice();
+  if (stSel !== 'all') rows = rows.filter(r => r.state === stSel);
+  if (q) rows = rows.filter(r =>
+    (r.ticker || '').toLowerCase().includes(q) || (r.name || '').toLowerCase().includes(q));
+
+  const sm = hankuState.data.states || [];
+  document.getElementById('hanku-summary').innerHTML =
+    `<span style="font-size:15px;font-weight:600">狀態分布：</span>` +
+    sm.map(s => `<span style="margin-left:10px">${s.code} <b>${s.count}</b></span>`).join('') +
+    `<span style="margin-left:14px;color:#888">顯示 ${rows.length} 檔</span>` +
+    (hankuState.data.note ? `<div style="margin-top:4px;color:#888;font-size:11px">${hankuState.data.note}</div>` : '');
+
+  if (hankuState.table) hankuState.table.destroy();
+  hankuState.table = new Tabulator('#hanku-table', {
+    data: rows,
+    layout: 'fitDataTable',
+    height: 'calc(100vh - 320px)',
+    columns: HANKU_COLS,
+    placeholder: '無符合條件的個股',
+    initialSort: [{ column: 'ret_pct', dir: 'desc' }],
+  });
+}
+
+function initHankuControls() {
+  ['hanku-state', 'hanku-search'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const ev = el.tagName === 'SELECT' ? 'change' : 'input';
+    el.addEventListener(ev, () => { if (hankuState.loaded) renderHanku(); });
+  });
+}
+document.addEventListener('DOMContentLoaded', initHankuControls);
+
+// ═════════════════════════════════════════════════════════
 //  站內 K 線彈窗（lightweight-charts v4）
 //  價格主圖（K + SMA20/VWAP20/MA60 + 量 + 訊號marker）
 //  + 法人副圖（外資 net 量柱 + 投信線）+ 融資券副圖
@@ -2393,6 +2507,7 @@ function klBuild(d) {
   const showMA     = document.getElementById('kl-ma').checked;
   const showInst   = document.getElementById('kl-inst').checked && d.has_inst;
   const showMargin = document.getElementById('kl-margin').checked && d.has_margin;
+  const showHanku  = !!(document.getElementById('kl-hanku')?.checked && d.hanku);
 
   document.getElementById('kc-inst').style.display   = showInst ? '' : 'none';
   document.getElementById('kc-margin').style.display = showMargin ? '' : 'none';
@@ -2420,6 +2535,17 @@ function klBuild(d) {
     ma60.setData(klSeriesData(d.dates, d.ma60));
   }
 
+  // Hanku 波段：週4(紅) / 週9(青) 兩線 + 日47季線(虛線，黃綠)
+  if (showHanku) {
+    const hk = d.hanku;
+    const w4 = pChart.addLineSeries({ color: '#ff4081', lineWidth: 2, lastValueVisible: false, priceLineVisible: false });
+    w4.setData(klSeriesData(d.dates, hk.w4));
+    const w9 = pChart.addLineSeries({ color: '#00bcd4', lineWidth: 2, lastValueVisible: false, priceLineVisible: false });
+    w9.setData(klSeriesData(d.dates, hk.w9));
+    const m47 = pChart.addLineSeries({ color: '#cddc39', lineWidth: 1, lineStyle: 2, lastValueVisible: false, priceLineVisible: false });
+    m47.setData(klSeriesData(d.dates, hk.ma47));
+  }
+
   // 量（疊在主圖底部）
   const vol = pChart.addHistogramSeries({
     priceFormat: { type: 'volume' }, priceScaleId: '', lastValueVisible: false,
@@ -2439,6 +2565,15 @@ function klBuild(d) {
     time: m.date, position: 'aboveBar', color: '#ef5350', shape: 'arrowDown',
     text: '出貨' + (m.vr ? ' ' + m.vr + 'x' : ''),
   }));
+  // Hanku 波段：金叉發散進場 ▲ / 死叉出場 ▼
+  if (showHanku) {
+    (d.hanku.entries || []).forEach(e => _mk.push({
+      time: e.date, position: 'belowBar', color: '#00e676', shape: 'arrowUp', text: '進',
+    }));
+    (d.hanku.exits || []).forEach(x => _mk.push({
+      time: x.date, position: 'aboveBar', color: '#d500f9', shape: 'arrowDown', text: '出',
+    }));
+  }
   if (_mk.length) {
     _mk.sort((a, b) => (a.time < b.time ? -1 : (a.time > b.time ? 1 : 0)));  // LC 要求時間遞增
     candle.setMarkers(_mk);
@@ -2477,6 +2612,20 @@ function klBuild(d) {
   if (showMA) parts.push('<span style="color:#42a5f5">━ SMA20</span>',
                          '<span style="color:#ffa726">━ VWAP20</span>',
                          '<span style="color:#ab47bc">━ MA60</span>');
+  if (showHanku) {
+    parts.push('｜<span style="color:#ff4081">━ 週4</span> <span style="color:#00bcd4">━ 週9</span> <span style="color:#cddc39">┄ 日47季線</span> <span style="color:#00e676">▲進</span> <span style="color:#d500f9">▼出</span>');
+    const hs = d.hanku.state || {};
+    if (hs.狀態) {
+      let badge = `｜波段：<b>${hs.狀態}</b>`;
+      if (hs.進場日) {
+        const rc = (hs.報酬 != null && hs.報酬 >= 0) ? '#ef5350' : '#26a69a';
+        badge += ` (進 ${hs.進場日} @${hs.進場價}` +
+                 (hs.報酬 != null ? `，報酬 <span style="color:${rc}">${hs.報酬 > 0 ? '+' : ''}${hs.報酬}%</span>` : '') + ')';
+      }
+      if (hs.週9停損 != null) badge += `　守9週停損≈${hs.週9停損}`;
+      parts.push(badge);
+    }
+  }
   if (showInst)   parts.push('｜法人：<span style="color:#ef5350">外資量柱</span> <span style="color:#ffca28">投信線</span>');
   if (showMargin) parts.push('｜<span style="color:#ffd54f">融資餘</span> <span style="color:#4dd0e1">融券餘</span>');
   if (d.dist_markers && d.dist_markers.length) parts.push('｜<span style="color:#ef5350">▽ 出貨警訊</span>');
@@ -2532,7 +2681,7 @@ function initKlineModal() {
     if (e.key === 'Escape' && !document.getElementById('kline-modal').hidden)
       closeKlineModal();
   });
-  ['kl-ma', 'kl-inst', 'kl-margin'].forEach(id => {
+  ['kl-ma', 'kl-hanku', 'kl-inst', 'kl-margin'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', () => {
       if (klineState.current) klBuild(klineState.current);

@@ -12,7 +12,7 @@
   <!-- lightweight-charts（K 線彈窗用） -->
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260602c" />
+  <link rel="stylesheet" href="style.css?v=20260607a" />
 </head>
 <body>
   <header class="topbar">
@@ -33,6 +33,7 @@
   <nav class="tabs">
     <button class="tab-btn active" data-tab="dashboard">📊 每日看板</button>
     <button class="tab-btn" data-tab="watchlist">⭐ 自選股</button>
+    <button class="tab-btn" data-tab="hanku">🌀 Hanku波段</button>
     <button class="tab-btn" data-tab="industry-ranking">🏭 產業排行</button>
     <button class="tab-btn" data-tab="flow">🌊 資金流向</button>
     <button class="tab-btn" data-tab="concept">📍 題材資金流向</button>
@@ -173,6 +174,42 @@
       </div>
     </div>
     <main><div id="watchlist-table"></div></main>
+  </section>
+
+  <section class="tab-panel" data-panel="hanku">
+    <div class="filters">
+      <div class="filter-row">
+        <div class="filter-group small">
+          <label class="filter-label">狀態</label>
+          <select id="hanku-state" class="inline-select">
+            <option value="all">全部</option>
+            <option value="🟢發散進場" selected>🟢 發散進場</option>
+            <option value="🟡金叉待發散">🟡 金叉待發散</option>
+            <option value="🔵守4週持有">🔵 守4週持有</option>
+            <option value="⚠️跌破4週整理">⚠️ 跌破4週整理</option>
+            <option value="⚠️持倉破47預警">⚠️ 持倉破47預警</option>
+            <option value="🔴死叉出場">🔴 死叉出場</option>
+          </select>
+        </div>
+        <div class="filter-group small">
+          <label class="filter-label">代號/名稱</label>
+          <input type="text" id="hanku-search" placeholder="例如 2330 或 台積" style="width:160px" />
+        </div>
+        <span class="filler"></span>
+        <span class="muted" id="hanku-meta">--</span>
+      </div>
+      <div class="filter-row legend-row">
+        <span class="legend-label">說明：</span>
+        <span class="legend-item">週4/9 金叉狀態機（觀察用<b>指標</b>，非保證超額）</span>
+        <span class="legend-item">回測：機械化績效 <b>≈大盤</b>、強在<b>空頭抗跌</b></span>
+        <span class="legend-item">出場主訊號＝週4/9<b>死叉</b>；4週守線、日47季線早約2天預警</span>
+        <span class="legend-item">點代號 → K線（含週4/9＋47疊加）</span>
+      </div>
+    </div>
+    <main>
+      <div id="hanku-summary" style="padding:8px 12px;color:#e0e0e0"></div>
+      <div id="hanku-table"></div>
+    </main>
   </section>
 
   <section class="tab-panel" data-panel="industry-ranking">
@@ -456,6 +493,7 @@
         <span class="kline-title" id="kline-title">--</span>
         <div class="kline-toggles">
           <label><input type="checkbox" id="kl-ma" checked> 均線</label>
+          <label><input type="checkbox" id="kl-hanku" checked> 波段4/9</label>
           <label><input type="checkbox" id="kl-inst" checked> 法人</label>
           <label><input type="checkbox" id="kl-margin" checked> 融資券</label>
           <a id="kline-tv" href="#" target="_blank" class="kline-tv" title="在 TradingView 開啟">TradingView ↗</a>
@@ -479,7 +517,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260602c"></script>
+  <script src="app.js?v=20260607a"></script>
   <script src="calc.js?v=20260601a"></script>
 </body>
 </html>

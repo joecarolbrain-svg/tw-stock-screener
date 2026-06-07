@@ -1,12 +1,13 @@
 {
   "schema_version": "2.0",
-  "generated_at": "2026-06-06T06:35:24+08:00",
+  "generated_at": "2026-06-07T17:27:54+08:00",
   "latest_date": "20260605",
   "dates": [
     {
       "date": "20260605",
       "has": [
         "cb",
+        "hanku",
         "industry_flow",
         "industry_flow_1",
         "industry_flow_10",

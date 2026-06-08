@@ -268,7 +268,10 @@
   .ranking-wrap{position:absolute;inset:16px;overflow-y:auto;display:none;}
   .ranking-wrap::-webkit-scrollbar{width:4px;}
   .ranking-wrap::-webkit-scrollbar-thumb{background:#2a3344;border-radius:2px;}
-  .ranking-disclaimer{font-size:12px;color:#555;margin-bottom:12px;padding:8px 12px;background:#1a2030;border-radius:8px;border-left:3px solid #E4B125;}
+  .ranking-disclaimer{font-size:12px;color:#555;margin-bottom:12px;padding:8px 12px;background:#1a2030;border-radius:8px;border-left:3px solid #E4B125;line-height:1.5;}
+  .rank-level{display:flex;align-items:center;gap:6px;margin-bottom:10px;}
+  .rank-level-btn{background:#1a2030;border:1px solid #2a3344;border-radius:6px;color:#888;font-size:12px;padding:3px 12px;cursor:pointer;}
+  .rank-level-btn.active{background:#2d6cdf;color:#fff;font-weight:600;border-color:#2d6cdf;}
   .ranking-col-header{display:flex;align-items:center;gap:10px;padding:2px 4px 6px;border-bottom:1px solid #1a2030;margin-bottom:2px;}
   .ranking-col-header-name{flex:1;}
   .ranking-col-header-chg{font-size:10px;color:#555;min-width:54px;text-align:right;}
@@ -576,6 +579,7 @@ let lastRenderData = null;
 const activeCats = new Set(['green', 'yellow', 'gray', 'red']);
 let currentView = 'chart';
 let rankingMode = 'consec';
+let rankLevel = 'sector';   // 偷偷布局/短調長買 的層級：類股(sector) / 個股(stock)
 let staticListenersAdded = false;
 let zoomAbortController = null;
 let buildRankingFn = null;
@@ -1433,14 +1437,18 @@ function render(data) {
     const tabsHtml = `
       <div class="ranking-tabs">
         <button class="ranking-tab ${rankingMode === 'consec' ? 'active' : ''}" data-mode="consec">🔥 連續吸金</button>
-        <button class="ranking-tab ${rankingMode === 'cp' ? 'active' : ''}" data-mode="cp">⚡ CP值排行</button>
-        <button class="ranking-tab tab-bottom ${rankingMode === 'bottom' ? 'active' : ''}" data-mode="bottom">⚓ 抄底偵測${bottomCount > 0 ? ` (${bottomCount})` : ''}</button>
+        <button class="ranking-tab ${rankingMode === 'stealth' ? 'active' : ''}" data-mode="stealth">🤫 偷偷布局</button>
+        <button class="ranking-tab ${rankingMode === 'pullback' ? 'active' : ''}" data-mode="pullback">📥 短調長買</button>
+        <button class="ranking-tab ${rankingMode === 'cp' ? 'active' : ''}" data-mode="cp">⚡ CP值</button>
+        <button class="ranking-tab tab-bottom ${rankingMode === 'bottom' ? 'active' : ''}" data-mode="bottom">⚓ 抄底${bottomCount > 0 ? ` (${bottomCount})` : ''}</button>
       </div>
     `;
 
     let bodyHtml = '';
     if (rankingMode === 'cp') bodyHtml = buildCpRanking();
     else if (rankingMode === 'consec') bodyHtml = buildConsecRanking();
+    else if (rankingMode === 'stealth') bodyHtml = buildStealthRanking();
+    else if (rankingMode === 'pullback') bodyHtml = buildPullbackRanking();
     else bodyHtml = buildBottomRanking();
 
     wrap.innerHTML = tabsHtml + bodyHtml;
@@ -1453,13 +1461,95 @@ function render(data) {
       });
     });
 
-    // Item clicks
+    // Item clicks（類股列才開面板；個股列無 data-name）
     wrap.querySelectorAll('.ranking-item[data-name]').forEach(item => {
       item.addEventListener('click', () => {
         const sector = sectors.find(x => x.name === item.dataset.name);
         if (sector) openPanel(sector);
       });
     });
+    // 類股/個股 層級切換（偷偷布局/短調長買用）
+    wrap.querySelectorAll('.rank-level-btn').forEach(b =>
+      b.addEventListener('click', () => { rankLevel = b.dataset.lv; buildRanking(); }));
+  }
+  buildRankingFn = buildRanking;
+
+  // 類股/個股 層級切換條（偷偷布局/短調長買共用）+ 個股代碼→類股 反查
+  function _rankLevelBar() {
+    return `<div class="rank-level"><span class="str-lbl">層級</span>
+      <button class="rank-level-btn ${rankLevel === 'sector' ? 'active' : ''}" data-lv="sector">類股</button>
+      <button class="rank-level-btn ${rankLevel === 'stock' ? 'active' : ''}" data-lv="stock">個股</button></div>`;
+  }
+  function _code2ind() {
+    const m = {};
+    sectors.forEach(s => (s.stocks || []).forEach(c => { if (!m[c]) m[c] = s.name; }));
+    return m;
+  }
+
+  // ── 🤫 偷偷布局（法人買、沒漲、低基期 → 潛伏）──
+  function buildStealthRanking() {
+    const disc = `<div class="ranking-disclaimer" style="border-left-color:#3a8fd8;">🤫 法人在買、<b>還沒漲</b>(近5日漲幅&lt;3%)、<b>基期不高</b>(位階&lt;60) → 潛伏布局。依 RFI(近5日淨買÷20日均量) 排。<span style="color:#777">⚠回測上此招只在空頭靈、多頭參考用。</span></div>`;
+    let items;
+    if (rankLevel === 'stock') {
+      const sd = lastRenderData.stock_data || {}, c2i = _code2ind();
+      items = Object.entries(sd).map(([code, d]) => ({
+        nm: `${code} ${d.name || ''}`, sub: c2i[code] || '—',
+        net5: d.net_5d_yi || 0, chg5: d.chg_5d || 0, pos: d.pos != null ? d.pos : 50,
+        rfi: d.turn20 ? (d.net_5d_yi || 0) / d.turn20 : 0
+      }));
+    } else {
+      items = sectors.map(s => ({ nm: s.name, sub: '', name: s.name,
+        net5: s.net_5d_yi || 0, chg5: s.chg_5d || 0, pos: s.position != null ? s.position : 50, rfi: s.rfi || 0 }));
+    }
+    items = items.filter(x => x.net5 > 0 && x.chg5 < 3 && x.pos < 60).sort((a, b) => b.rfi - a.rfi).slice(0, 15);
+    if (!items.length) return disc + _rankLevelBar() + `<div class="empty-state">目前沒有符合「買+沒漲+低基期」的${rankLevel === 'stock' ? '個股' : '類股'}</div>`;
+    const maxR = Math.max(0.01, ...items.map(x => x.rfi));
+    return disc + _rankLevelBar() + `
+      <div class="ranking-col-header"><span style="min-width:22px"></span><span class="ranking-col-header-name"></span>
+        <span class="ranking-col-header-chg">5日漲跌</span><span style="font-size:10px;color:#555;min-width:46px;text-align:right">位階</span>
+        <span class="ranking-col-header-flow">RFI(相對流入)</span></div>
+      ${items.map((x, i) => {
+        const cc = x.chg5 >= 0 ? '#1D9E75' : '#D85A30', bw = Math.round(x.rfi / maxR * 100);
+        return `<div class="ranking-item"${x.name ? ` data-name="${x.name}"` : ''}>
+          <span class="ranking-rank">${i + 1}</span><span class="ranking-dot" style="background:#3a8fd8"></span>
+          <span class="ranking-name">${x.nm}${x.sub ? ` <span style="color:#667;font-size:11px">${x.sub}</span>` : ''}</span>
+          <span class="ranking-chg" style="color:${cc}">${x.chg5 >= 0 ? '+' : ''}${x.chg5.toFixed(1)}%</span>
+          <span style="font-size:12px;color:#888;min-width:46px;text-align:right">${x.pos.toFixed(0)}</span>
+          <div class="ranking-flow-col"><span class="ranking-flow" style="color:#3a8fd8">${x.rfi.toFixed(2)}</span>
+            <div class="ranking-bar-wrap"><div class="ranking-bar-bg"><div class="ranking-bar-fill" style="width:${bw}%;background:#3a8fd8"></div></div></div></div>
+        </div>`;
+      }).join('')}`;
+  }
+
+  // ── 📥 短調長買（長期淨買正、近期調節 → 回檔布局點）──
+  function buildPullbackRanking() {
+    const disc = `<div class="ranking-disclaimer" style="border-left-color:#9b6ad8;">📥 <b>長線淨買正</b>(近20日)、<b>近5日卻在調節</b>(轉賣) → 吸了一波正回檔，常是回檔布局點(被動元件就是典型)。依近20日累計排。</div>`;
+    let items;
+    if (rankLevel === 'stock') {
+      const sd = lastRenderData.stock_data || {}, c2i = _code2ind();
+      items = Object.entries(sd).map(([code, d]) => ({
+        nm: `${code} ${d.name || ''}`, sub: c2i[code] || '—',
+        net20: d.net_20d_yi || 0, net5: d.net_5d_yi || 0, chg5: d.chg_5d || 0 }));
+    } else {
+      items = sectors.map(s => ({ nm: s.name, sub: '', name: s.name,
+        net20: s.net_20d_yi || 0, net5: s.net_5d_yi || 0, chg5: s.chg_5d || 0 }));
+    }
+    items = items.filter(x => x.net20 > 0 && x.net5 < 0).sort((a, b) => b.net20 - a.net20).slice(0, 15);
+    if (!items.length) return disc + _rankLevelBar() + `<div class="empty-state">目前沒有符合「長買短調」的${rankLevel === 'stock' ? '個股' : '類股'}</div>`;
+    const maxN = Math.max(1, ...items.map(x => x.net20));
+    return disc + _rankLevelBar() + `
+      <div class="ranking-col-header"><span style="min-width:22px"></span><span class="ranking-col-header-name"></span>
+        <span class="ranking-col-header-chg">近5日(短調)</span><span class="ranking-col-header-flow">近20日累計(億)</span></div>
+      ${items.map((x, i) => {
+        const bw = Math.round(x.net20 / maxN * 100);
+        return `<div class="ranking-item"${x.name ? ` data-name="${x.name}"` : ''}>
+          <span class="ranking-rank">${i + 1}</span><span class="ranking-dot" style="background:#9b6ad8"></span>
+          <span class="ranking-name">${x.nm}${x.sub ? ` <span style="color:#667;font-size:11px">${x.sub}</span>` : ''}</span>
+          <span class="ranking-chg" style="color:#D85A30">${x.net5.toFixed(0)}億</span>
+          <div class="ranking-flow-col"><span class="ranking-flow" style="color:#1D9E75">+${x.net20.toFixed(0)}億</span>
+            <div class="ranking-bar-wrap"><div class="ranking-bar-bg"><div class="ranking-bar-fill" style="width:${bw}%;background:#9b6ad8"></div></div></div></div>
+        </div>`;
+      }).join('')}`;
   }
   buildRankingFn = buildRanking;
 

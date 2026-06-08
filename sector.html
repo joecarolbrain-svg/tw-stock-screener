@@ -561,6 +561,25 @@ function prepWindow(s) {
   s._accel = (s[WIN_ACC[W]] != null) ? s[WIN_ACC[W]] : s.accel;
 }
 
+// 近60日法人累積淨買超 sparkline（面板用：看資金一路累積 vs 近期回調）
+function cumSparkline(cum) {
+  if (!cum || cum.length < 2) return '';
+  const W = 256, H = 64, pad = 4;
+  const mn = Math.min(0, ...cum), mx = Math.max(0, ...cum);
+  const rng = (mx - mn) || 1;
+  const X = i => pad + i / (cum.length - 1) * (W - 2 * pad);
+  const Y = v => H - pad - (v - mn) / rng * (H - 2 * pad);
+  const pts = cum.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+  const last = cum[cum.length - 1];
+  const col = last >= 0 ? '#1D9E75' : '#D85A30';
+  const z = Y(0).toFixed(1);
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="display:block;margin-top:3px">
+    <line x1="${pad}" x2="${W - pad}" y1="${z}" y2="${z}" stroke="#2a3344" stroke-width="1" stroke-dasharray="2,2"/>
+    <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.8"/>
+    <circle cx="${X(cum.length - 1).toFixed(1)}" cy="${Y(last).toFixed(1)}" r="2.6" fill="${col}"/>
+  </svg>`;
+}
+
 function closePanel() {
   document.getElementById('stock-panel').classList.remove('open');
   document.getElementById('panel-overlay').classList.remove('open');
@@ -726,6 +745,10 @@ function openPanel(s) {
     <div class="panel-stat-row"><span class="panel-stat-label">近 20 日累計</span><span class="panel-stat-value" style="color:${col20}">${sign20}${s.net_20d_yi.toFixed(2)} 億</span></div>
     <div class="panel-stat-row"><span class="panel-stat-label">資金加速度</span><span class="panel-stat-value" style="color:${accelCol}">${accelSign}${s.accel.toFixed(2)} 億/天（${accelLabel}）</span></div>
     <div class="panel-stat-row"><span class="panel-stat-label">近 5 日漲跌</span><span class="panel-stat-value" style="color:${s.chg_5d>=0?'#1D9E75':'#D85A30'}">${s.chg_5d>=0?'+':''}${s.chg_5d.toFixed(2)}%</span></div>
+    ${s.cum && s.cum.length > 1 ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid #222a36;">
+      <div class="panel-stat-row" style="margin-bottom:1px;"><span class="panel-stat-label">近 60 日累積吸金</span><span class="panel-stat-value" style="color:${s.cum[s.cum.length-1]>=0?'#1D9E75':'#D85A30'}">${s.cum[s.cum.length-1]>=0?'+':''}${s.cum[s.cum.length-1]} 億</span></div>
+      ${cumSparkline(s.cum)}
+    </div>` : ''}
   `;
 
   const list = document.getElementById('panel-list');
@@ -1312,16 +1335,15 @@ function render(data) {
     const tabsHtml = `
       <div class="ranking-tabs">
         <button class="ranking-tab ${rankingMode === 'cp' ? 'active' : ''}" data-mode="cp">⚡ CP值排行</button>
+        <button class="ranking-tab ${rankingMode === 'longterm' ? 'active' : ''}" data-mode="longterm">💰 長線吸金</button>
         <button class="ranking-tab tab-bottom ${rankingMode === 'bottom' ? 'active' : ''}" data-mode="bottom">⚓ 抄底偵測${bottomCount > 0 ? ` (${bottomCount})` : ''}</button>
       </div>
     `;
 
     let bodyHtml = '';
-    if (rankingMode === 'cp') {
-      bodyHtml = buildCpRanking();
-    } else {
-      bodyHtml = buildBottomRanking();
-    }
+    if (rankingMode === 'cp') bodyHtml = buildCpRanking();
+    else if (rankingMode === 'longterm') bodyHtml = buildLongtermRanking();
+    else bodyHtml = buildBottomRanking();
 
     wrap.innerHTML = tabsHtml + bodyHtml;
 
@@ -1447,6 +1469,43 @@ function render(data) {
                 <div class="ranking-bar-fill" style="width:${barW}%;background:#E4B125"></div>
               </div>
             </div>
+          </div>
+        </div>`;
+      }).join('')}
+    `;
+  }
+
+  // ── 長線吸金榜（依近60日法人累積淨買超排序；標短調長買） ──
+  function buildLongtermRanking() {
+    const sorted = [...sectors].filter(s => (s.net_60d_yi || 0) > 0)
+      .sort((a, b) => (b.net_60d_yi || 0) - (a.net_60d_yi || 0));
+    if (!sorted.length) return `<div class="empty-state">近 60 日沒有淨流入的族群</div>`;
+    const max = Math.max(...sorted.map(s => s.net_60d_yi), 1);
+    return `
+      <div class="ranking-disclaimer" style="border-left-color:#3a8fd8;">💰 近 60 日法人累積淨買超最多（長線被吸金）。<b style="color:#E4B125">⚠短調</b>＝長線買但近 5 日在調節（常是回檔布局點）。點族群看累積曲線。</div>
+      <div class="ranking-col-header">
+        <span style="min-width:22px"></span>
+        <span style="width:9px"></span>
+        <span class="ranking-col-header-name"></span>
+        <span class="ranking-col-header-chg">5日漲跌</span>
+        <span class="ranking-col-header-flow">60日累積(億)</span>
+      </div>
+      ${sorted.slice(0, 12).map((s, idx) => {
+        const cat = classify(s);
+        const color = COLORS[cat];
+        const shortPull = (s.net_5d_yi || 0) < 0;
+        const chgColor = s.chg_5d >= 0 ? '#1D9E75' : '#D85A30';
+        const barW = Math.round(s.net_60d_yi / max * 100);
+        return `<div class="ranking-item" data-name="${s.name}">
+          <span class="ranking-rank">${idx + 1}</span>
+          <span class="ranking-dot" style="background:${color}"></span>
+          <span class="ranking-name">${s.name}${shortPull ? ' <span style="color:#E4B125;font-size:11px">⚠短調</span>' : ''}</span>
+          <span class="ranking-chg" style="color:${chgColor}">${s.chg_5d >= 0 ? '+' : ''}${s.chg_5d.toFixed(1)}%</span>
+          <div class="ranking-flow-col">
+            <span class="ranking-flow" style="color:#1D9E75">+${s.net_60d_yi.toFixed(0)}億</span>
+            <div class="ranking-bar-wrap"><div class="ranking-bar-bg">
+              <div class="ranking-bar-fill" style="width:${barW}%;background:${color}"></div>
+            </div></div>
           </div>
         </div>`;
       }).join('')}

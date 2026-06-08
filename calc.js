@@ -358,13 +358,17 @@
   }
 
   function initModalSubtabs() {
+    const PANES = { kline: 'kc-klinewrap', build: 'kc-build', advice: 'kc-advice' };
     document.querySelectorAll('.kl-subtab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const tab = btn.dataset.kltab;
         document.querySelectorAll('.kl-subtab-btn').forEach(b => b.classList.toggle('active', b === btn));
-        document.getElementById('kc-klinewrap').style.display = tab === 'kline' ? '' : 'none';
-        document.getElementById('kc-build').style.display = tab === 'build' ? '' : 'none';
+        Object.keys(PANES).forEach(k => {
+          const el = document.getElementById(PANES[k]);
+          if (el) el.style.display = (k === tab) ? '' : 'none';
+        });
         if (tab === 'build') { mdlCtx.container = document.getElementById('kc-build'); renderPanel(mdlCtx); }
+        if (tab === 'advice' && window.AdvicePanel) window.AdvicePanel.renderFull();
       });
     });
   }

@@ -2759,7 +2759,12 @@ async function openKlineModal(ticker, name, market) {
   document.querySelectorAll('.kl-subtab-btn').forEach(b => b.classList.toggle('active', b.dataset.kltab === 'kline'));
   const klw = document.getElementById('kc-klinewrap'); if (klw) klw.style.display = '';
   const kcb = document.getElementById('kc-build'); if (kcb) kcb.style.display = 'none';
+  const kca = document.getElementById('kc-advice'); if (kca) kca.style.display = 'none';
   klDestroy();
+
+  // 從主篩選資料查回這一列（不論從哪個表點開都用主表的權威訊號列）
+  const advRow = (state.data && state.data.rows)
+    ? state.data.rows.find(r => String(r.ticker) === String(ticker)) || null : null;
 
   try {
     let d = klineState.cache[ticker];
@@ -2770,6 +2775,7 @@ async function openKlineModal(ticker, name, market) {
     klineState.current = d;
     klBuild(d);
     if (window.QEFCalc) window.QEFCalc.onKline(ticker, name, d);
+    if (window.AdvicePanel) { window.AdvicePanel.onKline(ticker, name, d, advRow); window.AdvicePanel.renderBar(); }
   } catch (err) {
     console.error(err);
     document.getElementById('kline-status').textContent =

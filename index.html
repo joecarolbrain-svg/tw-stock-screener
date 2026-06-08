@@ -12,7 +12,7 @@
   <!-- lightweight-charts（K 線彈窗用） -->
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260607a" />
+  <link rel="stylesheet" href="style.css?v=20260608a" />
 </head>
 <body>
   <header class="topbar">
@@ -510,21 +510,25 @@
       <div class="kline-legend" id="kline-legend"></div>
       <div class="kl-subtabs">
         <button class="kl-subtab-btn active" data-kltab="kline">K 線</button>
+        <button class="kl-subtab-btn" data-kltab="advice">📍 進出場</button>
         <button class="kl-subtab-btn" data-kltab="build">🧮 建倉</button>
       </div>
       <div class="kline-body">
         <div id="kc-klinewrap">
+          <div id="kline-advice-bar" class="kl-advice-bar" style="display:none"></div>
           <div id="kc-price" class="kc-chart kc-price"></div>
           <div id="kc-inst"  class="kc-chart kc-sub"></div>
           <div id="kc-margin" class="kc-chart kc-sub"></div>
           <div id="kline-status" class="kline-status muted"></div>
         </div>
+        <div id="kc-advice" style="display:none"></div>
         <div id="kc-build" style="display:none"></div>
       </div>
     </div>
   </div>
 
-  <script src="app.js?v=20260607a"></script>
-  <script src="calc.js?v=20260601a"></script>
+  <script src="app.js?v=20260608a"></script>
+  <script src="calc.js?v=20260608a"></script>
+  <script src="advice.js?v=20260608a"></script>
 </body>
 </html>

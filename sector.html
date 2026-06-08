@@ -194,6 +194,8 @@
   .inline-select{background:#1a2030;border:1px solid #2a3344;border-radius:6px;color:#e8e8e8;font-size:12px;padding:4px 8px;outline:none;cursor:pointer;}
   .ctrl-toggle{font-size:12px;color:#888;display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;}
   .ctrl-toggle input{accent-color:#3a8fd8;cursor:pointer;}
+  .topn-range{width:96px;accent-color:#3a8fd8;cursor:pointer;vertical-align:middle;}
+  .topn-val{min-width:36px;color:#9fb2c8;font-variant-numeric:tabular-nums;font-size:12px;}
 
   /* Heatmap / Treemap / Map shared wrap */
   .heatmap-wrap,.treemap-wrap,.map-wrap{position:absolute;inset:16px;overflow:auto;display:none;}
@@ -376,6 +378,10 @@
       </select>
     </label>
     <label class="ctrl-toggle" id="trail-ctrl"><input type="checkbox" id="trail-toggle" checked><span>軌跡尾巴</span></label>
+    <label class="ctrl-label" id="topn-ctrl">顯示
+      <input type="range" id="topn-range" class="topn-range" min="5" max="78" step="1" value="78">
+      <span id="topn-label" class="topn-val">全部</span>
+    </label>
   </div>
   <div class="filters" id="filters" style="display:none">
     <button class="filter-btn active" data-cat="green" style="--c:#1D9E75"><span class="fdot"></span>主力 · 資金加速流入</button>
@@ -539,6 +545,7 @@ let zoomController = null;
 let chartLayout = null;
 let lookbackWin = 5;       // 回看窗格 1/3/5/10/20/60 日；預設 5 = 回測標準 net5/5-net20/20
 let showTrails = true;     // 軌跡尾巴（僅 5 日視圖有 prev 資料）
+let topN = 78;             // 泡泡圖只顯示「依選定期間流入量絕對值」前 N 名（78=全部）
 const WIN_OPTS = [1, 3, 5, 10, 20, 60];
 const WIN_NET = { 1: 'net_1d_yi', 3: 'net_3d_yi', 5: 'net_5d_yi', 10: 'net_10d_yi', 20: 'net_20d_yi', 60: 'net_60d_yi' };
 const WIN_ACC = { 1: 'accel_1', 3: 'accel_3', 5: 'accel', 10: 'accel_10', 20: 'accel_20', 60: 'accel_60' };
@@ -843,7 +850,11 @@ function setupSearch(sectors) {
     bubbles.forEach(b => {
       if (sectors[+b.dataset.i]?.name === sectorName) targetBubble = b;
     });
-    if (!targetBubble) return;
+    if (!targetBubble) {   // 被 Top-N 隱藏或非泡泡視圖：直接開面板
+      const s = sectors.find(x => x.name === sectorName);
+      if (s) openPanel(s);
+      return;
+    }
 
     // Show the bubble's category if it was filtered out
     const cat = targetBubble.dataset.cat;
@@ -937,6 +948,10 @@ function render(data) {
     if (s.accel == null) s.accel = (s.net_5d_yi / 5) - (s.net_20d_yi / 20);
     prepWindow(s);
   });
+  // Top-N：依 |選定期間流入| 取前 N 顯示（泡泡圖去蕪存菁；其餘不畫，軸也只依顯示的縮放）
+  const _limitN = Math.min(topN, sectors.length);
+  const _ranked = sectors.map((s, i) => ({ i, m: Math.abs(s._x || 0) })).sort((a, b) => b.m - a.m);
+  const showSet = new Set(_ranked.slice(0, _limitN).map(r => r.i));
   const catCounts = { green: 0, yellow: 0, gray: 0, red: 0 };
   sectors.forEach(s => { catCounts[classify(s)]++; });
 
@@ -967,8 +982,8 @@ function render(data) {
   const innerW = W - PAD.l - PAD.r;
   const innerH = H - PAD.t - PAD.b;
 
-  const flows = sectors.map(s => s._x);
-  const accels = sectors.map(s => s._accel);
+  const flows = sectors.filter((s, i) => showSet.has(i)).map(s => s._x);
+  const accels = sectors.filter((s, i) => showSet.has(i)).map(s => s._accel);
 
   const rawXMin = Math.min(...flows), rawXMax = Math.max(...flows);
   const rawYMin = Math.min(...accels), rawYMax = Math.max(...accels);
@@ -1001,7 +1016,8 @@ function render(data) {
   // 軌跡尾巴：5 日視圖才有 prev（5 個交易日前 → 現在的移動向量，看資金「往哪轉」）
   let trailsHtml = '';
   if (showTrails && lookbackWin === 5) {
-    sectors.forEach((s) => {
+    sectors.forEach((s, idx) => {
+      if (!showSet.has(idx)) return;
       if (s.net_5d_prev_yi == null || s.accel_prev == null) return;
       const x0 = gx(s.net_5d_prev_yi), y0 = gy(s.accel_prev);
       const x1 = gx(s._x), y1 = gy(s._accel);
@@ -1015,6 +1031,7 @@ function render(data) {
   // Build only bubbles (axes are drawn separately via redrawAxes)
   let bubblesHtml = '';
   sectors.forEach((s, i) => {
+    if (!showSet.has(i)) return;
     const bx = gx(s._x);
     const by = gy(s._accel);
     const r = sr(Math.abs(s.net_20d_yi));
@@ -1447,7 +1464,7 @@ function render(data) {
       return v > 0 ? `rgba(29,158,117,${a})` : `rgba(216,90,48,${a})`;
     };
     wrap.innerHTML = `
-      <div class="map-disclaimer">🟩 每格＝族群在「近 ${winLabel()}」的法人淨買超(億)；綠＝買、紅＝賣，越深越強。改上方「回看期間」整張圖跟著變。</div>
+      <div class="map-disclaimer">🟩 等大方格＝<b>每個族群平起平坐</b>看「近 ${winLabel()}」法人買賣強弱（小族群也看得到、不被大者壓過）；綠買紅賣、越深越強。想看「誰<b>量大</b>、資金集中在哪」→ 看 <b>樹狀圖</b>。改上方回看期間整張跟著變。</div>
       <div class="map-grid">
         ${rows.map(s => {
           const v = s._x;
@@ -1530,7 +1547,7 @@ function render(data) {
     const total = items.reduce((a, d) => a + d.v, 0) || 1;
     const tiles = squarify(items, total, 0, 0, cw, ch);
     wrap.innerHTML = `
-      <div class="tm-disclaimer">🧱 方塊大小＝「近 ${winLabel()}」法人淨買超的絕對量（資金集中在哪）；顏色＝四象限狀態、流出族塊半透明。改上方「回看期間」整張跟著變。點方塊看成分股。</div>
+      <div class="tm-disclaimer">🧱 方塊<b>大小＝量</b>：「近 ${winLabel()}」法人淨買超的絕對金額（大族群主導、看資金集中在哪）；顏色＝四象限狀態、流出族塊半透明。想<b>平等</b>看所有族群（含小型）→ 看 <b>熱力圖</b>。改上方回看期間整張跟著變。點方塊看成分股。</div>
       <div class="tm-canvas" style="height:${ch}px">
         ${tiles.map(t => {
           const cat = classify(t.d.s);
@@ -1602,6 +1619,19 @@ function render(data) {
       showTrails = e.target.checked;
       if (lastRenderData) render(lastRenderData);
     });
+    const _topn = document.getElementById('topn-range');
+    if (_topn) {
+      const _total = () => (lastRenderData && lastRenderData.sectors ? lastRenderData.sectors.length : 78);
+      _topn.addEventListener('input', (e) => {            // 拖動即時更新標籤
+        const v = parseInt(e.target.value, 10) || 78;
+        document.getElementById('topn-label').textContent = v >= _total() ? '全部' : ('前 ' + v);
+      });
+      _topn.addEventListener('change', (e) => {            // 放開才重畫（省效能）
+        topN = parseInt(e.target.value, 10) || 78;
+        document.getElementById('topn-label').textContent = topN >= _total() ? '全部' : ('前 ' + topN);
+        if (lastRenderData) render(lastRenderData);
+      });
+    }
   }
 
   // Restore view state after re-render (resize / 窗格切換 / orientation change)
@@ -1653,6 +1683,7 @@ function setView(view) {
   const singleWin = (view === 'chart' || view === 'heat' || view === 'tree');
   const cc = document.getElementById('chart-controls'); if (cc) cc.style.display = singleWin ? 'flex' : 'none';
   const tc = document.getElementById('trail-ctrl'); if (tc) tc.style.display = view === 'chart' ? 'flex' : 'none';  // 軌跡只在泡泡圖
+  const tn = document.getElementById('topn-ctrl'); if (tn) tn.style.display = view === 'chart' ? 'flex' : 'none';  // Top-N 只在泡泡圖
   const zh = document.querySelector('.zoom-hint'); if (zh) zh.style.display = view === 'chart' ? '' : 'none';
   const om = document.getElementById('overlap-menu'); if (om) om.style.display = 'none';
   document.getElementById('tt').style.opacity = '0';

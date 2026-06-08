@@ -188,6 +188,12 @@
   .view-btn.active{color:#e8e8e8;border-color:#3a5070;background:#1e2a3a;}
   .view-btn:hover{color:#aaa;}
 
+  /* Grouping toggle (題材 / 官方產業) */
+  .grouping-toggle{display:flex;gap:0;background:#1a2030;border:1px solid #2a3344;border-radius:8px;overflow:hidden;flex-shrink:0;}
+  .grp-btn{background:transparent;border:none;color:#888;font-size:13px;padding:5px 12px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+  .grp-btn:hover{color:#ccc;}
+  .grp-btn.active{background:#2d6cdf;color:#fff;font-weight:600;}
+
   /* Chart controls (回看期間 + 軌跡) */
   .chart-controls{display:flex;align-items:center;gap:14px;}
   .ctrl-label{font-size:12px;color:#888;display:flex;align-items:center;gap:6px;}
@@ -366,6 +372,10 @@
 
 <!-- Filter bar: offset right to sit above chart only -->
 <div class="top-bar">
+  <div class="grouping-toggle" id="grouping-toggle">
+    <button class="grp-btn active" data-grp="theme">題材</button>
+    <button class="grp-btn" data-grp="industry">官方產業</button>
+  </div>
   <div class="chart-controls" id="chart-controls">
     <label class="ctrl-label">回看期間
       <select id="win-select" class="inline-select">
@@ -546,6 +556,7 @@ let chartLayout = null;
 let lookbackWin = 5;       // 回看窗格 1/3/5/10/20/60 日；預設 5 = 回測標準 net5/5-net20/20
 let showTrails = true;     // 軌跡尾巴（僅 5 日視圖有 prev 資料）
 let topN = 78;             // 泡泡圖只顯示「依選定期間流入量絕對值」前 N 名（78=全部）
+let currentGrouping = 'theme';  // 分類：題材(sectors) / 官方產業(sectors_industry)
 const WIN_OPTS = [1, 3, 5, 10, 20, 60];
 const WIN_NET = { 1: 'net_1d_yi', 3: 'net_3d_yi', 5: 'net_5d_yi', 10: 'net_10d_yi', 20: 'net_20d_yi', 60: 'net_60d_yi' };
 const WIN_ACC = { 1: 'accel_1', 3: 'accel_3', 5: 'accel', 10: 'accel_10', 20: 'accel_20', 60: 'accel_60' };
@@ -763,8 +774,8 @@ function openPanel(s) {
     <span class="stock-flow" style="font-size:10px;color:#555;">當日買超</span>
   </div>`;
   list.innerHTML = headerHtml + stockList.map(code => {
-    const name = STOCK_NAMES[code] || '';
     const sd = stockData[code];
+    const name = (sd && sd.name) || STOCK_NAMES[code] || '';
     let chgHtml = '<span class="stock-chg" style="color:#444;">—</span>';
     let flowHtml = '<span class="stock-flow">—</span>';
     let star = '';
@@ -800,7 +811,7 @@ function setupSearch(sectors) {
       searchDropdown.innerHTML = `
         <div style="padding:12px 14px 8px;border-bottom:1px solid #1a2030;">
           <div style="font-size:12px;color:#aaa;margin-bottom:2px;">找不到「${query.trim()}」的板塊資料</div>
-          <div style="font-size:11px;color:#555;">目前收錄 78 個重點族群（三大法人淨買超 taxonomy）</div>
+          <div style="font-size:11px;color:#555;">目前分類共 ${(allSectors||[]).length} 個族群</div>
         </div>
       `;
       searchDropdown.classList.add('show');
@@ -840,28 +851,31 @@ function setupSearch(sectors) {
   function doSearch(query) {
     const q = query.trim().toLowerCase();
     if (!q) { searchDropdown.classList.remove('show'); return; }
+    const list = allSectors || [];
+    const sd = (lastRenderData && lastRenderData.stock_data) || {};
     const results = [];
     const seen = new Set();
 
-    // Match sector names
-    sectors.forEach(s => {
+    // Match sector names（目前分類）
+    list.forEach(s => {
       if (s.name.toLowerCase().includes(q) && !seen.has(s.name)) {
         seen.add(s.name);
-        results.push({ sector: s.name, label: s.name, tag: '板塊' });
+        results.push({ sector: s.name, label: s.name, tag: '族群' });
       }
     });
 
-    // Match stock code or name → surface owning sectors
-    Object.entries(STOCK_NAMES).forEach(([code, name]) => {
-      if (code.includes(q) || name.toLowerCase().includes(q) || name.includes(query.trim())) {
-        (stockToSectors[code] || []).forEach(sn => {
-          const key = code + '|' + sn;
+    // Match stock code or name → 浮出目前分類下的所屬族群
+    list.forEach(s => {
+      (s.stocks || []).forEach(code => {
+        const nm = (sd[code] && sd[code].name) || STOCK_NAMES[code] || '';
+        if (code.includes(q) || nm.toLowerCase().includes(q) || (nm && nm.includes(query.trim()))) {
+          const key = code + '|' + s.name;
           if (!seen.has(key)) {
             seen.add(key);
-            results.push({ sector: sn, label: `${code} ${name}`, tag: sn });
+            results.push({ sector: s.name, label: `${code} ${nm}`, tag: s.name });
           }
-        });
-      }
+        }
+      });
     });
 
     showDropdown(results.slice(0, 12), query);
@@ -871,10 +885,10 @@ function setupSearch(sectors) {
     const bubbles = document.querySelectorAll('.bubble');
     let targetBubble = null;
     bubbles.forEach(b => {
-      if (sectors[+b.dataset.i]?.name === sectorName) targetBubble = b;
+      if (allSectors[+b.dataset.i]?.name === sectorName) targetBubble = b;
     });
     if (!targetBubble) {   // 被 Top-N 隱藏或非泡泡視圖：直接開面板
-      const s = sectors.find(x => x.name === sectorName);
+      const s = (allSectors || []).find(x => x.name === sectorName);
       if (s) openPanel(s);
       return;
     }
@@ -894,7 +908,7 @@ function setupSearch(sectors) {
     targetBubble.classList.add('pulse');
 
     // Open panel partway through the animation
-    setTimeout(() => openPanel(sectors[+targetBubble.dataset.i]), 450);
+    setTimeout(() => openPanel(allSectors[+targetBubble.dataset.i]), 450);
     setTimeout(() => targetBubble.classList.remove('pulse'), 1000);
   }
 
@@ -948,7 +962,8 @@ function render(data) {
   document.getElementById('update-info').innerHTML =
     `資料日期：${data.date}　｜　最後更新：${twStr}（台灣時間）`;
 
-  const sectors = data.sectors;
+  const sectors = (currentGrouping === 'industry' && data.sectors_industry && data.sectors_industry.length)
+    ? data.sectors_industry : data.sectors;
   allSectors = sectors;
 
   // Fetch per-stock TWSE data in background if not already in JSON
@@ -1689,6 +1704,17 @@ function render(data) {
         if (lastRenderData) render(lastRenderData);
       });
     }
+
+    document.querySelectorAll('#grouping-toggle .grp-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const g = btn.dataset.grp;
+        if (g === currentGrouping) return;
+        currentGrouping = g;
+        document.querySelectorAll('#grouping-toggle .grp-btn').forEach(b => b.classList.toggle('active', b.dataset.grp === g));
+        closePanel();
+        if (lastRenderData) render(lastRenderData);   // 切題材↔官方產業，整個重畫
+      });
+    });
   }
 
   // Restore view state after re-render (resize / 窗格切換 / orientation change)

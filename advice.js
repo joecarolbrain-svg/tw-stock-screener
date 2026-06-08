@@ -24,6 +24,68 @@
   const has = (s) => s != null && String(s).trim() !== '' && String(s).trim() !== '—';
   const G = (k) => (ctx.row ? ctx.row[k] : undefined);
 
+  // ── 進場價位推算：回後買上漲 / 盤整突破（純前端，從 K 線 OHLC 算）──
+  // 回傳 { kind, entry, trigger, triggerLabel, stop, stopLabel, stopPct, target, targetLabel, rr, ma5 } 或 null
+  // 規則對齊 zhuEntry 的 desc：回後買上漲＝多頭回檔觸5日線後中長紅K收盤突破昨高；盤整突破＝窄幅盤整後突破上緣。
+  function mainupLevels(dArg, rowArg) {
+    const d = dArg || ctx.data;
+    const row = rowArg || ctx.row;
+    const e = row ? row.mainup_entry : (ctx.row ? G('mainup_entry') : null);
+    if (e !== '回後買上漲' && e !== '盤整突破') return null;
+    if (!d || !d.c || !d.h || !d.l) return null;
+    const c = d.c, h = d.h, l = d.l, L = c.length;
+    if (L < 25) return null;
+    const last = L - 1;
+    const entry = num(c[last]);
+    if (entry == null) return null;
+    const sma = (arr, n, end) => {            // 含 end 往回 n 根的簡單均線
+      let s = 0, k = 0;
+      for (let i = end; i > end - n && i >= 0; i--) { const v = num(arr[i]); if (v != null) { s += v; k++; } }
+      return k ? s / k : null;
+    };
+    const ma5 = sma(c, 5, last);
+    let trigger = null, triggerLabel = '', stop = null, stopLabel = '', target = null, targetLabel = '';
+    if (e === '回後買上漲') {
+      trigger = num(h[last - 1]); triggerLabel = '突破昨高';
+      // 回檔低：近 4 根最低（觸5日線的短回檔，避免回看太遠抓到起漲前基期）；不應低於5日線太多
+      let lo = Infinity, loIdx = last;
+      for (let i = last; i > last - 4 && i >= 0; i--) { const v = num(l[i]); if (v != null && v < lo) { lo = v; loIdx = i; } }
+      stop = isFinite(lo) ? lo : null; stopLabel = '回檔低';
+      // 若回檔低距進場 >12%（多為大紅K當日，回檔低其實偏遠），改守5日線 = 更貼朱家泓「守5日線」
+      if (stop != null && ma5 != null && (entry - stop) / entry > 0.12 && ma5 < entry) { stop = ma5; stopLabel = '守5日線'; }
+      let hi = -Infinity;                                     // 前波高：回檔低之前 30 根最高
+      for (let i = loIdx - 1; i > loIdx - 30 && i >= 0; i--) { const v = num(h[i]); if (v != null && v > hi) hi = v; }
+      if (isFinite(hi) && hi > entry) { target = hi; targetLabel = '前波高'; }
+      else if (stop != null) { target = entry + (entry - stop) * 2; targetLabel = '測幅2R'; }
+    } else {                                                  // 盤整突破
+      let up = -Infinity, dn = Infinity;                      // 盤整上/下緣：近 20 根(不含今日)
+      for (let i = last - 1; i > last - 21 && i >= 0; i--) {
+        const hv = num(h[i]), lv = num(l[i]);
+        if (hv != null && hv > up) up = hv;
+        if (lv != null && lv < dn) dn = lv;
+      }
+      trigger = isFinite(up) ? up : null; triggerLabel = '盤整上緣';
+      stop = isFinite(dn) ? dn : null; stopLabel = '盤整下緣';
+      if (trigger != null && stop != null) { target = trigger + (trigger - stop); targetLabel = '箱型測幅'; }
+    }
+    const stopPct = (stop != null && entry) ? (entry - stop) / entry * 100 : null;
+    const rr = (target != null && stop != null && (entry - stop) > 0) ? (target - entry) / (entry - stop) : null;
+    return { kind: e, entry, trigger, triggerLabel, stop, stopLabel, stopPct, target, targetLabel, rr, ma5 };
+  }
+
+  // 把推算價位排成一行 HTML（綠卡/摘要共用）
+  function mainupPriceBits(lv) {
+    if (!lv) return '';
+    const b = [];
+    if (lv.entry != null) b.push(`進場(收盤) <b style="color:#26a69a">${fnum(lv.entry)}</b>`);
+    if (lv.trigger != null) b.push(`${lv.triggerLabel} <b>${fnum(lv.trigger)}</b>`);
+    if (lv.ma5 != null && lv.kind === '回後買上漲') b.push(`回測5日線 <b>${fnum(lv.ma5)}</b>`);
+    if (lv.stop != null) b.push(`停損(${lv.stopLabel}) <b style="color:#ff5252">${fnum(lv.stop)}</b>${lv.stopPct != null ? `（−${lv.stopPct.toFixed(1)}%）` : ''}`);
+    if (lv.target != null) b.push(`目標(${lv.targetLabel}) <b style="color:#ffd54f">${fnum(lv.target)}</b>`);
+    if (lv.rr != null) { const r = lv.rr; b.push(`R:R <b style="color:${r >= 2 ? '#22c55e' : r >= 1 ? '#f5b942' : '#888'}">${r.toFixed(2)}</b>`); }
+    return b.length ? `<div class="adv-px" style="margin-top:5px;line-height:1.7">${b.join('　｜　')}</div>` : '';
+  }
+
   // ── 進場：朱家泓主升型態 ─────────────────────────────
   // 回傳 { icon, cls, head, desc, sub } 或 null
   function zhuEntry() {
@@ -44,10 +106,10 @@
 
     if (e === '回後買上漲')
       return { icon: '🟢', cls: 'go', head: '回後買上漲（朱家泓第二波起漲）',
-        desc: '多頭中回檔觸及/跌破5日線後，中長紅K收盤突破昨日高 = 第二波起漲點。', sub };
+        desc: '多頭中回檔觸及/跌破5日線後，中長紅K收盤突破昨日高 = 第二波起漲點。' + mainupPriceBits(mainupLevels()), sub };
     if (e === '盤整突破')
       return { icon: '🟢', cls: 'go', head: '盤整突破',
-        desc: '近20日窄幅盤整後，中長紅K收盤突破盤整上緣。', sub };
+        desc: '近20日窄幅盤整後，中長紅K收盤突破盤整上緣。' + mainupPriceBits(mainupLevels()), sub };
     if (e === '⚠過高勿追')
       return { icon: '🟠', cls: 'warn', head: '⚠ 過高勿追',
         desc: '距底部已漲多又創120日新高，非好進場點 — 等回檔出現「回後買上漲」再進。', sub };
@@ -118,8 +180,12 @@
   // ── 渲染：一行摘要（K 線分頁上方）────────────────────
   function entrySummaryText() {
     const e = G('mainup_entry');
-    if (e === '回後買上漲') return { t: '回後買上漲', cls: 'go' };
-    if (e === '盤整突破') return { t: '盤整突破', cls: 'go' };
+    if (e === '回後買上漲' || e === '盤整突破') {
+      const lv = mainupLevels();
+      let t = e;
+      if (lv && lv.entry != null) t += ` 進${fnum(lv.entry)}` + (lv.stop != null ? `/損${fnum(lv.stop)}` : '');
+      return { t, cls: 'go' };
+    }
     if (e === '⚠過高勿追') return { t: '⚠過高勿追', cls: 'warn' };
     if (has(G('reaction_bar_type'))) {
       const buy = G('buy_point');
@@ -234,5 +300,5 @@
     if (advBtn && advBtn.classList.contains('active')) renderFull();
   }
 
-  window.AdvicePanel = { onKline, renderBar, renderFull };
+  window.AdvicePanel = { onKline, renderBar, renderFull, mainupLevels };
 })();

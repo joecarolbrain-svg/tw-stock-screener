@@ -2688,6 +2688,22 @@ function klBuild(d) {
     candle.setMarkers(_mk);
   }
 
+  // 朱家泓 回後買上漲 / 盤整突破：進場/觸發/停損/目標 價位線（advice.js 純前端推算）
+  try {
+    const lv = (window.AdvicePanel && window.AdvicePanel.mainupLevels)
+      ? window.AdvicePanel.mainupLevels(d, klineState.row) : null;
+    if (lv) {
+      const pl = (price, color, title, style) => {
+        if (price != null && isFinite(price))
+          candle.createPriceLine({ price: +price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title });
+      };
+      pl(lv.entry,   '#26a69a', `進 ${lv.entry != null ? (+lv.entry).toFixed(2) : ''}`, 0);                       // 實線：進場(收盤)
+      pl(lv.trigger, '#90a4ae', `${lv.triggerLabel} ${lv.trigger != null ? (+lv.trigger).toFixed(2) : ''}`, 1);   // 點線：觸發
+      pl(lv.stop,    '#ef5350', `損 ${lv.stop != null ? (+lv.stop).toFixed(2) : ''}`, 2);                          // 虛線：停損
+      pl(lv.target,  '#ffd54f', `標 ${lv.target != null ? (+lv.target).toFixed(2) : ''}`, 2);                      // 虛線：目標
+    }
+  } catch (e) { /* 價位線非關鍵，失敗不影響主圖 */ }
+
   klineState.charts.push(pChart);
 
   // ── 法人副圖 ──
@@ -2765,6 +2781,7 @@ async function openKlineModal(ticker, name, market) {
   // 從主篩選資料查回這一列（不論從哪個表點開都用主表的權威訊號列）
   const advRow = (state.data && state.data.rows)
     ? state.data.rows.find(r => String(r.ticker) === String(ticker)) || null : null;
+  klineState.row = advRow;   // 供 klBuild 畫朱家泓進場/停損/目標價位線（切換勾選重建圖也在）
 
   try {
     let d = klineState.cache[ticker];
@@ -2787,6 +2804,7 @@ function closeKlineModal() {
   document.getElementById('kline-modal').hidden = true;
   klDestroy();
   klineState.current = null;
+  klineState.row = null;
 }
 
 function initKlineModal() {

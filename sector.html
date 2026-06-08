@@ -188,6 +188,37 @@
   .view-btn.active{color:#e8e8e8;border-color:#3a5070;background:#1e2a3a;}
   .view-btn:hover{color:#aaa;}
 
+  /* Chart controls (回看期間 + 軌跡) */
+  .chart-controls{display:flex;align-items:center;gap:14px;}
+  .ctrl-label{font-size:12px;color:#888;display:flex;align-items:center;gap:6px;}
+  .inline-select{background:#1a2030;border:1px solid #2a3344;border-radius:6px;color:#e8e8e8;font-size:12px;padding:4px 8px;outline:none;cursor:pointer;}
+  .ctrl-toggle{font-size:12px;color:#888;display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;}
+  .ctrl-toggle input{accent-color:#3a8fd8;cursor:pointer;}
+
+  /* Heatmap / Treemap shared wrap */
+  .heatmap-wrap,.treemap-wrap{position:absolute;inset:16px;overflow:auto;display:none;}
+  .heatmap-wrap::-webkit-scrollbar,.treemap-wrap::-webkit-scrollbar{width:5px;height:5px;}
+  .heatmap-wrap::-webkit-scrollbar-thumb,.treemap-wrap::-webkit-scrollbar-thumb{background:#2a3344;border-radius:2px;}
+
+  /* Heatmap grid */
+  .hm-table{border-collapse:separate;border-spacing:2px;width:100%;}
+  .hm-table th{font-size:11px;color:#777;font-weight:600;padding:4px 6px;text-align:right;white-space:nowrap;position:sticky;top:0;background:#161b24;z-index:2;}
+  .hm-table th.hm-name-h{text-align:left;left:0;z-index:3;}
+  .hm-row{cursor:pointer;}
+  .hm-row:hover .hm-name{color:#fff;}
+  .hm-name{font-size:13px;color:#cfd6e0;padding:5px 8px;white-space:nowrap;position:sticky;left:0;background:#161b24;text-align:left;max-width:160px;overflow:hidden;text-overflow:ellipsis;}
+  .hm-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle;}
+  .hm-cell{font-size:12px;text-align:right;padding:5px 8px;border-radius:4px;color:#e8e8e8;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .hm-disclaimer{font-size:12px;color:#555;margin-bottom:10px;padding:8px 12px;background:#1a2030;border-radius:8px;border-left:3px solid #3a8fd8;}
+
+  /* Treemap */
+  .tm-canvas{position:relative;width:100%;}
+  .tm-tile{position:absolute;border-radius:5px;overflow:hidden;cursor:pointer;border:1px solid rgba(0,0,0,.35);display:flex;flex-direction:column;justify-content:center;align-items:center;padding:4px;transition:filter .15s;}
+  .tm-tile:hover{filter:brightness(1.25);}
+  .tm-name{font-weight:700;color:#fff;text-align:center;line-height:1.15;overflow:hidden;}
+  .tm-val{color:rgba(255,255,255,.9);margin-top:2px;}
+  .tm-disclaimer{font-size:12px;color:#555;margin-bottom:10px;padding:8px 12px;background:#1a2030;border-radius:8px;border-left:3px solid #1D9E75;}
+
   /* Ranking list */
   .ranking-wrap{position:absolute;inset:16px;overflow-y:auto;display:none;}
   .ranking-wrap::-webkit-scrollbar{width:4px;}
@@ -325,6 +356,16 @@
 
 <!-- Filter bar: offset right to sit above chart only -->
 <div class="top-bar">
+  <div class="chart-controls" id="chart-controls">
+    <label class="ctrl-label">回看期間
+      <select id="win-select" class="inline-select">
+        <option value="5">5 日（標準）</option>
+        <option value="10">10 日</option>
+        <option value="20">20 日</option>
+      </select>
+    </label>
+    <label class="ctrl-toggle"><input type="checkbox" id="trail-toggle" checked><span>軌跡尾巴</span></label>
+  </div>
   <div class="filters" id="filters" style="display:none">
     <button class="filter-btn active" data-cat="green" style="--c:#1D9E75"><span class="fdot"></span>主力 · 資金加速流入</button>
     <button class="filter-btn active" data-cat="yellow" style="--c:#E4B125"><span class="fdot"></span>輪動 · 資金流入但放緩</button>
@@ -349,14 +390,18 @@
     <div class="tooltip" id="tt"></div>
     <div id="overlap-menu" style="display:none"></div>
     <div class="ranking-wrap" id="ranking-wrap"></div>
+    <div class="heatmap-wrap" id="heatmap-wrap"></div>
+    <div class="treemap-wrap" id="treemap-wrap"></div>
     <div style="position:absolute;top:10px;right:14px;display:flex;gap:6px;z-index:10;align-items:center;">
       <div class="view-toggle" style="position:static;">
         <button class="view-btn active" id="btn-chart">泡泡圖</button>
+        <button class="view-btn" id="btn-heat">熱力圖</button>
+        <button class="view-btn" id="btn-tree">樹狀圖</button>
         <button class="view-btn" id="btn-rank">排行榜</button>
       </div>
     </div>
     <button class="fullscreen-btn" id="fullscreen-btn">⛶</button>
-    <div class="zoom-hint">圈圈位置 = 近5日・圈圈大小 = 近20日累計　｜　滾輪縮放 · 拖曳移動</div>
+    <div class="zoom-hint">位置＝回看期間淨買超 × 加速度・大小＝近20日累計・尾巴＝5日移動軌跡　｜　滾輪縮放 · 拖曳移動</div>
   </div>
 </div>
 
@@ -479,6 +524,19 @@ let zoomAbortController = null;
 let buildRankingFn = null;
 let zoomController = null;
 let chartLayout = null;
+let lookbackWin = 5;       // 回看窗格（5/10/20 日）；預設 5 = 回測標準 net5/5-net20/20
+let showTrails = true;     // 軌跡尾巴（僅 5 日視圖有 prev 資料）
+const WIN_OPTS = [5, 10, 20];
+let buildHeatmapFn = null;
+let buildTreemapFn = null;
+
+// 依目前回看窗格設定每族群的 _x（X 軸值）/ _accel（Y 軸值）。泡泡大小固定用 |net20|（穩定視覺錨點）。
+function prepWindow(s) {
+  const W = lookbackWin;
+  if (W === 10)      { s._x = s.net_10d_yi; s._accel = (s.accel_10 != null ? s.accel_10 : s.accel); }
+  else if (W === 20) { s._x = s.net_20d_yi; s._accel = (s.accel_20 != null ? s.accel_20 : s.accel); }
+  else               { s._x = s.net_5d_yi;  s._accel = s.accel; }   // 5 日（預設・回測標準）
+}
 
 function closePanel() {
   document.getElementById('stock-panel').classList.remove('open');
@@ -603,9 +661,12 @@ async function init() {
 }
 
 function classify(s) {
-  if (s.net_5d_yi > 0 && s.accel > 0) return 'green';
-  if (s.net_5d_yi > 0 && s.accel <= 0) return 'yellow';
-  if (s.net_5d_yi <= 0 && s.net_5d_yi > -0.5) return 'gray';
+  // 依目前回看窗格的 _x/_accel（prepWindow 設定）分四象限；未 prep 時退回 5 日值
+  const x = (s._x != null) ? s._x : s.net_5d_yi;
+  const a = (s._accel != null) ? s._accel : s.accel;
+  if (x > 0 && a > 0) return 'green';
+  if (x > 0 && a <= 0) return 'yellow';
+  if (x <= 0 && x > -0.5) return 'gray';
   return 'red';
 }
 
@@ -645,11 +706,13 @@ function openPanel(s) {
   `;
 
   const list = document.getElementById('panel-list');
-  const stockList = SECTOR_STOCKS[s.name] || s.stocks;
   const stockData = (lastRenderData && lastRenderData.stock_data) || {};
+  // 依近5日法人淨買超排序（領頭股在前）；★＝高位階領頭股（pos>=70 且近5日淨買為正）
+  const stockList = [...(SECTOR_STOCKS[s.name] || s.stocks)].sort((a, b) =>
+    ((stockData[b]?.net_5d_yi ?? -1e9) - (stockData[a]?.net_5d_yi ?? -1e9)));
   const headerHtml = `<div class="stock-row" style="padding:4px 16px 6px;border-bottom:1px solid #222a36;">
     <span class="stock-code" style="font-size:10px;color:#555;font-weight:400;">代碼</span>
-    <span class="stock-name" style="font-size:10px;color:#555;">名稱</span>
+    <span class="stock-name" style="font-size:10px;color:#555;">名稱（★領頭）</span>
     <span class="stock-chg" style="font-size:10px;color:#555;font-weight:400;">當日漲跌</span>
     <span class="stock-flow" style="font-size:10px;color:#555;">當日買超</span>
   </div>`;
@@ -658,6 +721,7 @@ function openPanel(s) {
     const sd = stockData[code];
     let chgHtml = '<span class="stock-chg" style="color:#444;">—</span>';
     let flowHtml = '<span class="stock-flow">—</span>';
+    let star = '';
     if (sd) {
       const chgColor = sd.chg_1d >= 0 ? '#1D9E75' : '#D85A30';
       const chgSign = sd.chg_1d >= 0 ? '+' : '';
@@ -665,10 +729,12 @@ function openPanel(s) {
       const flowColor = sd.net_1d_yi >= 0 ? '#1D9E75' : '#D85A30';
       const flowSign = sd.net_1d_yi >= 0 ? '+' : '';
       flowHtml = `<span class="stock-flow" style="color:${flowColor}">${flowSign}${sd.net_1d_yi.toFixed(2)}億</span>`;
+      if (sd.pos != null && sd.pos >= 70 && (sd.net_5d_yi || 0) > 0)
+        star = '<span title="高位階領頭股（pos≥70 且近5日法人淨買）" style="color:#E4B125;margin-right:3px;">★</span>';
     }
     return `<div class="stock-row">
       <span class="stock-code">${code}</span>
-      <span class="stock-name">${name}</span>
+      <span class="stock-name">${star}${name}</span>
       ${chgHtml}
       ${flowHtml}
     </div>`;
@@ -850,8 +916,11 @@ function render(data) {
     });
   }
 
-  // Stats
-  sectors.forEach(s => { s.accel = (s.net_5d_yi / 5) - (s.net_20d_yi / 20); });
+  // Stats — accel 由後端提供（缺則前端補算）；再依回看窗格設 _x/_accel
+  sectors.forEach(s => {
+    if (s.accel == null) s.accel = (s.net_5d_yi / 5) - (s.net_20d_yi / 20);
+    prepWindow(s);
+  });
   const catCounts = { green: 0, yellow: 0, gray: 0, red: 0 };
   sectors.forEach(s => { catCounts[classify(s)]++; });
 
@@ -882,8 +951,8 @@ function render(data) {
   const innerW = W - PAD.l - PAD.r;
   const innerH = H - PAD.t - PAD.b;
 
-  const flows = sectors.map(s => s.net_5d_yi);
-  const accels = sectors.map(s => s.accel);
+  const flows = sectors.map(s => s._x);
+  const accels = sectors.map(s => s._accel);
 
   const rawXMin = Math.min(...flows), rawXMax = Math.max(...flows);
   const rawYMin = Math.min(...accels), rawYMax = Math.max(...accels);
@@ -911,17 +980,34 @@ function render(data) {
 
   const abs20 = sectors.map(s => Math.abs(s.net_20d_yi));
   const max20 = Math.max(...abs20, 1);
-  const sr = v => Math.max(22, Math.min(55, 22 + (v / max20) * 33));
+  const sr = v => Math.max(16, Math.min(48, 16 + (v / max20) * 32));
+
+  // 軌跡尾巴：5 日視圖才有 prev（5 個交易日前 → 現在的移動向量，看資金「往哪轉」）
+  let trailsHtml = '';
+  if (showTrails && lookbackWin === 5) {
+    sectors.forEach((s) => {
+      if (s.net_5d_prev_yi == null || s.accel_prev == null) return;
+      const x0 = gx(s.net_5d_prev_yi), y0 = gy(s.accel_prev);
+      const x1 = gx(s._x), y1 = gy(s._accel);
+      if (Math.hypot(x1 - x0, y1 - y0) < 3) return;   // 幾乎沒動就不畫
+      const col = COLORS[classify(s)];
+      trailsHtml += `<line class="trail" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="${col}" stroke-width="1.4" stroke-opacity="0.30" stroke-linecap="round"/>` +
+                    `<circle class="trail" cx="${x0}" cy="${y0}" r="2.2" fill="${col}" fill-opacity="0.26"/>`;
+    });
+  }
 
   // Build only bubbles (axes are drawn separately via redrawAxes)
   let bubblesHtml = '';
   sectors.forEach((s, i) => {
-    const bx = gx(s.net_5d_yi);
-    const by = gy(s.accel);
+    const bx = gx(s._x);
+    const by = gy(s._accel);
     const r = sr(Math.abs(s.net_20d_yi));
     const cat = classify(s);
     const color = COLORS[cat];
-    const sign = s.net_5d_yi >= 0 ? '+' : '';
+    const inflow = (cat === 'green' || cat === 'yellow');
+    const fillOp = inflow ? 0.5 : 0.16;          // 流出族群空心化：避免「大紅泡泡＝強」的誤讀
+    const dash = inflow ? '' : ' stroke-dasharray="3,3"';
+    const sign = s._x >= 0 ? '+' : '';
     const fs1 = Math.max(10, Math.min(18, r * 0.38));
     const fs2 = Math.max(9, Math.min(16, r * 0.34));
     const fs3 = Math.max(8, Math.min(14, r * 0.30));
@@ -935,12 +1021,16 @@ function render(data) {
     const y1 = by - twoLineHalf + fs1;
     const y2 = y1 + lineGap + fs2;
     const y3 = y2 + lineGap + fs3;
+    // 黑馬金環（回測版：低基期被偷買，僅空頭 regime 後端才標 True）
+    const ring = s.is_blackhorse
+      ? `<circle cx="${bx}" cy="${by}" r="${r + 4}" fill="none" stroke="#E4B125" stroke-width="1.6" stroke-dasharray="3,3" opacity="0.9"/>` : '';
 
     bubblesHtml += `<g class="bubble" data-i="${i}" data-cat="${cat}">
+      ${ring}
       <clipPath id="cp${i}"><circle cx="${bx}" cy="${by}" r="${r - 1}"/></clipPath>
-      <circle cx="${bx}" cy="${by}" r="${r}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="1.5"/>
+      <circle cx="${bx}" cy="${by}" r="${r}" fill="${color}" fill-opacity="${fillOp}" stroke="${color}" stroke-width="1.5"${dash}/>
       <text class="bubble-label" clip-path="url(#cp${i})" font-size="${fs1}" x="${bx}" y="${y1}">${nameStr}</text>
-      <text class="bubble-pct" clip-path="url(#cp${i})" font-size="${fs2}" x="${bx}" y="${y2}">${sign}${s.net_5d_yi.toFixed(1)}億</text>
+      <text class="bubble-pct" clip-path="url(#cp${i})" font-size="${fs2}" x="${bx}" y="${y2}">${sign}${s._x.toFixed(1)}億</text>
       <text class="bubble-chg" clip-path="url(#cp${i})" font-size="${fs3}" x="${bx}" y="${y3}" fill="${chgColor}">${chgSign}${s.chg_5d.toFixed(1)}%</text>
     </g>`;
   });
@@ -949,7 +1039,7 @@ function render(data) {
     `<defs><clipPath id="data-clip"><rect x="${PAD.l}" y="${PAD.t}" width="${innerW}" height="${innerH}"/></clipPath></defs>` +
     `<g id="grid-group"></g>` +
     `<g id="center-lines-group"></g>` +
-    `<g id="zoom-group">${bubblesHtml}</g>` +
+    `<g id="zoom-group">${trailsHtml}${bubblesHtml}</g>` +
     `<g id="axis-labels-group"></g>` +
     `<g id="static-group">` +
       `<text class="axis-label" x="${W-PAD.r}" y="${H-PAD.b+46}" text-anchor="end">資金流入（億）→</text>` +
@@ -1330,6 +1420,94 @@ function render(data) {
     `;
   }
 
+  // ── Heatmap view (族群 × 時間窗格：看資金「加溫 / 冷卻」的時間演化) ──
+  function buildHeatmap() {
+    const wrap = document.getElementById('heatmap-wrap');
+    const cols = [
+      { key: 'net_1d_yi',  label: '當日' },
+      { key: 'net_5d_yi',  label: '5 日' },
+      { key: 'net_10d_yi', label: '10 日' },
+      { key: 'net_20d_yi', label: '20 日' },
+      { key: 'net_60d_yi', label: '60 日' },
+    ];
+    // 每欄各自取最大絕對值 → 同欄內比強弱（跨窗格量級差異大，分欄標準化才看得出來）
+    const colMax = {};
+    cols.forEach(c => { colMax[c.key] = Math.max(1, ...sectors.map(s => Math.abs(s[c.key] || 0))); });
+    const rows = [...sectors].sort((a, b) => (b.net_5d_yi || 0) - (a.net_5d_yi || 0));
+
+    function cellColor(v, mx) {
+      if (v == null || Math.abs(v) < 1e-9) return 'transparent';
+      const a = (0.12 + Math.min(1, Math.abs(v) / mx) * 0.55).toFixed(2);
+      return v > 0 ? `rgba(29,158,117,${a})` : `rgba(216,90,48,${a})`;
+    }
+
+    wrap.innerHTML = `
+      <div class="hm-disclaimer">🌡️ 每格＝該族群在該期間的法人淨買超(億)；綠＝買、紅＝賣，越深越強（同一欄內比較）。看一個族群「短期 vs 中長期」是加溫還是冷卻。</div>
+      <table class="hm-table">
+        <thead><tr><th class="hm-name-h">族群</th>${cols.map(c => `<th>${c.label}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${rows.map(s => {
+            const color = COLORS[classify(s)];
+            return `<tr class="hm-row" data-name="${s.name}">
+              <td class="hm-name"><span class="hm-dot" style="background:${color}"></span>${s.name}</td>
+              ${cols.map(c => {
+                const v = s[c.key];
+                const txt = (v == null) ? '—' : (v >= 0 ? '+' : '') + v.toFixed(0);
+                return `<td class="hm-cell" style="background:${cellColor(v, colMax[c.key])}">${txt}</td>`;
+              }).join('')}
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+    wrap.querySelectorAll('.hm-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const s = sectors.find(x => x.name === row.dataset.name);
+        if (s) openPanel(s);
+      });
+    });
+  }
+  buildHeatmapFn = buildHeatmap;
+
+  // ── Treemap view (資金集中度：方塊大小=|net20|、色=四象限、無重疊) ──
+  function buildTreemap() {
+    const wrap = document.getElementById('treemap-wrap');
+    const items = sectors
+      .map(s => ({ s, v: Math.abs(s.net_20d_yi || 0) }))
+      .filter(d => d.v > 0)
+      .sort((a, b) => b.v - a.v);
+    const cw = Math.max(280, wrap.clientWidth || 900);
+    const ch = Math.max(300, (wrap.clientHeight || 560) - 46);
+    const total = items.reduce((a, d) => a + d.v, 0) || 1;
+    const tiles = squarify(items, total, 0, 0, cw, ch);
+    wrap.innerHTML = `
+      <div class="tm-disclaimer">🧱 方塊大小＝近20日法人淨買超的「絕對量」（資金集中在哪）；顏色＝四象限狀態、流出族塊半透明。點方塊看成分股。</div>
+      <div class="tm-canvas" style="height:${ch}px">
+        ${tiles.map(t => {
+          const cat = classify(t.d.s);
+          const color = COLORS[cat];
+          const inflow = (cat === 'green' || cat === 'yellow');
+          const fz = Math.max(9, Math.min(17, Math.sqrt(t.w * t.h) / 5));
+          const showName = t.w > 42 && t.h > 26;
+          const showVal = t.w > 52 && t.h > 44;
+          const n5 = t.d.s.net_5d_yi;
+          return `<div class="tm-tile" data-name="${t.d.s.name}"
+                    style="left:${t.x}px;top:${t.y}px;width:${t.w}px;height:${t.h}px;background:${color};opacity:${inflow ? 0.92 : 0.42};">
+              ${showName ? `<div class="tm-name" style="font-size:${fz}px">${t.d.s.name}</div>` : ''}
+              ${showVal ? `<div class="tm-val" style="font-size:${Math.max(8, fz - 3)}px">${n5 >= 0 ? '+' : ''}${n5.toFixed(0)}億</div>` : ''}
+            </div>`;
+        }).join('')}
+      </div>
+    `;
+    wrap.querySelectorAll('.tm-tile').forEach(tile => {
+      tile.addEventListener('click', () => {
+        const s = sectors.find(x => x.name === tile.dataset.name);
+        if (s) openPanel(s);
+      });
+    });
+  }
+  buildTreemapFn = buildTreemap;
+
   // ── Static listeners — added only once across all re-renders ──
   if (!staticListenersAdded) {
     staticListenersAdded = true;
@@ -1361,39 +1539,75 @@ function render(data) {
 
     setupSearch(allSectors);
 
-    document.getElementById('btn-chart').addEventListener('click', () => {
-      currentView = 'chart';
-      document.getElementById('chart').style.display = 'block';
-      document.getElementById('ranking-wrap').style.display = 'none';
-      document.querySelector('.zoom-hint') && (document.querySelector('.zoom-hint').style.display = '');
-      document.getElementById('btn-chart').classList.add('active');
-      document.getElementById('btn-rank').classList.remove('active');
-    });
+    document.getElementById('btn-chart').addEventListener('click', () => setView('chart'));
+    document.getElementById('btn-heat').addEventListener('click', () => setView('heat'));
+    document.getElementById('btn-tree').addEventListener('click', () => setView('tree'));
+    document.getElementById('btn-rank').addEventListener('click', () => setView('rank'));
 
-    document.getElementById('btn-rank').addEventListener('click', () => {
-      currentView = 'rank';
-      document.getElementById('chart').style.display = 'none';
-      document.getElementById('ranking-wrap').style.display = 'block';
-      document.getElementById('overlap-menu').style.display = 'none';
-      document.getElementById('tt').style.opacity = '0';
-      document.querySelector('.zoom-hint') && (document.querySelector('.zoom-hint').style.display = 'none');
-      document.getElementById('btn-chart').classList.remove('active');
-      document.getElementById('btn-rank').classList.add('active');
-      if (buildRankingFn) buildRankingFn();
+    document.getElementById('win-select').addEventListener('change', (e) => {
+      lookbackWin = parseInt(e.target.value, 10) || 5;
+      if (lastRenderData) render(lastRenderData);   // 重畫泡泡（新窗格的 X/accel）
+    });
+    document.getElementById('trail-toggle').addEventListener('change', (e) => {
+      showTrails = e.target.checked;
+      if (lastRenderData) render(lastRenderData);
     });
   }
 
-  // Restore view state after re-render (e.g. resize or orientation change)
-  if (currentView === 'rank') {
-    document.getElementById('chart').style.display = 'none';
-    document.getElementById('ranking-wrap').style.display = 'block';
-    document.querySelector('.zoom-hint') && (document.querySelector('.zoom-hint').style.display = 'none');
-    document.getElementById('btn-chart').classList.remove('active');
-    document.getElementById('btn-rank').classList.add('active');
-    buildRanking();
-  }
+  // Restore view state after re-render (resize / 窗格切換 / orientation change)
+  if (currentView !== 'chart') setView(currentView);
 
   applyFilter();
+}
+
+// ── Squarified treemap layout → [{d, x, y, w, h}] ──
+function squarify(items, total, x0, y0, w, h) {
+  const out = [];
+  const nodes = items.map(d => ({ d, area: d.v / total * w * h }));
+  let x = x0, y = y0, dw = w, dh = h, i = 0;
+  while (i < nodes.length) {
+    const vertical = dw >= dh;            // 沿較短邊鋪一列，泡格較接近方形
+    const side = vertical ? dh : dw;
+    let row = [], rowSum = 0, bestWorst = Infinity;
+    while (i < nodes.length) {
+      const a = nodes[i].area;
+      const newSum = rowSum + a;
+      const mx = Math.max(a, ...row.map(n => n.area));
+      const mn = Math.min(a, ...(row.length ? row.map(n => n.area) : [a]));
+      const w2 = Math.max((side * side * mx) / (newSum * newSum), (newSum * newSum) / (side * side * mn));
+      if (w2 <= bestWorst) { row.push(nodes[i]); rowSum = newSum; bestWorst = w2; i++; }
+      else break;
+    }
+    const thick = rowSum / side || 0;
+    let off = 0;
+    row.forEach(n => {
+      const len = n.area / thick;
+      if (vertical) out.push({ d: n.d, x, y: y + off, w: thick, h: len });
+      else          out.push({ d: n.d, x: x + off, y, w: len, h: thick });
+      off += len;
+    });
+    if (vertical) { x += thick; dw -= thick; } else { y += thick; dh -= thick; }
+  }
+  return out;
+}
+
+// ── View switching (泡泡圖 / 熱力圖 / 樹狀圖 / 排行榜) ──
+function setView(view) {
+  currentView = view;
+  document.getElementById('chart').style.display = view === 'chart' ? 'block' : 'none';
+  document.getElementById('ranking-wrap').style.display = view === 'rank' ? 'block' : 'none';
+  document.getElementById('heatmap-wrap').style.display = view === 'heat' ? 'block' : 'none';
+  document.getElementById('treemap-wrap').style.display = view === 'tree' ? 'block' : 'none';
+  const cc = document.getElementById('chart-controls'); if (cc) cc.style.display = view === 'chart' ? 'flex' : 'none';
+  const zh = document.querySelector('.zoom-hint'); if (zh) zh.style.display = view === 'chart' ? '' : 'none';
+  const om = document.getElementById('overlap-menu'); if (om) om.style.display = 'none';
+  document.getElementById('tt').style.opacity = '0';
+  [['chart', 'btn-chart'], ['heat', 'btn-heat'], ['tree', 'btn-tree'], ['rank', 'btn-rank']].forEach(([v, id]) => {
+    const b = document.getElementById(id); if (b) b.classList.toggle('active', v === view);
+  });
+  if (view === 'rank' && buildRankingFn) buildRankingFn();
+  if (view === 'heat' && buildHeatmapFn) buildHeatmapFn();
+  if (view === 'tree' && buildTreemapFn) buildTreemapFn();
 }
 
 // ── Zoom & Pan ──

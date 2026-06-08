@@ -537,7 +537,7 @@ let allSectors = null;
 let lastRenderData = null;
 const activeCats = new Set(['green', 'yellow', 'gray', 'red']);
 let currentView = 'chart';
-let rankingMode = 'cp';
+let rankingMode = 'consec';
 let staticListenersAdded = false;
 let zoomAbortController = null;
 let buildRankingFn = null;
@@ -1334,15 +1334,15 @@ function render(data) {
     const bottomCount = sectors.filter(s => s.is_bottom_fishing && SECTOR_STOCKS[s.name]).length;
     const tabsHtml = `
       <div class="ranking-tabs">
+        <button class="ranking-tab ${rankingMode === 'consec' ? 'active' : ''}" data-mode="consec">🔥 連續吸金</button>
         <button class="ranking-tab ${rankingMode === 'cp' ? 'active' : ''}" data-mode="cp">⚡ CP值排行</button>
-        <button class="ranking-tab ${rankingMode === 'longterm' ? 'active' : ''}" data-mode="longterm">💰 長線吸金</button>
         <button class="ranking-tab tab-bottom ${rankingMode === 'bottom' ? 'active' : ''}" data-mode="bottom">⚓ 抄底偵測${bottomCount > 0 ? ` (${bottomCount})` : ''}</button>
       </div>
     `;
 
     let bodyHtml = '';
     if (rankingMode === 'cp') bodyHtml = buildCpRanking();
-    else if (rankingMode === 'longterm') bodyHtml = buildLongtermRanking();
+    else if (rankingMode === 'consec') bodyHtml = buildConsecRanking();
     else bodyHtml = buildBottomRanking();
 
     wrap.innerHTML = tabsHtml + bodyHtml;
@@ -1475,34 +1475,32 @@ function render(data) {
     `;
   }
 
-  // ── 長線吸金榜（依近60日法人累積淨買超排序；標短調長買） ──
-  function buildLongtermRanking() {
-    const sorted = [...sectors].filter(s => (s.net_60d_yi || 0) > 0)
-      .sort((a, b) => (b.net_60d_yi || 0) - (a.net_60d_yi || 0));
-    if (!sorted.length) return `<div class="empty-state">近 60 日沒有淨流入的族群</div>`;
-    const max = Math.max(...sorted.map(s => s.net_60d_yi), 1);
+  // ── 連續吸金榜（依法人「連續」淨買超天數排序） ──
+  function buildConsecRanking() {
+    const sorted = [...sectors].filter(s => (s.consec || 0) > 0)
+      .sort((a, b) => (b.consec - a.consec) || ((b.consec_yi || 0) - (a.consec_yi || 0)));
+    if (!sorted.length) return `<div class="empty-state">目前沒有族群連續淨流入（最新一天法人多在調節）</div>`;
+    const maxDays = Math.max(...sorted.map(s => s.consec), 1);
     return `
-      <div class="ranking-disclaimer" style="border-left-color:#3a8fd8;">💰 近 60 日法人累積淨買超最多（長線被吸金）。<b style="color:#E4B125">⚠短調</b>＝長線買但近 5 日在調節（常是回檔布局點）。點族群看累積曲線。</div>
+      <div class="ranking-disclaimer" style="border-left-color:#D85A30;">🔥 法人「連續」淨買超天數最多（連續吸金）。天數＝到最新資料日為止<b>不間斷</b>淨買的交易日；金額＝這段連續期間累積。點族群看累積曲線。</div>
       <div class="ranking-col-header">
         <span style="min-width:22px"></span>
         <span style="width:9px"></span>
         <span class="ranking-col-header-name"></span>
-        <span class="ranking-col-header-chg">5日漲跌</span>
-        <span class="ranking-col-header-flow">60日累積(億)</span>
+        <span class="ranking-col-header-chg">連續天數</span>
+        <span class="ranking-col-header-flow">期間累積(億)</span>
       </div>
-      ${sorted.slice(0, 12).map((s, idx) => {
+      ${sorted.slice(0, 15).map((s, idx) => {
         const cat = classify(s);
         const color = COLORS[cat];
-        const shortPull = (s.net_5d_yi || 0) < 0;
-        const chgColor = s.chg_5d >= 0 ? '#1D9E75' : '#D85A30';
-        const barW = Math.round(s.net_60d_yi / max * 100);
+        const barW = Math.round(s.consec / maxDays * 100);
         return `<div class="ranking-item" data-name="${s.name}">
           <span class="ranking-rank">${idx + 1}</span>
           <span class="ranking-dot" style="background:${color}"></span>
-          <span class="ranking-name">${s.name}${shortPull ? ' <span style="color:#E4B125;font-size:11px">⚠短調</span>' : ''}</span>
-          <span class="ranking-chg" style="color:${chgColor}">${s.chg_5d >= 0 ? '+' : ''}${s.chg_5d.toFixed(1)}%</span>
+          <span class="ranking-name">${s.name}</span>
+          <span class="ranking-chg" style="color:#E4B125;font-weight:700">連 ${s.consec} 天</span>
           <div class="ranking-flow-col">
-            <span class="ranking-flow" style="color:#1D9E75">+${s.net_60d_yi.toFixed(0)}億</span>
+            <span class="ranking-flow" style="color:#1D9E75">+${(s.consec_yi || 0).toFixed(0)}億</span>
             <div class="ranking-bar-wrap"><div class="ranking-bar-bg">
               <div class="ranking-bar-fill" style="width:${barW}%;background:${color}"></div>
             </div></div>

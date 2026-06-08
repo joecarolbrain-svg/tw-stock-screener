@@ -372,10 +372,7 @@
 
 <!-- Filter bar: offset right to sit above chart only -->
 <div class="top-bar">
-  <div class="grouping-toggle" id="grouping-toggle">
-    <button class="grp-btn active" data-grp="theme">題材</button>
-    <button class="grp-btn" data-grp="industry">官方產業</button>
-  </div>
+  <div class="grouping-toggle" id="grouping-toggle"></div>
   <div class="chart-controls" id="chart-controls">
     <label class="ctrl-label">回看期間
       <select id="win-select" class="inline-select">
@@ -556,7 +553,8 @@ let chartLayout = null;
 let lookbackWin = 5;       // 回看窗格 1/3/5/10/20/60 日；預設 5 = 回測標準 net5/5-net20/20
 let showTrails = true;     // 軌跡尾巴（僅 5 日視圖有 prev 資料）
 let topN = 78;             // 泡泡圖只顯示「依選定期間流入量絕對值」前 N 名（78=全部）
-let currentGrouping = 'theme';  // 分類：題材(sectors) / 官方產業(sectors_industry)
+let currentGrouping = 'cmconcept';  // 分類 key（資料驅動，見 data.groupings）
+let curveDays = 60;             // 面板累積吸金曲線回看天數（10–120，可調）
 const WIN_OPTS = [1, 3, 5, 10, 20, 60];
 const WIN_NET = { 1: 'net_1d_yi', 3: 'net_3d_yi', 5: 'net_5d_yi', 10: 'net_10d_yi', 20: 'net_20d_yi', 60: 'net_60d_yi' };
 const WIN_ACC = { 1: 'accel_1', 3: 'accel_3', 5: 'accel', 10: 'accel_10', 20: 'accel_20', 60: 'accel_60' };
@@ -572,7 +570,15 @@ function prepWindow(s) {
   s._accel = (s[WIN_ACC[W]] != null) ? s[WIN_ACC[W]] : s.accel;
 }
 
-// 近60日法人累積淨買超 sparkline（面板用：看資金一路累積 vs 近期回調）
+// 從 120 日累積序列 cum 取「最近 days 天」的累積（減基準歸零）→ 任意天數窗
+function windowedCum(cum, days) {
+  if (!cum || cum.length < 2) return [];
+  const L = cum.length, n = Math.min(Math.max(2, days), L);
+  const base = (L - n - 1 >= 0) ? cum[L - n - 1] : 0;
+  return cum.slice(L - n).map(v => v - base);
+}
+
+// 累積淨買超 sparkline（傳入已取窗的陣列）
 function cumSparkline(cum) {
   if (!cum || cum.length < 2) return '';
   const W = 256, H = 64, pad = 4;
@@ -750,16 +756,28 @@ function openPanel(s) {
   const has1d = s.net_1d_yi != null;
   const sign1d = has1d && s.net_1d_yi >= 0 ? '+' : '';
   const col1d = has1d && s.net_1d_yi >= 0 ? '#1D9E75' : '#D85A30';
+  // 累積吸金曲線（可調天數，10–cum長；用 windowedCum 減基準）
+  let curveBlock = '';
+  if (s.cum && s.cum.length > 1) {
+    const cdMax = s.cum.length, days = Math.min(curveDays, cdMax);
+    const wc = windowedCum(s.cum, days);
+    const last = wc.length ? wc[wc.length - 1] : 0;
+    curveBlock = `<div style="margin-top:8px;padding-top:8px;border-top:1px solid #222a36;">
+      <div class="panel-stat-row" style="margin-bottom:3px;">
+        <span class="panel-stat-label">近 <span id="curve-days-lbl">${days}</span> 日累積吸金</span>
+        <span class="panel-stat-value" id="curve-total" style="color:${last >= 0 ? '#1D9E75' : '#D85A30'}">${last >= 0 ? '+' : ''}${last} 億</span>
+      </div>
+      <input type="range" id="curve-days" min="10" max="${cdMax}" step="1" value="${days}" style="width:100%;accent-color:#3a8fd8;cursor:pointer;margin:2px 0 5px">
+      <div id="curve-spark">${cumSparkline(wc)}</div>
+    </div>`;
+  }
   statsEl.innerHTML = `
     ${has1d ? `<div class="panel-stat-row"><span class="panel-stat-label">當日法人淨買超</span><span class="panel-stat-value" style="color:${col1d}">${sign1d}${s.net_1d_yi.toFixed(2)} 億</span></div>` : ''}
     <div class="panel-stat-row"><span class="panel-stat-label">近 5 日法人淨買超</span><span class="panel-stat-value" style="color:${col5}">${sign5}${s.net_5d_yi.toFixed(2)} 億</span></div>
     <div class="panel-stat-row"><span class="panel-stat-label">近 20 日累計</span><span class="panel-stat-value" style="color:${col20}">${sign20}${s.net_20d_yi.toFixed(2)} 億</span></div>
     <div class="panel-stat-row"><span class="panel-stat-label">資金加速度</span><span class="panel-stat-value" style="color:${accelCol}">${accelSign}${s.accel.toFixed(2)} 億/天（${accelLabel}）</span></div>
     <div class="panel-stat-row"><span class="panel-stat-label">近 5 日漲跌</span><span class="panel-stat-value" style="color:${s.chg_5d>=0?'#1D9E75':'#D85A30'}">${s.chg_5d>=0?'+':''}${s.chg_5d.toFixed(2)}%</span></div>
-    ${s.cum && s.cum.length > 1 ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid #222a36;">
-      <div class="panel-stat-row" style="margin-bottom:1px;"><span class="panel-stat-label">近 60 日累積吸金</span><span class="panel-stat-value" style="color:${s.cum[s.cum.length-1]>=0?'#1D9E75':'#D85A30'}">${s.cum[s.cum.length-1]>=0?'+':''}${s.cum[s.cum.length-1]} 億</span></div>
-      ${cumSparkline(s.cum)}
-    </div>` : ''}
+    ${curveBlock}
   `;
 
   const list = document.getElementById('panel-list');
@@ -800,6 +818,22 @@ function openPanel(s) {
   document.getElementById('stock-panel').classList.add('open');
   document.getElementById('panel-overlay').classList.add('open');
   document.getElementById('tt').style.opacity = '0';
+
+  // 累積吸金曲線：天數滑桿即時重算（不重開面板）
+  const cdInput = document.getElementById('curve-days');
+  if (cdInput && s.cum) {
+    cdInput.addEventListener('input', e => {
+      curveDays = parseInt(e.target.value, 10) || 60;
+      const wc = windowedCum(s.cum, curveDays);
+      const last = wc.length ? wc[wc.length - 1] : 0;
+      const lbl = document.getElementById('curve-days-lbl');
+      if (lbl) lbl.textContent = Math.min(curveDays, s.cum.length);
+      const tot = document.getElementById('curve-total');
+      if (tot) { tot.textContent = `${last >= 0 ? '+' : ''}${last} 億`; tot.style.color = last >= 0 ? '#1D9E75' : '#D85A30'; }
+      const sp = document.getElementById('curve-spark');
+      if (sp) sp.innerHTML = cumSparkline(wc);
+    });
+  }
 }
 
 function setupSearch(sectors) {
@@ -962,9 +996,23 @@ function render(data) {
   document.getElementById('update-info').innerHTML =
     `資料日期：${data.date}　｜　最後更新：${twStr}（台灣時間）`;
 
-  const sectors = (currentGrouping === 'industry' && data.sectors_industry && data.sectors_industry.length)
-    ? data.sectors_industry : data.sectors;
+  const groupings = data.groupings || {};
+  const gkeys = Object.keys(groupings);
+  if (!groupings[currentGrouping]) currentGrouping = gkeys[0];
+  const sectors = (groupings[currentGrouping] && groupings[currentGrouping].sectors) || [];
   allSectors = sectors;
+  // 依資料重建分類切換鈕（事件用委派，見 static listeners）
+  const gt = document.getElementById('grouping-toggle');
+  if (gt) gt.innerHTML = gkeys.map(k =>
+    `<button class="grp-btn ${k === currentGrouping ? 'active' : ''}" data-grp="${k}">${groupings[k].label}</button>`).join('');
+  // Top-N 滑桿上限/標籤同步當前分類群數
+  const _tr = document.getElementById('topn-range');
+  if (_tr) {
+    _tr.max = Math.max(10, sectors.length);
+    _tr.value = Math.min(topN, sectors.length);
+    const _tl = document.getElementById('topn-label');
+    if (_tl) _tl.textContent = topN >= sectors.length ? '全部' : ('前 ' + topN);
+  }
 
   // Fetch per-stock TWSE data in background if not already in JSON
   if (!data.stock_data) {
@@ -1693,7 +1741,7 @@ function render(data) {
     });
     const _topn = document.getElementById('topn-range');
     if (_topn) {
-      const _total = () => (lastRenderData && lastRenderData.sectors ? lastRenderData.sectors.length : 78);
+      const _total = () => (allSectors ? allSectors.length : 78);
       _topn.addEventListener('input', (e) => {            // 拖動即時更新標籤
         const v = parseInt(e.target.value, 10) || 78;
         document.getElementById('topn-label').textContent = v >= _total() ? '全部' : ('前 ' + v);
@@ -1705,15 +1753,13 @@ function render(data) {
       });
     }
 
-    document.querySelectorAll('#grouping-toggle .grp-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const g = btn.dataset.grp;
-        if (g === currentGrouping) return;
-        currentGrouping = g;
-        document.querySelectorAll('#grouping-toggle .grp-btn').forEach(b => b.classList.toggle('active', b.dataset.grp === g));
-        closePanel();
-        if (lastRenderData) render(lastRenderData);   // 切題材↔官方產業，整個重畫
-      });
+    document.getElementById('grouping-toggle').addEventListener('click', (e) => {
+      const btn = e.target.closest('.grp-btn');
+      if (!btn || btn.dataset.grp === currentGrouping) return;
+      currentGrouping = btn.dataset.grp;
+      topN = 78;            // 切分類重置顯示數
+      closePanel();
+      if (lastRenderData) render(lastRenderData);   // 整個重畫（含 toggle active 狀態）
     });
   }
 

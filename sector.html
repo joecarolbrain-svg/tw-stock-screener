@@ -195,10 +195,18 @@
   .ctrl-toggle{font-size:12px;color:#888;display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;}
   .ctrl-toggle input{accent-color:#3a8fd8;cursor:pointer;}
 
-  /* Heatmap / Treemap shared wrap */
-  .heatmap-wrap,.treemap-wrap{position:absolute;inset:16px;overflow:auto;display:none;}
-  .heatmap-wrap::-webkit-scrollbar,.treemap-wrap::-webkit-scrollbar{width:5px;height:5px;}
-  .heatmap-wrap::-webkit-scrollbar-thumb,.treemap-wrap::-webkit-scrollbar-thumb{background:#2a3344;border-radius:2px;}
+  /* Heatmap / Treemap / Map shared wrap */
+  .heatmap-wrap,.treemap-wrap,.map-wrap{position:absolute;inset:16px;overflow:auto;display:none;}
+  .heatmap-wrap::-webkit-scrollbar,.treemap-wrap::-webkit-scrollbar,.map-wrap::-webkit-scrollbar{width:5px;height:5px;}
+  .heatmap-wrap::-webkit-scrollbar-thumb,.treemap-wrap::-webkit-scrollbar-thumb,.map-wrap::-webkit-scrollbar-thumb{background:#2a3344;border-radius:2px;}
+
+  /* 熱力圖（色塊地圖） */
+  .map-disclaimer{font-size:12px;color:#555;margin-bottom:10px;padding:8px 12px;background:#1a2030;border-radius:8px;border-left:3px solid #3a8fd8;}
+  .map-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(116px,1fr));gap:5px;}
+  .map-tile{border-radius:6px;padding:9px 10px;cursor:pointer;min-height:54px;display:flex;flex-direction:column;justify-content:space-between;border:1px solid rgba(0,0,0,.25);transition:filter .15s,transform .1s;}
+  .map-tile:hover{filter:brightness(1.25);transform:translateY(-1px);}
+  .map-tile-name{font-size:12px;color:#eef2f6;font-weight:600;line-height:1.2;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+  .map-tile-val{font-size:13px;color:#fff;font-weight:700;font-variant-numeric:tabular-nums;margin-top:4px;}
 
   /* Heatmap grid */
   .hm-table{border-collapse:separate;border-spacing:2px;width:100%;}
@@ -359,12 +367,15 @@
   <div class="chart-controls" id="chart-controls">
     <label class="ctrl-label">回看期間
       <select id="win-select" class="inline-select">
-        <option value="5">5 日（標準）</option>
+        <option value="1">1 日</option>
+        <option value="3">3 日</option>
+        <option value="5" selected>5 日（標準）</option>
         <option value="10">10 日</option>
         <option value="20">20 日</option>
+        <option value="60">60 日</option>
       </select>
     </label>
-    <label class="ctrl-toggle"><input type="checkbox" id="trail-toggle" checked><span>軌跡尾巴</span></label>
+    <label class="ctrl-toggle" id="trail-ctrl"><input type="checkbox" id="trail-toggle" checked><span>軌跡尾巴</span></label>
   </div>
   <div class="filters" id="filters" style="display:none">
     <button class="filter-btn active" data-cat="green" style="--c:#1D9E75"><span class="fdot"></span>主力 · 資金加速流入</button>
@@ -390,12 +401,14 @@
     <div class="tooltip" id="tt"></div>
     <div id="overlap-menu" style="display:none"></div>
     <div class="ranking-wrap" id="ranking-wrap"></div>
+    <div class="map-wrap" id="map-wrap"></div>
     <div class="heatmap-wrap" id="heatmap-wrap"></div>
     <div class="treemap-wrap" id="treemap-wrap"></div>
     <div style="position:absolute;top:10px;right:14px;display:flex;gap:6px;z-index:10;align-items:center;">
       <div class="view-toggle" style="position:static;">
         <button class="view-btn active" id="btn-chart">泡泡圖</button>
         <button class="view-btn" id="btn-heat">熱力圖</button>
+        <button class="view-btn" id="btn-evo">演化</button>
         <button class="view-btn" id="btn-tree">樹狀圖</button>
         <button class="view-btn" id="btn-rank">排行榜</button>
       </div>
@@ -524,18 +537,21 @@ let zoomAbortController = null;
 let buildRankingFn = null;
 let zoomController = null;
 let chartLayout = null;
-let lookbackWin = 5;       // 回看窗格（5/10/20 日）；預設 5 = 回測標準 net5/5-net20/20
+let lookbackWin = 5;       // 回看窗格 1/3/5/10/20/60 日；預設 5 = 回測標準 net5/5-net20/20
 let showTrails = true;     // 軌跡尾巴（僅 5 日視圖有 prev 資料）
-const WIN_OPTS = [5, 10, 20];
+const WIN_OPTS = [1, 3, 5, 10, 20, 60];
+const WIN_NET = { 1: 'net_1d_yi', 3: 'net_3d_yi', 5: 'net_5d_yi', 10: 'net_10d_yi', 20: 'net_20d_yi', 60: 'net_60d_yi' };
+const WIN_ACC = { 1: 'accel_1', 3: 'accel_3', 5: 'accel', 10: 'accel_10', 20: 'accel_20', 60: 'accel_60' };
 let buildHeatmapFn = null;
 let buildTreemapFn = null;
+let buildSectorMapFn = null;
+function winLabel() { return lookbackWin + ' 日'; }
 
-// 依目前回看窗格設定每族群的 _x（X 軸值）/ _accel（Y 軸值）。泡泡大小固定用 |net20|（穩定視覺錨點）。
+// 依目前回看窗格設定每族群的 _x（X 軸值＝該窗格淨買超）/ _accel（Y 軸值＝該窗格加速度）。泡泡大小固定 |net20|。
 function prepWindow(s) {
   const W = lookbackWin;
-  if (W === 10)      { s._x = s.net_10d_yi; s._accel = (s.accel_10 != null ? s.accel_10 : s.accel); }
-  else if (W === 20) { s._x = s.net_20d_yi; s._accel = (s.accel_20 != null ? s.accel_20 : s.accel); }
-  else               { s._x = s.net_5d_yi;  s._accel = s.accel; }   // 5 日（預設・回測標準）
+  s._x = (s[WIN_NET[W]] != null) ? s[WIN_NET[W]] : s.net_5d_yi;
+  s._accel = (s[WIN_ACC[W]] != null) ? s[WIN_ACC[W]] : s.accel;
 }
 
 function closePanel() {
@@ -1420,11 +1436,44 @@ function render(data) {
     `;
   }
 
-  // ── Heatmap view (族群 × 時間窗格：看資金「加溫 / 冷卻」的時間演化) ──
+  // ── 熱力圖（色塊地圖：單一回看期間，顏色＝淨買超強弱，跟時間下拉連動） ──
+  function buildSectorMap() {
+    const wrap = document.getElementById('map-wrap');
+    const max = Math.max(1, ...sectors.map(s => Math.abs(s._x || 0)));
+    const rows = [...sectors].sort((a, b) => (b._x || 0) - (a._x || 0));
+    const col = v => {
+      if (v == null || Math.abs(v) < 1e-9) return 'rgba(120,120,120,0.16)';
+      const a = (0.18 + Math.min(1, Math.abs(v) / max) * 0.62).toFixed(2);
+      return v > 0 ? `rgba(29,158,117,${a})` : `rgba(216,90,48,${a})`;
+    };
+    wrap.innerHTML = `
+      <div class="map-disclaimer">🟩 每格＝族群在「近 ${winLabel()}」的法人淨買超(億)；綠＝買、紅＝賣，越深越強。改上方「回看期間」整張圖跟著變。</div>
+      <div class="map-grid">
+        ${rows.map(s => {
+          const v = s._x;
+          const dot = COLORS[classify(s)];
+          return `<div class="map-tile" data-name="${s.name}" style="background:${col(v)}">
+            <div class="map-tile-name"><span class="hm-dot" style="background:${dot}"></span>${s.name}</div>
+            <div class="map-tile-val">${v >= 0 ? '+' : ''}${(v || 0).toFixed(0)}億</div>
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+    wrap.querySelectorAll('.map-tile').forEach(t => {
+      t.addEventListener('click', () => {
+        const s = sectors.find(x => x.name === t.dataset.name);
+        if (s) openPanel(s);
+      });
+    });
+  }
+  buildSectorMapFn = buildSectorMap;
+
+  // ── 演化矩陣 (族群 × 時間窗格：看資金「加溫 / 冷卻」的時間演化) ──
   function buildHeatmap() {
     const wrap = document.getElementById('heatmap-wrap');
     const cols = [
       { key: 'net_1d_yi',  label: '當日' },
+      { key: 'net_3d_yi',  label: '3 日' },
       { key: 'net_5d_yi',  label: '5 日' },
       { key: 'net_10d_yi', label: '10 日' },
       { key: 'net_20d_yi', label: '20 日' },
@@ -1473,7 +1522,7 @@ function render(data) {
   function buildTreemap() {
     const wrap = document.getElementById('treemap-wrap');
     const items = sectors
-      .map(s => ({ s, v: Math.abs(s.net_20d_yi || 0) }))
+      .map(s => ({ s, v: Math.abs(s._x || 0) }))
       .filter(d => d.v > 0)
       .sort((a, b) => b.v - a.v);
     const cw = Math.max(280, wrap.clientWidth || 900);
@@ -1481,7 +1530,7 @@ function render(data) {
     const total = items.reduce((a, d) => a + d.v, 0) || 1;
     const tiles = squarify(items, total, 0, 0, cw, ch);
     wrap.innerHTML = `
-      <div class="tm-disclaimer">🧱 方塊大小＝近20日法人淨買超的「絕對量」（資金集中在哪）；顏色＝四象限狀態、流出族塊半透明。點方塊看成分股。</div>
+      <div class="tm-disclaimer">🧱 方塊大小＝「近 ${winLabel()}」法人淨買超的絕對量（資金集中在哪）；顏色＝四象限狀態、流出族塊半透明。改上方「回看期間」整張跟著變。點方塊看成分股。</div>
       <div class="tm-canvas" style="height:${ch}px">
         ${tiles.map(t => {
           const cat = classify(t.d.s);
@@ -1490,7 +1539,7 @@ function render(data) {
           const fz = Math.max(9, Math.min(17, Math.sqrt(t.w * t.h) / 5));
           const showName = t.w > 42 && t.h > 26;
           const showVal = t.w > 52 && t.h > 44;
-          const n5 = t.d.s.net_5d_yi;
+          const n5 = t.d.s._x;
           return `<div class="tm-tile" data-name="${t.d.s.name}"
                     style="left:${t.x}px;top:${t.y}px;width:${t.w}px;height:${t.h}px;background:${color};opacity:${inflow ? 0.92 : 0.42};">
               ${showName ? `<div class="tm-name" style="font-size:${fz}px">${t.d.s.name}</div>` : ''}
@@ -1541,6 +1590,7 @@ function render(data) {
 
     document.getElementById('btn-chart').addEventListener('click', () => setView('chart'));
     document.getElementById('btn-heat').addEventListener('click', () => setView('heat'));
+    document.getElementById('btn-evo').addEventListener('click', () => setView('evo'));
     document.getElementById('btn-tree').addEventListener('click', () => setView('tree'));
     document.getElementById('btn-rank').addEventListener('click', () => setView('rank'));
 
@@ -1595,18 +1645,23 @@ function squarify(items, total, x0, y0, w, h) {
 function setView(view) {
   currentView = view;
   document.getElementById('chart').style.display = view === 'chart' ? 'block' : 'none';
-  document.getElementById('ranking-wrap').style.display = view === 'rank' ? 'block' : 'none';
-  document.getElementById('heatmap-wrap').style.display = view === 'heat' ? 'block' : 'none';
+  document.getElementById('map-wrap').style.display = view === 'heat' ? 'block' : 'none';      // 熱力圖（色塊地圖）
+  document.getElementById('heatmap-wrap').style.display = view === 'evo' ? 'block' : 'none';    // 演化矩陣
   document.getElementById('treemap-wrap').style.display = view === 'tree' ? 'block' : 'none';
-  const cc = document.getElementById('chart-controls'); if (cc) cc.style.display = view === 'chart' ? 'flex' : 'none';
+  document.getElementById('ranking-wrap').style.display = view === 'rank' ? 'block' : 'none';
+  // 回看期間下拉：單一期間的視圖（泡泡/熱力/樹狀）才需要；演化/排行不需
+  const singleWin = (view === 'chart' || view === 'heat' || view === 'tree');
+  const cc = document.getElementById('chart-controls'); if (cc) cc.style.display = singleWin ? 'flex' : 'none';
+  const tc = document.getElementById('trail-ctrl'); if (tc) tc.style.display = view === 'chart' ? 'flex' : 'none';  // 軌跡只在泡泡圖
   const zh = document.querySelector('.zoom-hint'); if (zh) zh.style.display = view === 'chart' ? '' : 'none';
   const om = document.getElementById('overlap-menu'); if (om) om.style.display = 'none';
   document.getElementById('tt').style.opacity = '0';
-  [['chart', 'btn-chart'], ['heat', 'btn-heat'], ['tree', 'btn-tree'], ['rank', 'btn-rank']].forEach(([v, id]) => {
+  [['chart', 'btn-chart'], ['heat', 'btn-heat'], ['evo', 'btn-evo'], ['tree', 'btn-tree'], ['rank', 'btn-rank']].forEach(([v, id]) => {
     const b = document.getElementById(id); if (b) b.classList.toggle('active', v === view);
   });
   if (view === 'rank' && buildRankingFn) buildRankingFn();
-  if (view === 'heat' && buildHeatmapFn) buildHeatmapFn();
+  if (view === 'heat' && buildSectorMapFn) buildSectorMapFn();
+  if (view === 'evo' && buildHeatmapFn) buildHeatmapFn();
   if (view === 'tree' && buildTreemapFn) buildTreemapFn();
 }
 

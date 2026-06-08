@@ -588,7 +588,7 @@ let chartLayout = null;
 let lookbackWin = 5;       // 回看窗格 1/3/5/10/20/60 日；預設 5 = 回測標準 net5/5-net20/20
 let showTrails = true;     // 軌跡尾巴（僅 5 日視圖有 prev 資料）
 let topN = 78;             // 泡泡圖只顯示「依選定期間流入量絕對值」前 N 名（78=全部）
-let currentGrouping = 'cmsector';  // 分類 key（資料驅動，見 data.groupings；目前只有 CMoney類股）
+let currentGrouping = 'mdj_major';  // 分類 key（資料驅動，見 data.groupings；預設 MoneyDJ產業=主、100%覆蓋）
 let curveDays = 60;             // 面板累積吸金曲線回看天數（10–120，可調）
 const WIN_OPTS = [1, 3, 5, 10, 20, 60];
 const WIN_NET = { 1: 'net_1d_yi', 3: 'net_3d_yi', 5: 'net_5d_yi', 10: 'net_10d_yi', 20: 'net_20d_yi', 60: 'net_60d_yi' };

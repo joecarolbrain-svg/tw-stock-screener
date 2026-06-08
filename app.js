@@ -962,7 +962,9 @@ function bindTabs() {
         loadHanku();
       }
       if (tab === 'sector-flow') {
-        loadSectorFlow();
+        // 泡泡圖＝獨立頁 sector.html，首次切入才設 src（lazy，避免未看就抓資料）
+        const f = document.getElementById('sf-bubble-frame');
+        if (f && !f.src) f.src = f.dataset.src;
       }
       if (tab === 'industry-ranking' && !rankState.loaded) {
         loadIndustryRanking();

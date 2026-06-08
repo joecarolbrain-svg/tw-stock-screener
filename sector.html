@@ -1,0 +1,1547 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>族群資金流向 · 泡泡圖</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'PingFang TC','Microsoft JhengHei',system-ui,sans-serif;
+    background:#0e1218;color:#e8e8e8;
+    display:flex;flex-direction:column;padding:16px;gap:10px;
+  }
+  h1{font-size:24px;font-weight:600;margin-bottom:2px;}
+  .sub{font-size:14px;color:#888;}
+
+  /* Main layout: stats on left, chart on right */
+  .main-layout{display:flex;gap:10px;flex:1;min-height:0;}
+  .stats-col{display:flex;flex-direction:column;gap:8px;width:170px;flex-shrink:0;}
+
+  /* Top bar: offset by stats-col width so it sits above the chart only */
+  .top-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:calc(170px + 10px);}
+
+  /* Filter buttons */
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto;}
+  .filter-btn{
+    display:flex;align-items:center;gap:5px;
+    padding:5px 10px;border-radius:20px;border:1.5px solid transparent;
+    font-size:13px;cursor:pointer;user-select:none;white-space:nowrap;
+    background:#1a2030;color:#666;transition:all .2s;
+  }
+  .filter-btn.active{color:#e8e8e8;border-color:var(--c);}
+  .filter-btn.active .fdot{opacity:1;}
+  .filter-btn:hover{color:#aaa;}
+  .fdot{width:10px;height:10px;border-radius:50%;background:var(--c);opacity:0.4;transition:opacity .2s;}
+
+  /* Search box */
+  .search-wrap{position:relative;}
+  .search-input{
+    background:#1a2030;border:1px solid #2a3344;border-radius:20px;
+    color:#e8e8e8;font-size:13px;padding:5px 14px 5px 32px;
+    outline:none;width:240px;transition:border-color .2s,width .2s;
+  }
+  .search-input:focus{border-color:#3a5070;width:300px;}
+  .search-input::placeholder{color:#555;}
+  .search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#555;font-size:13px;pointer-events:none;}
+  .search-dropdown{
+    position:absolute;top:calc(100% + 4px);right:0;
+    background:#1c222c;border:1px solid #2f3a4a;border-radius:10px;
+    min-width:230px;max-height:260px;overflow-y:auto;z-index:50;
+    display:none;box-shadow:0 8px 24px rgba(0,0,0,.55);
+  }
+  .search-dropdown::-webkit-scrollbar{width:4px;}
+  .search-dropdown::-webkit-scrollbar-thumb{background:#2a3344;border-radius:2px;}
+  .search-dropdown.show{display:block;}
+  .search-item{
+    padding:8px 14px;font-size:13px;cursor:pointer;
+    border-bottom:1px solid #1a2030;
+    display:flex;align-items:center;gap:8px;color:#aaa;
+  }
+  .search-item:last-child{border-bottom:none;}
+  .search-item:hover,.search-item.active-item{background:#232b3a;color:#e8e8e8;}
+  .search-item-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .search-item-tag{
+    font-size:11px;padding:1px 6px;border-radius:4px;
+    background:#2a3344;color:#888;flex-shrink:0;
+    max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+
+  /* Bubble pulse animation */
+  @keyframes bubblePulse{
+    0%  {transform:scale(1);}
+    25% {transform:scale(2.1);}
+    55% {transform:scale(1.4);}
+    75% {transform:scale(1.75);}
+    100%{transform:scale(1);}
+  }
+  .bubble.pulse circle{
+    transition:none !important;
+    animation:bubblePulse 0.9s cubic-bezier(.34,1.56,.64,1) forwards;
+  }
+
+  /* Chart */
+  .chart-wrap{background:#161b24;border:1px solid #222a36;border-radius:14px;padding:16px;position:relative;overflow:hidden;}
+  svg{display:block;position:absolute;top:16px;left:16px;width:calc(100% - 32px);height:calc(100% - 32px);cursor:default;}
+  svg.dragging{cursor:grabbing;}
+  .zoom-hint{position:absolute;bottom:10px;right:14px;font-size:12px;color:#444;pointer-events:none;user-select:none;}
+  .zoom-reset{position:absolute;top:10px;right:14px;background:#1a2030;border:1px solid #2a3344;border-radius:6px;color:#aaa;font-size:11px;padding:3px 8px;cursor:pointer;z-index:10;opacity:0.35;transition:opacity .2s;}
+  .zoom-reset.active{opacity:1;}
+  .zoom-reset:hover{color:#fff;}
+  .fullscreen-btn{position:absolute;bottom:10px;left:14px;background:#1a2030;border:1px solid #2a3344;border-radius:6px;color:#888;font-size:13px;padding:4px 9px;cursor:pointer;z-index:10;display:none;line-height:1;}
+  .fullscreen-btn:hover{color:#ccc;}
+  @media (max-width:768px),(max-height:500px){.fullscreen-btn{display:block;}}
+  .chart-wrap.chart-fullscreen{position:fixed !important;inset:0 !important;z-index:200 !important;border-radius:0 !important;height:100dvh !important;width:100dvw !important;}
+
+  .axis-label{fill:#888;font-size:16px;}
+  .quad-label{fill:#666;font-size:16px;font-weight:700;letter-spacing:.08em;}
+  .grid-line{stroke:#1d2532;stroke-width:0.5;stroke-dasharray:2,3;}
+
+  .bubble{cursor:pointer;}
+  .bubble circle{transition:transform .25s cubic-bezier(.34,1.56,.64,1), fill-opacity .25s, stroke-width .25s; transform-origin:center; transform-box:fill-box;}
+  .bubble:hover circle,.bubble.highlight circle{transform:scale(1.3); fill-opacity:0.8; stroke-width:2.5;}
+  .bubble:hover,.bubble.highlight{filter:drop-shadow(0 0 10px rgba(255,255,255,0.12));}
+  .bubble-label{fill:#fff;font-weight:700;pointer-events:none;text-anchor:middle;}
+  .bubble-pct{fill:#fff;pointer-events:none;text-anchor:middle;opacity:0.9;}
+  .bubble-chg{fill:#fff;pointer-events:none;text-anchor:middle;opacity:0;transition:opacity .2s;}
+  .bubble:hover .bubble-chg{opacity:0.85;}
+
+  /* Tooltip */
+  .tooltip{
+    position:absolute;background:#1c222c;border:1px solid #2f3a4a;
+    border-radius:10px;padding:14px 16px;pointer-events:none;
+    min-width:220px;font-size:13px;z-index:10;
+    opacity:0;transition:opacity .15s;box-shadow:0 8px 28px rgba(0,0,0,.5);
+  }
+  .tt-name{font-size:17px;font-weight:700;margin-bottom:10px;color:#fff;}
+  .tt-row{display:flex;justify-content:space-between;margin-bottom:5px;color:#aaa;}
+  .tt-row strong{color:#fff;font-weight:600;}
+  .tt-stocks{margin-top:10px;padding-top:8px;border-top:1px solid #2a3344;color:#777;font-size:12px;}
+  .tt-status{display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;margin-top:8px;}
+
+  /* Stock panel */
+  .panel-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:201;opacity:0;pointer-events:none;transition:opacity .2s;}
+  .panel-overlay.open{opacity:1;pointer-events:auto;}
+  .stock-panel{
+    position:fixed;background:#161b24;
+    z-index:202;display:flex;flex-direction:column;
+    transition:transform .25s cubic-bezier(.4,0,.2,1);
+    box-shadow:-8px 0 32px rgba(0,0,0,.5);
+  }
+  .panel-head{padding:18px 16px 14px;border-bottom:1px solid #222a36;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+  .panel-title{font-size:18px;font-weight:700;color:#fff;line-height:1.3;}
+  .panel-badge{display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700;margin-top:5px;}
+  .panel-close{background:none;border:none;color:#555;font-size:20px;cursor:pointer;padding:0;line-height:1;flex-shrink:0;}
+  .panel-close:hover{color:#aaa;}
+  .panel-list{flex:1;overflow-y:auto;padding:8px 0;}
+  .panel-list::-webkit-scrollbar{width:4px;}
+  .panel-list::-webkit-scrollbar-track{background:transparent;}
+  .panel-list::-webkit-scrollbar-thumb{background:#2a3344;border-radius:2px;}
+  .panel-stats{padding:10px 16px 8px;border-bottom:1px solid #222a36;display:flex;flex-direction:column;gap:5px;}
+  .panel-stat-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;}
+  .panel-stat-label{color:#888;}
+  .panel-stat-value{font-weight:600;}
+  .stock-row{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid #1a2030;}
+  .stock-code{font-size:14px;font-weight:700;color:#e8e8e8;min-width:44px;}
+  .stock-name{font-size:14px;color:#aaa;flex:1;}
+  .stock-chg{font-size:13px;font-weight:600;min-width:52px;text-align:right;}
+  .stock-flow{font-size:12px;min-width:60px;text-align:right;color:#888;}
+
+  .loading{text-align:center;padding:60px;color:#555;font-size:14px;}
+  .error{text-align:center;padding:60px;color:#D85A30;font-size:14px;}
+
+  /* Market drop banner（卡片樣式，放在 stats-col 底部）*/
+  .market-banner{
+    background:linear-gradient(135deg,#3a1f15 0%,#2a1810 100%);
+    border:1px solid #6b3424;border-radius:10px;
+    padding:10px 14px;font-size:13px;color:#ffaa88;
+    cursor:pointer;transition:background .15s;
+    display:flex;flex-direction:column;gap:6px;
+  }
+  .market-banner:hover{background:linear-gradient(135deg,#4a2818 0%,#3a1f15 100%);}
+  .market-banner-top{display:flex;align-items:center;gap:6px;}
+  .market-banner-icon{font-size:18px;flex-shrink:0;}
+  .market-banner-title{font-size:12px;color:#ffaa88;font-weight:600;flex:1;}
+  .market-banner-body{font-size:12px;color:#888;line-height:1.5;}
+  .market-banner-body strong{color:#fff;}
+  .market-banner-cta{font-size:12px;color:#E4B125;font-weight:600;}
+
+  /* Ranking tabs */
+  .ranking-tabs{display:flex;gap:6px;margin-bottom:12px;border-bottom:1px solid #1a2030;padding-bottom:0;}
+  .ranking-tab{
+    background:none;border:none;color:#666;font-size:14px;
+    padding:8px 12px;cursor:pointer;position:relative;
+    transition:color .15s;
+  }
+  .ranking-tab:hover{color:#aaa;}
+  .ranking-tab.active{color:#e8e8e8;}
+  .ranking-tab.active::after{
+    content:'';position:absolute;bottom:-1px;left:0;right:0;
+    height:2px;background:#1D9E75;
+  }
+  .ranking-tab.tab-bottom.active::after{background:#E4B125;}
+  .empty-state{padding:40px 20px;text-align:center;color:#555;font-size:13px;}
+
+  /* View toggle button */
+  .view-toggle{position:absolute;top:10px;left:14px;display:flex;gap:4px;z-index:10;}
+  .view-btn{background:#1a2030;border:1px solid #2a3344;border-radius:6px;color:#666;font-size:13px;padding:3px 10px;cursor:pointer;transition:all .2s;}
+  .view-btn.active{color:#e8e8e8;border-color:#3a5070;background:#1e2a3a;}
+  .view-btn:hover{color:#aaa;}
+
+  /* Ranking list */
+  .ranking-wrap{position:absolute;inset:16px;overflow-y:auto;display:none;}
+  .ranking-wrap::-webkit-scrollbar{width:4px;}
+  .ranking-wrap::-webkit-scrollbar-thumb{background:#2a3344;border-radius:2px;}
+  .ranking-disclaimer{font-size:12px;color:#555;margin-bottom:12px;padding:8px 12px;background:#1a2030;border-radius:8px;border-left:3px solid #E4B125;}
+  .ranking-col-header{display:flex;align-items:center;gap:10px;padding:2px 4px 6px;border-bottom:1px solid #1a2030;margin-bottom:2px;}
+  .ranking-col-header-name{flex:1;}
+  .ranking-col-header-chg{font-size:10px;color:#555;min-width:54px;text-align:right;}
+  .ranking-col-header-flow{font-size:10px;color:#555;min-width:calc(68px + 10px + 72px);flex-shrink:0;text-align:center;}
+  .ranking-item{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid #1a2030;cursor:pointer;transition:background .15s;border-radius:6px;}
+  .ranking-item:hover{background:#1a2030;}
+  .ranking-item:last-child{border-bottom:none;}
+  .ranking-rank{font-size:12px;color:#444;min-width:22px;text-align:right;}
+  .ranking-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .ranking-name{font-size:14px;color:#e8e8e8;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ranking-chg{font-size:14px;font-weight:600;min-width:54px;text-align:right;}
+  .ranking-flow{font-size:12px;color:#666;min-width:68px;text-align:right;}
+  .ranking-bar-wrap{width:72px;flex-shrink:0;}
+  .ranking-bar-bg{height:4px;background:#1a2030;border-radius:2px;overflow:hidden;}
+  .ranking-bar-fill{height:4px;border-radius:2px;transition:width .3s;}
+  .ranking-flow-col{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  @media(max-width:768px){
+    .ranking-col-header-flow{min-width:60px;text-align:right;}
+    .ranking-flow-col{flex-direction:column;align-items:flex-end;gap:4px;min-width:60px;}
+    .ranking-flow{min-width:unset;font-size:11px;}
+    .ranking-bar-wrap{width:60px;}
+  }
+  .overlap-menu{
+    position:absolute;background:#1c222c;border:1px solid #2f3a4a;
+    border-radius:12px;z-index:30;min-width:200px;max-width:260px;
+    box-shadow:0 8px 28px rgba(0,0,0,.6);overflow:hidden;
+    animation:fadeInUp .15s ease;
+    display:flex;flex-direction:column;
+  }
+  .overlap-menu-list{
+    overflow-y:auto;max-height:320px;
+  }
+  .overlap-menu-list::-webkit-scrollbar{width:4px;}
+  .overlap-menu-list::-webkit-scrollbar-thumb{background:#2a3344;border-radius:2px;}
+  @keyframes fadeInUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+  .overlap-menu-header{
+    padding:8px 14px 6px;font-size:11px;color:#555;
+    text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid #1a2030;
+  }
+  .overlap-menu-item{
+    display:flex;align-items:center;gap:10px;
+    padding:10px 14px;cursor:pointer;border-bottom:1px solid #1a2030;
+    transition:background .15s;
+  }
+  .overlap-menu-item:last-child{border-bottom:none;}
+  .overlap-menu-item:hover{background:#232b3a;}
+  .overlap-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .overlap-name{font-size:14px;color:#e8e8e8;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .overlap-val{font-size:12px;flex-shrink:0;}
+
+  /* Stat cards */
+  .stat-card{background:#161b24;border:1px solid #222a36;border-radius:10px;padding:10px 14px;min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;}
+  .stat-label{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#666;margin-bottom:6px;white-space:nowrap;}
+  .stat-value{font-size:32px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cat-card{cursor:pointer;transition:opacity .2s,border-color .2s;border-left:3px solid transparent;user-select:none;}
+  .cat-card.inactive{opacity:0.28;}
+  .cat-card-sub{font-size:9px;color:#555;margin-top:2px;white-space:nowrap;}
+
+  /* ── Desktop（≥769px） ── */
+  @media (min-width: 769px) {
+    html,body{height:100%;overflow:hidden;}
+    body{height:100vh;}
+    .main-layout{flex:1;min-height:0;}
+    .stats-col .stat-card{flex:1;min-height:0;}
+    .chart-wrap{flex:1;min-height:0;}
+    .filters{flex-wrap:nowrap;}
+    .stock-panel{top:0;right:0;height:100%;width:300px;border-left:1px solid #222a36;transform:translateX(100%);}
+    .stock-panel.open{transform:translateX(0);}
+  }
+
+  /* ── Landscape phone（短螢幕）── */
+  @media (max-height: 500px) {
+    h1{font-size:16px;}
+    .sub{font-size:10px;}
+    .stats-col{flex-direction:row !important;flex-wrap:nowrap !important;width:auto !important;}
+    .stat-card{flex:1 1 0 !important;padding:4px 6px !important;min-height:0 !important;}
+    .stat-label{font-size:9px !important;}
+    .stat-value{font-size:16px !important;}
+    .top-bar{flex-wrap:nowrap !important;}
+    .filter-btn{font-size:9px !important;padding:3px 6px !important;}
+    .fdot{width:7px !important;height:7px !important;}
+    .search-input{width:100px !important;}
+    .search-input:focus{width:130px !important;}
+    .zoom-hint{display:none !important;}
+  }
+
+  /* ── Mobile（≤768px） ── */
+  @media (max-width: 768px) {
+    body{padding:12px;gap:8px;min-height:100dvh;}
+    h1{font-size:17px;}
+    .sub{font-size:11px;}
+    .main-layout{flex-direction:column;}
+    .top-bar{margin-left:0;}
+    .stats-col{flex-direction:row;flex-wrap:nowrap;width:auto;gap:6px;}
+    .stat-card{flex:1 1 0;padding:8px 6px;}
+    .stat-label{font-size:9px;}
+    .stat-value{font-size:20px;}
+    .chart-wrap{flex:1;min-height:300px;}
+    .axis-label{font-size:11px;}
+    .quad-label{font-size:11px;}
+    .filter-btn{font-size:10px;padding:4px 8px;}
+    .filters{margin-left:0;}
+    .zoom-hint{display:none;}
+    .tooltip{display:none;}
+    .search-wrap{margin-left:0;width:100%;}
+    .search-input{width:100%;font-size:16px;}
+    .search-input:focus{width:100%;}
+    .search-dropdown{right:auto;left:0;width:100%;}
+    .stock-panel{
+      left:0;right:0;bottom:0;
+      width:100%;height:70vh;
+      border-top:1px solid #222a36;
+      border-radius:16px 16px 0 0;
+      transform:translateY(100%);
+    }
+    .stock-panel.open{transform:translateY(0);}
+    .panel-head::before{
+      content:'';display:block;position:absolute;
+      top:8px;left:50%;transform:translateX(-50%);
+      width:36px;height:4px;border-radius:2px;background:#333;
+    }
+    .panel-head{position:relative;padding-top:22px;}
+  }
+</style>
+</head>
+<body>
+
+<h1>台股板塊輪動 · Sector Rotation</h1>
+<div class="sub" id="update-info">載入中...</div>
+
+<!-- Filter bar: offset right to sit above chart only -->
+<div class="top-bar">
+  <div class="filters" id="filters" style="display:none">
+    <button class="filter-btn active" data-cat="green" style="--c:#1D9E75"><span class="fdot"></span>主力 · 資金加速流入</button>
+    <button class="filter-btn active" data-cat="yellow" style="--c:#E4B125"><span class="fdot"></span>輪動 · 資金流入但放緩</button>
+    <button class="filter-btn active" data-cat="gray" style="--c:#777"><span class="fdot"></span>觀望 · 資金沉寂</button>
+    <button class="filter-btn active" data-cat="red" style="--c:#D85A30"><span class="fdot"></span>退潮 · 資金流出</button>
+  </div>
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" class="search-input" id="search-input" autocomplete="off" placeholder="搜尋股票或板塊...">
+    <div class="search-dropdown" id="search-dropdown"></div>
+  </div>
+</div>
+
+<div class="main-layout">
+  <!-- Left: stat cards stacked vertically -->
+  <div class="stats-col" id="stats-row"></div>
+
+  <!-- Right: chart -->
+  <div class="chart-wrap" id="chart-wrap">
+    <div class="loading" id="loading">⏳ 正在載入板塊數據...</div>
+    <svg id="chart" preserveAspectRatio="none" style="display:none;"></svg>
+    <div class="tooltip" id="tt"></div>
+    <div id="overlap-menu" style="display:none"></div>
+    <div class="ranking-wrap" id="ranking-wrap"></div>
+    <div style="position:absolute;top:10px;right:14px;display:flex;gap:6px;z-index:10;align-items:center;">
+      <div class="view-toggle" style="position:static;">
+        <button class="view-btn active" id="btn-chart">泡泡圖</button>
+        <button class="view-btn" id="btn-rank">排行榜</button>
+      </div>
+    </div>
+    <button class="fullscreen-btn" id="fullscreen-btn">⛶</button>
+    <div class="zoom-hint">圈圈位置 = 近5日・圈圈大小 = 近20日累計　｜　滾輪縮放 · 拖曳移動</div>
+  </div>
+</div>
+
+<div class="panel-overlay" id="panel-overlay"></div>
+<div class="stock-panel" id="stock-panel">
+  <div class="panel-head">
+    <div>
+      <div class="panel-title" id="panel-title"></div>
+      <span class="panel-badge" id="panel-badge"></span>
+    </div>
+    <button class="panel-close" id="panel-close">✕</button>
+  </div>
+  <div class="panel-stats" id="panel-stats"></div>
+  <div class="panel-list" id="panel-list"></div>
+</div>
+
+<script>
+const DATA_URL = './data/sector_bubble/latest.json';
+const DEMO_BOTTOM_FISHING = false;
+const COLORS = { green:'#1D9E75', yellow:'#E4B125', gray:'#777', red:'#D85A30' };
+const STOCK_NAMES = {"1301":"台塑","1303":"南亞","1304":"台聚","1313":"聯成","1326":"台化","1417":"嘉裕","1503":"士電","1513":"中興電","1519":"華城","1530":"亞崴","1583":"程泰","1597":"直得","1604":"聲寶","1605":"華新","1612":"宏泰","1614":"三洋電","1626":"艾美特-KY","1710":"東聯","1717":"長興","1722":"台肥","1773":"勝一","1781":"合世","2049":"上銀","2059":"川湖","2206":"三陽工業","2208":"台船","2303":"聯電","2308":"台達電","2313":"華通","2316":"楠梓電","2317":"鴻海","2324":"仁寶","2327":"國巨","2329":"華泰","2330":"台積電","2332":"友訊","2337":"旺宏","2342":"茂矽","2344":"華邦電","2345":"智邦","2347":"聯強","2353":"宏碁","2354":"鴻準","2356":"英業達","2357":"華碩","2363":"矽統","2367":"燿華","2369":"菱生","2374":"佳能","2375":"凱美","2376":"技嘉","2379":"瑞昱","2382":"廣達","2392":"正崴","2406":"國碩","2408":"南亞科","2409":"友達","2417":"圓剛","2419":"仲琦","2421":"建準","2438":"翔耀","2448":"晶電","2449":"京元電子","2451":"創見","2454":"聯發科","2455":"全新","2456":"奇力新","2474":"可成","2492":"華新科","2503":"","2603":"長榮","2605":"新興","2606":"裕民","2609":"陽明","2615":"萬海","2617":"台航","2618":"長榮航","2637":"慧洋-KY","2645":"長榮航太","2722":"夏都","2723":"美食-KY","2727":"王品","2801":"彰銀","2809":"京城銀","2812":"台中銀","2823":"中壽","2880":"華南金","2881":"富邦金","2882":"國泰金","2883":"凱基金","2884":"玉山金","2885":"元大金","2886":"兆豐金","2887":"台新新光金","2888":"新光金","2889":"國票金","2890":"永豐金","2891":"中信金","2892":"第一金","2912":"統一超","2929":"淘帝-KY","3008":"大立光","3014":"聯陽","3015":"全漢","3016":"嘉晶","3017":"奇鋐","3023":"信邦","3030":"德律","3034":"聯詠","3035":"智原","3036":"文曄","3037":"欣興","3042":"晶技","3044":"健鼎","3045":"台灣大","3047":"訊舟","3068":"威強電","3081":"聯亞","3094":"聯傑","3105":"穩懋","3128":"昇銳","3131":"弘塑","3138":"耀登","3149":"正達","3189":"景碩","3211":"順達","3231":"緯創","3257":"虹冠電","3260":"威剛","3324":"雙鴻","3338":"泰碩","3380":"明泰","3406":"玉晶光","3443":"創意","3450":"聯鈞","3481":"群創","3491":"昇達科","3504":"揚明光","3514":"昱晶","3519":"綠能","3526":"凡甲","3532":"台勝科","3533":"嘉澤","3563":"牧德","3576":"聯合再生","3585":"瑞鼎","3653":"健策","3661":"世芯-KY","3680":"家登","3691":"碩禾","3702":"大聯大","3705":"永信","3706":"神達","3707":"漢磊","3711":"日月光投控","3715":"定穎投控","4526":"東台","4763":"材料-KY","4906":"正文","4931":"新盛力","4938":"和碩","4943":"康控-KY","4977":"眾達-KY","4979":"華星光","5202":"力新","5212":"凌笛","5227":"立凱-KY","5269":"祥碩","5274":"信驊","5306":"桂盟","5346":"力晶積成","5347":"世界","5351":"鈺創","5388":"中磊","5471":"松翰","5478":"智冠","5483":"中美晶","5608":"四維航","5876":"上海商銀","5880":"合庫金","5904":"寶雅","6112":"邁達特","6116":"彩晶","6121":"新普","6125":"廣運","6147":"頎邦","6177":"達麗","6182":"合晶","6183":"關貿","6191":"精成科","6202":"盛群","6213":"聯茂","6230":"超眾","6243":"迅杰","6271":"同欣電","6276":"安鈦克","6285":"啟碁","6286":"立錡","6412":"群電","6431":"光麗-KY","6443":"元晶","6485":"點序","6488":"環球晶","6505":"台塑化","6515":"穎崴","6533":"晶心科","6669":"緯穎","6671":"三能-KY","6690":"安碁資訊","6753":"龍德造船","6770":"力積電","6789":"采鈺","8011":"台通","8027":"鈦昇","8033":"雷虎","8039":"台虹","8044":"網家","8046":"南電","8081":"致新","8104":"錸寶","8121":"越峰","8150":"南茂","8155":"博智","8213":"志超","8261":"富鼎","8299":"群聯","1305":"華夏","1309":"台達化","1323":"永裕","1325":"恆大","1507":"永大","1526":"日馳","1529":"樂事綠能","1532":"勤美","1533":"車王電","1535":"中宇","1537":"廣隆","1560":"中砂","1563":"巧新","1580":"新麥","1585":"鎧鉅","1589":"永冠-KY","1590":"亞德客-KY","1601":"台光","1603":"華電","1606":"歌林","1608":"華榮","1609":"大亞","1611":"中電","1613":"台一","1711":"永光","1714":"和桐","1715":"萬洲","1718":"中纖","1721":"三晃","1802":"台玻","2072":"世紀風電","2241":"艾姆勒","2254":"巨鎧精密-創","2258":"鴻華先進-創","2301":"光寶科","2311":"日月光","2315":"神達","2323":"中環","2325":"矽品","2336":"致伸","2340":"台亞","2341":"英群","2350":"環電","2352":"佳世達","2360":"致茂","2361":"鴻友","2364":"倫飛","2365":"昆盈","2377":"微星","2383":"台光電","2384":"勝華","2391":"合勤","2395":"研華","2396":"精碟","2403":"友尚","2404":"漢唐","2418":"雅新","2423":"固緯","2425":"承啟","2426":"鼎元","2429":"銘旺科","2437":"旺詮","2441":"超豐","2444":"兆勁","2446":"全懋","2447":"鼎新","2452":"乾坤","2459":"敦吉","2460":"建通","2462":"良得電","2464":"盟立","2467":"志聖","2472":"立隆電","2475":"華映","2479":"和立","2485":"兆赫","2491":"吉祥全","2494":"廣業科","2499":"東貝","2601":"益航","2607":"榮運","2608":"嘉里大榮","2610":"華航","2611":"志信","2612":"中航","2613":"中櫃","2630":"亞航","2634":"漢翔","2636":"台驊控股","2640":"大車隊","2641":"正德","2642":"宅配通","2643":"捷迅","2646":"星宇航空","3009":"奇美電","3021":"鴻名","3025":"星通","3027":"盛達","3043":"科風","3053":"鼎營","3059":"華晶科","3061":"璨圓","3063":"飛信","3080":"威力盟","3085":"新零售","3088":"艾訊","3089":"億杰","3130":"一零四","3144":"新揚科","3150":"鈺寶-創","3162":"精確","3167":"大量","3191":"雲嘉南","3214":"元砷","3227":"原相","3234":"光環","3259":"鑫創","3264":"欣銓","3265":"台星科","3276":"宇環","3289":"宜特","3294":"英濟","3296":"勝德","3303":"岱稜","3315":"宣昶","3317":"尼克森","3322":"建舜電","3346":"麗清","3367":"英華達","3372":"典範","3374":"精材","3383":"新世紀","3390":"旭軟","3413":"京鼎","3444":"利機","3447":"展達","3455":"由田","3465":"進泰電子","3467":"台灣精材","3474":"華亞科","3484":"崧騰","3528":"安馳","3529":"力旺","3535":"晶彩科","3540":"曜越","3561":"昇陽光電","3583":"辛耘","3587":"閎康","3593":"力銘","3594":"磐儀","3596":"智易","3599":"旺能","3611":"鼎翰","3615":"安可","3625":"西勝","3627":"華信科","3628":"盈正","3630":"新鉅科","3631":"晟楠","3632":"研勤","3646":"艾恩特","3673":"TPK-KY","3682":"亞太電","3687":"歐買尬","3693":"營邦","3698":"隆達","3708":"上緯投控","3709":"鑫聯大投控","3712":"永崴投控","4532":"瑞智","4543":"萬在","4563":"百德","4578":"總格精密","4580":"捷流閥業","4581":"光隆精密-KY","4587":"寶元數控","4588":"玖鼎電力","4721":"美琪瑪","4722":"國精化","4749":"新應材","4925":"智微","4927":"泰鼎-KY","4942":"嘉彰","4949":"有成精密","4951":"精拓科","4953":"緯軟","4958":"臻鼎-KY","4960":"誠美材","4961":"天鈺","4966":"譜瑞-KY","4967":"十銓","4968":"立積","4971":"IET-KY","4973":"廣穎","4980":"佐臻","4994":"傳奇","4995":"晶達","4999":"鑫禾","5201":"凱衛","5205":"中茂","5210":"寶碩","5211":"蒙恬","5220":"萬達光電","5222":"全訊","5228":"鈺鎧","5230":"雷笛克光學","5234":"達興材料","5236":"凌陽創新","5240":"建騰","5243":"乙盛-KY","5244":"弘凱","5245":"智晶","5248":"景傳","5251":"天鉞電","5254":"欣訊科技","5259":"奕智博","5262":"立達","5267":"龍翩","5272":"笙科","5277":"葳天","5278":"尚凡*","5280":"F-敦泰","5281":"大峽谷-KY","5283":"禾聯碩","5285":"界霖","5287":"數字","5289":"宜鼎","5291":"邑昇","5297":"廣化","5299":"杰力","5302":"太欣","5309":"系統電","5321":"美而快","5328":"華容","5349":"先豐","5371":"中光電","5383":"金利","5392":"能率","5425":"台半","5432":"新門","5434":"崇越","5439":"高技","5443":"均豪","5457":"宣德","5469":"瀚宇博","5484":"慧友","5487":"通泰","5488":"松普","5489":"彩富","5493":"三聯","5536":"聖暉*","5601":"台聯櫃","5603":"陸海","5607":"遠雄港","5609":"中菲行","5903":"全家","6103":"合邦","6104":"創惟","6111":"光聚晶電","6114":"久威","6115":"鎰勝","6117":"迎廣","6120":"達運","6123":"上奇","6124":"業強","6126":"信音","6128":"上福","6131":"鈞泰","6133":"金橋","6134":"萬旭","6136":"富爾特","6138":"茂達","6139":"亞翔","6140":"訊達","6141":"柏承","6145":"勁永","6146":"耕興","6151":"晉倫","6152":"百一","6153":"嘉聯益","6154":"順發","6155":"鈞寶","6156":"松上","6158":"禾昌","6161":"捷波","6163":"華電網","6165":"浪凡","6173":"信昌電","6174":"安碁","6175":"立敦","6176":"瑞儀","6184":"大豐電","6185":"幃翔","6189":"豐藝","6190":"萬泰科","6192":"巨路","6194":"育富","6196":"帆宣","6197":"佳必琪","6201":"亞弘電","6204":"艾華","6205":"詮欣","6207":"雷科","6209":"今國光","6210":"慶生","6214":"精誠","6215":"和椿","6217":"中探針","6223":"旺矽","6224":"聚鼎","6225":"天瀚","6229":"研通","6231":"系微","6233":"旺玖","6236":"中湛","6237":"驊訊","6239":"力成","6244":"茂迪","6251":"定穎","6255":"奈普","6257":"矽格","6259":"百徽","6261":"久元","6266":"泰詠","6269":"台郡","6272":"驊陞","6274":"台燿","6277":"宏正","6278":"台表科","6279":"胡連","6280":"崇貿","6283":"淳安","6284":"佳邦","6288":"聯嘉","6289":"華上","6290":"良維","6291":"沛亨","6292":"迅德","6403":"群登","6404":"通訊-KY","6407":"相互","6409":"旭隼","6411":"晶焱","6414":"樺漢","6417":"韋僑","6418":"詠昇","6419":"京晨科","6422":"君耀-KY","6426":"統新","6432":"今展科","6434":"達輝光電","6435":"大中","6451":"訊芯-KY","6462":"神盾","6470":"宇智","6473":"美賣*","6477":"安集","6495":"納諾*-KY","6498":"久禾光","6510":"精測","6512":"啟發電","6514":"芮特-KY","6517":"保勝光學","6530":"創威","6532":"瑞耘","6536":"碩豐","6538":"倉和","6548":"長科*","6555":"榮炭","6556":"勝品","6558":"興能高","6559":"研晶","6560":"欣普羅","6563":"映智","6565":"物聯","6568":"宏觀","6573":"虹揚-KY","6579":"研揚","6581":"鋼聯","6584":"南俊國際","6588":"東典光電","6590":"普鴻","6603":"富強鑫","6604":"儒億","6606":"建德工業","6609":"瀧澤科","6624":"萬年清","6640":"均華","6641":"基士德-KY","6643":"M31","6682":"華旭先進","6689":"伊雲谷","6692":"進能服","6698":"旭暉應材","6705":"振躍精密","6727":"亞泰金屬","6741":"91APP*-KY","6763":"綠界科技*","6775":"穎台科技","6786":"芯測","6788":"華景電","6793":"天力離岸","6803":"崑鼎","6806":"森崴能源","6811":"宏碁資訊","6833":"太康精密","6839":"開陽能源","6854":"錼創科技-KY創","6862":"三集瑞-KY","6865":"偉康科技","6868":"采威國際","6883":"微電能源","6887":"寶綠特-KY","6902":"GOGOLOOK","6903":"巨漢","6910":"德鴻","6913":"鴻呈","6920":"恆勁科技","6925":"意藍","6927":"聯合聚晶","6940":"格斯科技*","6944":"兆聯實業","6946":"三地能源","6947":"台鎔科技","6962":"奕力-KY","6967":"汎瑋材料","6969":"成信實業*-創","6977":"聯純","6983":"華洋精機","6987":"寶晶能源*","6990":"華鉬","6994":"富威電力","6997":"博弘","7455":"樺緯物聯","7583":"國際海洋","7702":"前端風電","7704":"明遠精密","7711":"永擎","7714":"創泓科技","7716":"昱臺國際","7717":"萊德光電-KY","7732":"金興精密","7738":"東聯互動","7758":"睿騰能源","7765":"中華資安","7770":"君曜","7786":"東方風能","7823":"奧義賽博-KY創","7828":"創新服務","7856":"漢測","7863":"中科物流","7887":"宇川精材","7918":"創鉅材料","8016":"矽創","8021":"尖點","8028":"昇陽半導體","8038":"長園科","8050":"廣積","8054":"安國","8067":"志旭","8068":"全達","8069":"元太","8070":"長華*","8071":"能率網通","8078":"華寶","8086":"宏捷科","8107":"大億金茂","8109":"博大","8111":"立碁","8131":"福懋科","8162":"微矽電子-創","8199":"廣鎵","8215":"明基材","8234":"新漢","8271":"宇瞻","8341":"日友","8367":"建新國際","8422":"可寧衛*","8423":"保綠-KY","8443":"阿瘦","8454":"富邦媒","8472":"夠麻吉","8473":"山林水","8476":"台境*","8477":"創業家","9102":"東亞科","9106":"新焦點-DR","9930":"中聯資源","9955":"佳龍","9958":"世紀鋼"};
+const SECTOR_STOCKS = {
+  "AI 伺服器組裝":["2317", "6669", "2376", "2382", "3231", "4938", "2356", "3706", "2353", "3017", "8050", "7711"],
+  "矽晶圓":["6488", "6182", "3016", "3105", "5483", "3532"],
+  "液冷散熱":["3324", "3017", "8261", "6276", "2421", "6230", "3653", "3338"],
+  "PCB 載板":["3037", "8046", "3189", "6213", "3149", "8213", "2367", "3044", "6201", "6155", "6141", "6224", "3294", "3021"],
+  "被動元件 MLCC":["2327", "2492", "2375", "2438", "6112", "2456", "5349", "3144", "2437", "4999", "5222", "6194", "6126", "6173", "6158", "6259", "6266", "6407", "5328", "6210"],
+  "功率電感":["6147", "6285", "3094", "3533", "2456", "3068", "2350", "2452", "6175", "3593"],
+  "電容器":["2375", "2438", "6276", "2327", "2456", "6112", "2492", "3089", "3465", "6204", "2472"],
+  "電阻與被動保護":["2342", "1781", "3042", "2492", "2327", "6271", "5291", "6862", "6940", "6913", "3631"],
+  "NOR Flash 利基記憶體":["2344", "5351", "2337", "8261", "3014", "8104", "8054", "8299"],
+  "記憶體模組":["2408", "5269", "5388", "2344", "3260", "2451", "3661", "9102", "3474", "2396", "5289", "4967", "4973", "5469", "8271", "3317", "3265"],
+  "HBM 高頻寬記憶體":["2408", "2344", "5269", "5388", "2330", "3711", "6515"],
+  "高速光模組":["3081", "4979", "8121", "4906", "6177", "3450", "6243", "6588", "6207", "7717", "3234", "3303"],
+  "客製 ASIC 矽智財":["3661", "3443", "6533", "2454", "3035", "5269", "6643", "3529"],
+  "HPC 與網通 IC":["2454", "2379", "2345", "5274", "3035", "6286", "3014", "6485", "5236", "5272", "6532", "6548", "4968", "6563", "6152", "6104", "6229", "6237", "8086", "6788"],
+  "CPU 與 Agentic AI":["2330", "2454", "3443", "3661", "5347", "3035", "2379", "6515"],
+  "Edge AI AIoT":["2454", "3443", "6669", "2345", "3014", "2379", "3661", "6515", "4980", "6579", "6414", "8234", "7455", "4925", "3227"],
+  "第三代半導體":["3707", "3016", "6789", "3105", "6443", "5346", "5269", "8199", "3214", "3061", "5425", "8028", "7770", "6927", "6920"],
+  "矽光子與 CPO":["3105", "3081", "8121", "4979", "3450", "6243", "2454", "3037"],
+  "顯示驅動 IC":["3034", "3014", "2363", "5471", "3257", "3094", "5280", "6462", "5248", "4995", "4966", "4961", "6151", "5489", "5484", "8016", "8111", "6775", "6962", "2426"],
+  "面板產業":["2409", "3481", "6116", "3149", "3504", "2406", "3009", "2384", "2475", "6289", "3383", "2499", "5245", "6176", "5371", "6225", "8069", "6682", "4942", "3630"],
+  "MicroLED 顯示供應鏈":["6116", "2409", "3481", "3406", "3008", "2448", "3504", "6854", "6111", "3615", "3535"],
+  "光學鏡頭":["3008", "2392", "3406", "6789", "4977", "6271", "5306", "5281", "9106", "6131", "5259", "5240", "5230", "4949", "6556", "6559", "6517", "5392", "6209", "6120"],
+  "光感測與元件":["6789", "6271", "3105", "3406", "2448", "5347", "3661", "3627", "3080", "2494", "5277", "3698", "6419", "5251", "5267", "6434", "6560", "6498", "5220", "6477"],
+  "AI PC 筆電與平板":["2357", "2376", "4938", "2353", "2454", "2382", "3017", "2356", "2474", "3706", "2324", "2377", "2425", "2301", "2364", "2365", "2352", "3673", "3611", "3625"],
+  "智慧型手機":["2317", "2354", "2392", "4938", "3231", "3008", "3406", "2474", "2356"],
+  "EMS 電子代工":["2317", "2354", "2382", "4938", "3231", "2356", "2308", "6285", "3706", "2429", "2459", "2340", "2361", "3053", "2341", "2336", "2315", "2446", "3367", "4994"],
+  "封測代工":["3711", "2449", "6147", "8150", "3680", "2369", "2329", "6271", "2325", "2311", "6435", "6205", "6278", "6261", "6409", "6291", "6257", "6239", "2441", "3583"],
+  "AI 先進封裝":["3711", "8150", "3680", "2449", "3131", "6147", "2330", "6243", "3037", "3259"],
+  "晶圓代工":["2330", "2303", "5347", "6770", "3707", "3035", "6515", "7828", "2323", "3372", "3059"],
+  "晶圓廠設備":["3680", "3131", "8027", "3563", "6191", "4749", "6196", "6139", "6223", "3413"],
+  "前段製程材料":["6147", "8121", "4763", "3691", "3128", "5234", "5302", "5297", "4960", "6134", "5434", "6283", "7887", "7918", "8131", "8215", "6698", "6967", "3467", "3374"],
+  "前段製程設備":["3680", "8027", "3131", "3563", "6191"],
+  "封裝量測自動化":["3680", "3131", "6671", "3563", "6191", "3017", "2479", "6510", "2444", "2423", "2360", "3455", "2467", "3162", "3276"],
+  "封裝製程機台":["3680", "8027", "6671", "3131", "6191", "3563", "5443", "6136", "6128", "6272", "6215", "6640", "2404", "2464"],
+  "日本前段設備":["3680", "8027", "3131", "6191"],
+  "日本後段設備":["3680", "3131", "6671", "6191"],
+  "日本被動元件":["2327", "2492", "2375", "2438", "6112", "2456"],
+  "日本矽晶圓":["6488", "3105", "6182", "3016", "5483", "3532"],
+  "石英頻率控制":["3042", "5471", "6271", "3094", "6147", "2456", "8078", "2485"],
+  "AI 互連元件":["3533", "2392", "6669", "3023", "6177", "3015", "6280", "6185", "6290", "3646"],
+  "連接器 工業消費":["2392", "3533", "6177", "3023", "2313", "3030", "6271", "5383", "6422", "6584", "5228", "6418", "5254", "6432", "6573", "6192", "6124", "6133", "6279", "6292"],
+  "車用連接器":["2392", "6177", "3023", "3533", "2313", "3030", "2308", "2241", "7732", "6288", "1533", "4581", "3346"],
+  "軟板":["8155", "6213", "3023", "3138", "3045", "3150", "1585", "6251", "4958", "6153", "6156", "6269", "8039", "2383", "3715", "3390", "4927", "3296", "3027"],
+  "PCB 硬板製造":["3037", "8046", "3189", "6213", "3149", "8213", "2316", "2367", "3044", "5243", "6426", "5285", "6538", "6197", "5536", "6274", "5439", "6284", "5493", "8038"],
+  "玻璃基板":["8033", "3149", "6116", "6213", "3504", "1802"],
+  "玻纖布":["1717", "1710", "1773", "1605", "1303", "1301"],
+  "導線架與化學品":["2342", "4763", "8121", "3128", "1722", "3691", "1781"],
+  "電池關鍵材料":["1722", "4763", "3128", "3691", "5227", "1503", "3576", "6495", "6555", "7758", "6990", "6883", "1537", "3191"],
+  "電芯製造與電池模組":["3576", "3211", "5227", "4943", "1722", "6121", "6558"],
+  "BBU 電池備援":["4931", "3211", "3023", "6412", "3015", "3017", "5227"],
+  "儲能系統整合":["1519", "2308", "4943", "3576", "6443", "3015", "6121", "5227", "1503"],
+  "電源供應器":["2308", "6412", "3015", "3017", "3211", "1519", "6431", "2418", "6512", "6184", "6114", "5309", "5488", "5457", "3628", "3484", "4588", "2460", "2462", "3322"],
+  "電器電纜":["1604", "1605", "1614", "1503", "1519", "1513", "1626", "1612", "1601", "1606", "1613", "5244", "5283", "8107", "8109", "1526", "1603", "1608", "1609", "1611"],
+  "氣冷與核心組件":["3017", "3324", "8261", "2421", "3015", "6230", "3653", "3338", "3043"],
+  "整合與委外":["2308", "2317", "3231", "4938", "2382", "2356", "2354", "6669", "3706"],
+  "雲端與 MSP":["6669", "6690", "2382", "3687", "6165", "5321", "5287", "5278", "3130", "6689", "6811", "2640", "6404", "6997", "7714", "6163", "6236", "6473", "6590", "6565"],
+  "企業 SaaS":["6669", "8155", "6690", "6183", "5478", "5202", "2417", "6763", "6865", "6902", "2447", "6925", "7738", "6910", "4953", "6536", "5211", "6140", "6214", "6231"],
+  "資安防護":["6690", "6183", "5274", "6533", "5212", "2419", "2345", "6123", "5201", "5210", "7765", "7823", "6868"],
+  "CXL 技術":["2454", "2344", "8261", "5269", "2408", "5388", "6515", "3035"],
+  "AR VR XR 光學":["3008", "2392", "3406", "3081", "2448", "5306", "4977", "6271"],
+  "電商零售":["8044", "2722", "2912", "2723", "2727", "5904", "2929", "6741", "8477", "8472", "3085", "5903", "8454", "8443"],
+  "低軌衛星":["3491", "2313", "4906", "6285", "2419", "3380"],
+  "高速交換器與無線網路":["2345", "6285", "3380", "2332", "3491", "6514", "2391", "6403", "3682", "6470", "6417", "6530", "6190", "6161", "6277", "8071", "3632", "3596", "3447", "3025","3221"],
+  "離岸風電":["1519", "1503", "6443", "3576", "6753", "1513", "1626", "2206", "3708", "2072", "7786", "9958", "6793", "7583", "7702", "3712"],
+  "太陽能產業":["6443", "3576", "3691", "5227", "3514", "3519", "6806", "3599", "3561", "6244", "6839", "6692", "6987", "6994", "6977", "6887", "6944", "6946", "6947", "1529"],
+  "工業自動化":["2049", "4526", "3563", "1597", "2059", "3017", "1589", "1507", "1532", "1535", "1560", "1580", "1590", "2395", "3594", "4532", "4543", "4563", "4580", "3088"],
+  "CNC 工具機":["2049", "4526", "1597", "3563", "1583", "1530", "2374", "6609", "4587", "3167"],
+  "精密機構件":["2049", "6147", "3563", "3680", "2474", "1597", "3338", "2059", "4578", "1563", "2254", "2258", "6983", "6833", "6603", "6604", "6606", "6705", "6727", "7704"],
+  "機殼與滑軌":["2474", "3017", "1597", "2354", "3653", "3338", "6903", "6115", "6117", "3693", "3540", "2491"],
+  "石化與塑膠產業":["1301", "1303", "1326", "6505", "1304", "1313", "1710", "1717", "1722", "1711", "1714", "1718", "1721", "1305", "1309", "1323", "1325", "4721", "4722", "1715"],
+  "資源環保工業":["2503", "1417", "8011", "3691", "1503", "1519", "6641", "8473", "8341", "6581", "9930", "8422", "9955", "6624", "6803", "8423", "8476", "5205", "5432", "6969"],
+  "貨櫃航運":["2603", "2609", "2615", "2637", "2605", "2618", "5607", "5601", "7863", "8367", "2607", "2608", "2610", "2611", "2612", "2613", "2630", "2636", "2641", "2642"],
+  "散裝航運":["2606", "5608", "2637", "2645", "2615", "2617", "2208", "2601", "5609", "5603", "7716", "2646", "2643"],
+  "銀行金融":["2881", "2882", "2891", "2880", "2884", "2885", "2886", "2887", "2890", "2892", "2883", "2888", "2889", "2801", "2809", "2812", "2823", "5876", "5880"],
+  "IC 通路":["3036", "2455", "3047", "2347", "3094", "6125", "8081", "3526", "2403", "3315", "6145", "6189", "6154", "8067", "8068", "8070", "3702", "3709", "3444", "3528"],
+  "IC 測試服務":["6271", "3680", "3131", "2449", "3705", "6243", "6255", "4951", "4971", "6174", "6217", "7856", "6786", "3587", "3264", "3289"],
+  "類比與功率 IC":["6271", "5274", "3034", "3014", "8081", "6202", "3526", "3063", "8162", "6451", "5299", "5262", "6568", "6103", "6146", "6138", "6411", "5487", "6233", "8021"],
+  "國防軍工":["8033", "2645", "6753", "3491", "2206", "1597", "2634"]
+};
+
+// Build reverse map: stock code → [sector names]
+const stockToSectors = {};
+Object.entries(SECTOR_STOCKS).forEach(([sectorName, codes]) => {
+  codes.forEach(code => {
+    if (!stockToSectors[code]) stockToSectors[code] = [];
+    if (!stockToSectors[code].includes(sectorName)) stockToSectors[code].push(sectorName);
+  });
+});
+
+// Module-level state so search can access it
+let allSectors = null;
+let lastRenderData = null;
+const activeCats = new Set(['green', 'yellow', 'gray', 'red']);
+let currentView = 'chart';
+let rankingMode = 'cp';
+let staticListenersAdded = false;
+let zoomAbortController = null;
+let buildRankingFn = null;
+let zoomController = null;
+let chartLayout = null;
+
+function closePanel() {
+  document.getElementById('stock-panel').classList.remove('open');
+  document.getElementById('panel-overlay').classList.remove('open');
+}
+
+function applyFilter() {
+  document.querySelectorAll('.bubble').forEach(b => {
+    b.style.display = activeCats.has(b.dataset.cat) ? '' : 'none';
+  });
+  document.querySelectorAll('.cat-card').forEach(card => {
+    card.classList.toggle('inactive', !activeCats.has(card.dataset.cat));
+  });
+
+  if (!zoomController || !chartLayout) return;
+  const { W, H, PAD, innerW, innerH, gx, gy, xMin, xMax, yMin, yMax } = chartLayout;
+
+  // Reset zoom when all filters are on
+  if (activeCats.size === 4) {
+    zoomController.setTransform(0, 0, 1);
+    return;
+  }
+
+  // Auto-zoom only for single filter
+  if (activeCats.size !== 1) return;
+
+  const cat = [...activeCats][0];
+
+  // X: quadrant boundary (positive X for green/yellow, negative for red/gray)
+  const svgL = gx(cat === 'green' || cat === 'yellow' ? 0 : xMin);
+  const svgR = gx(cat === 'green' || cat === 'yellow' ? xMax : 0);
+
+  // Y: actual bubble bounding box so we don't include empty chart space
+  const visibleBubbles = [...document.querySelectorAll('.bubble')].filter(b => b.style.display !== 'none');
+  if (!visibleBubbles.length) return;
+  let svgT = Infinity, svgB = -Infinity;
+  visibleBubbles.forEach(b => {
+    const c = b.querySelector('circle');
+    const cy = +c.getAttribute('cy'), r = +c.getAttribute('r');
+    svgT = Math.min(svgT, cy - r);
+    svgB = Math.max(svgB, cy + r);
+  });
+
+  const MARGIN = 12;
+  const newScale = Math.min(innerW / (svgR - svgL + MARGIN * 2), innerH / (svgB - svgT + MARGIN * 2), 5);
+  const newTx = (PAD.l + innerW / 2) - ((svgL + svgR) / 2) * newScale;
+  const newTy = (PAD.t + innerH / 2) - ((svgT + svgB) / 2) * newScale;
+
+  zoomController.setTransform(newTx, newTy, newScale);
+}
+
+async function fetchTWSEStockData(date) {
+  function toD(s) { return s.replace(/-/g, ''); }
+  function prevDay(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dt = new Date(y, m - 1, d - 1);
+    return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  }
+  async function getPrice(dateStr) {
+    const j = await fetch(`https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY_ALL?response=json&date=${toD(dateStr)}`).then(r=>r.json());
+    return j.data || [];
+  }
+  async function getChip(dateStr) {
+    const j = await fetch(`https://www.twse.com.tw/rwd/zh/fund/T86?response=json&date=${toD(dateStr)}&selectType=ALL`).then(r=>r.json());
+    return j.data || [];
+  }
+
+  try {
+    // Price and chip fall back independently — chip (T86) is only available after market close
+    let [priceRows, chipRows] = await Promise.all([getPrice(date), getChip(date)]);
+    const prev = prevDay(date);
+    if (priceRows.length === 0) priceRows = await getPrice(prev);
+    if (chipRows.length  === 0) chipRows  = await getChip(prev);
+    if (priceRows.length === 0) return null;
+
+    // Price map: code → { close, chg_1d% }
+    // STOCK_DAY_ALL: [代號, 名稱, 成交股數, 成交金額, 開盤, 最高, 最低, 收盤, 漲跌價差, 成交筆數]
+    const priceMap = {};
+    priceRows.forEach(row => {
+      const code  = (row[0] || '').trim();
+      const close = parseFloat((row[7] || '').replace(/,/g, ''));
+      const diff  = parseFloat((row[8] || '0').replace(/,/g, ''));
+      if (!code || isNaN(close) || isNaN(diff)) return;
+      const prev = close - diff;
+      priceMap[code] = { close, chg_1d: prev > 0 ? diff / prev * 100 : 0 };
+    });
+
+    // Chip map: code → 三大法人買賣超(股數)  [T86 field index 18]
+    const chipMap = {};
+    chipRows.forEach(row => {
+      const code = (row[0] || '').trim();
+      const net  = parseFloat((row[18] || '0').replace(/,/g, ''));
+      if (code && !isNaN(net)) chipMap[code] = net;
+    });
+
+    const stockData = {};
+    Object.keys(STOCK_NAMES).forEach(code => {
+      const p = priceMap[code];
+      if (!p) return;
+      const net = chipMap[code] != null ? chipMap[code] : 0;
+      stockData[code] = {
+        chg_1d:    parseFloat(p.chg_1d.toFixed(2)),
+        net_1d_yi: parseFloat((net * p.close / 1e8).toFixed(2))
+      };
+    });
+    return Object.keys(stockData).length > 0 ? stockData : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function init() {
+  try {
+    const res = await fetch(DATA_URL + '?t=' + Date.now());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    render(data);
+  } catch (e) {
+    document.getElementById('loading').className = 'error';
+    document.getElementById('loading').textContent = '❌ 無法載入數據: ' + e.message;
+  }
+}
+
+function classify(s) {
+  if (s.net_5d_yi > 0 && s.accel > 0) return 'green';
+  if (s.net_5d_yi > 0 && s.accel <= 0) return 'yellow';
+  if (s.net_5d_yi <= 0 && s.net_5d_yi > -0.5) return 'gray';
+  return 'red';
+}
+
+function statusLabel(c) {
+  return { green:'主力', yellow:'輪動', gray:'觀望', red:'退潮' }[c];
+}
+
+function openPanel(s) {
+  const cat = classify(s);
+  const color = COLORS[cat];
+  const label = statusLabel(cat);
+
+  document.getElementById('panel-title').textContent = s.name;
+  const badge = document.getElementById('panel-badge');
+  badge.textContent = label;
+  badge.style.background = color + '25';
+  badge.style.color = color;
+
+  // Sector-level stats (visible on all screen sizes, especially mobile where tooltip is hidden)
+  const statsEl = document.getElementById('panel-stats');
+  const accelSign = s.accel >= 0 ? '+' : '';
+  const accelCol = s.accel >= 0 ? '#1D9E75' : '#D85A30';
+  const accelLabel = s.accel > 0.5 ? '強勢加速' : s.accel > 0 ? '緩步加速' : s.accel > -0.5 ? '略為放緩' : '明顯退潮';
+  const col5 = s.net_5d_yi >= 0 ? '#1D9E75' : '#D85A30';
+  const col20 = s.net_20d_yi >= 0 ? '#1D9E75' : '#D85A30';
+  const sign5 = s.net_5d_yi >= 0 ? '+' : '';
+  const sign20 = s.net_20d_yi >= 0 ? '+' : '';
+  const has1d = s.net_1d_yi != null;
+  const sign1d = has1d && s.net_1d_yi >= 0 ? '+' : '';
+  const col1d = has1d && s.net_1d_yi >= 0 ? '#1D9E75' : '#D85A30';
+  statsEl.innerHTML = `
+    ${has1d ? `<div class="panel-stat-row"><span class="panel-stat-label">當日法人淨買超</span><span class="panel-stat-value" style="color:${col1d}">${sign1d}${s.net_1d_yi.toFixed(2)} 億</span></div>` : ''}
+    <div class="panel-stat-row"><span class="panel-stat-label">近 5 日法人淨買超</span><span class="panel-stat-value" style="color:${col5}">${sign5}${s.net_5d_yi.toFixed(2)} 億</span></div>
+    <div class="panel-stat-row"><span class="panel-stat-label">近 20 日累計</span><span class="panel-stat-value" style="color:${col20}">${sign20}${s.net_20d_yi.toFixed(2)} 億</span></div>
+    <div class="panel-stat-row"><span class="panel-stat-label">資金加速度</span><span class="panel-stat-value" style="color:${accelCol}">${accelSign}${s.accel.toFixed(2)} 億/天（${accelLabel}）</span></div>
+    <div class="panel-stat-row"><span class="panel-stat-label">近 5 日漲跌</span><span class="panel-stat-value" style="color:${s.chg_5d>=0?'#1D9E75':'#D85A30'}">${s.chg_5d>=0?'+':''}${s.chg_5d.toFixed(2)}%</span></div>
+  `;
+
+  const list = document.getElementById('panel-list');
+  const stockList = SECTOR_STOCKS[s.name] || s.stocks;
+  const stockData = (lastRenderData && lastRenderData.stock_data) || {};
+  const headerHtml = `<div class="stock-row" style="padding:4px 16px 6px;border-bottom:1px solid #222a36;">
+    <span class="stock-code" style="font-size:10px;color:#555;font-weight:400;">代碼</span>
+    <span class="stock-name" style="font-size:10px;color:#555;">名稱</span>
+    <span class="stock-chg" style="font-size:10px;color:#555;font-weight:400;">當日漲跌</span>
+    <span class="stock-flow" style="font-size:10px;color:#555;">當日買超</span>
+  </div>`;
+  list.innerHTML = headerHtml + stockList.map(code => {
+    const name = STOCK_NAMES[code] || '';
+    const sd = stockData[code];
+    let chgHtml = '<span class="stock-chg" style="color:#444;">—</span>';
+    let flowHtml = '<span class="stock-flow">—</span>';
+    if (sd) {
+      const chgColor = sd.chg_1d >= 0 ? '#1D9E75' : '#D85A30';
+      const chgSign = sd.chg_1d >= 0 ? '+' : '';
+      chgHtml = `<span class="stock-chg" style="color:${chgColor}">${chgSign}${sd.chg_1d.toFixed(2)}%</span>`;
+      const flowColor = sd.net_1d_yi >= 0 ? '#1D9E75' : '#D85A30';
+      const flowSign = sd.net_1d_yi >= 0 ? '+' : '';
+      flowHtml = `<span class="stock-flow" style="color:${flowColor}">${flowSign}${sd.net_1d_yi.toFixed(2)}億</span>`;
+    }
+    return `<div class="stock-row">
+      <span class="stock-code">${code}</span>
+      <span class="stock-name">${name}</span>
+      ${chgHtml}
+      ${flowHtml}
+    </div>`;
+  }).join('');
+
+  document.getElementById('stock-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+  document.getElementById('tt').style.opacity = '0';
+}
+
+function setupSearch(sectors) {
+  const searchInput = document.getElementById('search-input');
+  const searchDropdown = document.getElementById('search-dropdown');
+
+  function showDropdown(results, query) {
+    if (!results.length) {
+      searchDropdown.innerHTML = `
+        <div style="padding:12px 14px 8px;border-bottom:1px solid #1a2030;">
+          <div style="font-size:12px;color:#aaa;margin-bottom:2px;">找不到「${query.trim()}」的板塊資料</div>
+          <div style="font-size:11px;color:#555;">目前收錄 78 個重點族群（三大法人淨買超 taxonomy）</div>
+        </div>
+      `;
+      searchDropdown.classList.add('show');
+      return;
+    }
+    searchDropdown.innerHTML = results.map(r =>
+      `<div class="search-item" data-sector="${r.sector}">
+        <span class="search-item-name">${r.label}</span>
+        <span class="search-item-tag">${r.tag}</span>
+      </div>`
+    ).join('');
+    searchDropdown.classList.add('show');
+    searchDropdown.querySelectorAll('.search-item').forEach(item => {
+      item.addEventListener('mousedown', e => {
+        e.preventDefault();
+        const sectorName = item.dataset.sector;
+        searchInput.value = '';
+        searchDropdown.classList.remove('show');
+        document.querySelectorAll('.bubble.highlight').forEach(b => b.classList.remove('highlight'));
+        triggerSector(sectorName);
+      });
+      item.addEventListener('mouseenter', () => {
+        document.querySelectorAll('.bubble.highlight').forEach(b => b.classList.remove('highlight'));
+        const sectorName = item.dataset.sector;
+        document.querySelectorAll('.bubble').forEach(b => {
+          if (allSectors && allSectors[+b.dataset.i]?.name === sectorName) {
+            b.classList.add('highlight');
+          }
+        });
+      });
+      item.addEventListener('mouseleave', () => {
+        document.querySelectorAll('.bubble.highlight').forEach(b => b.classList.remove('highlight'));
+      });
+    });
+  }
+
+  function doSearch(query) {
+    const q = query.trim().toLowerCase();
+    if (!q) { searchDropdown.classList.remove('show'); return; }
+    const results = [];
+    const seen = new Set();
+
+    // Match sector names
+    sectors.forEach(s => {
+      if (s.name.toLowerCase().includes(q) && !seen.has(s.name)) {
+        seen.add(s.name);
+        results.push({ sector: s.name, label: s.name, tag: '板塊' });
+      }
+    });
+
+    // Match stock code or name → surface owning sectors
+    Object.entries(STOCK_NAMES).forEach(([code, name]) => {
+      if (code.includes(q) || name.toLowerCase().includes(q) || name.includes(query.trim())) {
+        (stockToSectors[code] || []).forEach(sn => {
+          const key = code + '|' + sn;
+          if (!seen.has(key)) {
+            seen.add(key);
+            results.push({ sector: sn, label: `${code} ${name}`, tag: sn });
+          }
+        });
+      }
+    });
+
+    showDropdown(results.slice(0, 12), query);
+  }
+
+  function triggerSector(sectorName) {
+    const bubbles = document.querySelectorAll('.bubble');
+    let targetBubble = null;
+    bubbles.forEach(b => {
+      if (sectors[+b.dataset.i]?.name === sectorName) targetBubble = b;
+    });
+    if (!targetBubble) return;
+
+    // Show the bubble's category if it was filtered out
+    const cat = targetBubble.dataset.cat;
+    if (!activeCats.has(cat)) {
+      activeCats.add(cat);
+      const btn = document.querySelector(`.filter-btn[data-cat="${cat}"]`);
+      if (btn) btn.classList.add('active');
+      applyFilter();
+    }
+
+    // Pulse: remove class first to restart animation
+    targetBubble.classList.remove('pulse');
+    void targetBubble.offsetWidth;
+    targetBubble.classList.add('pulse');
+
+    // Open panel partway through the animation
+    setTimeout(() => openPanel(sectors[+targetBubble.dataset.i]), 450);
+    setTimeout(() => targetBubble.classList.remove('pulse'), 1000);
+  }
+
+  searchInput.addEventListener('input', () => doSearch(searchInput.value));
+  searchInput.addEventListener('blur', () =>
+    setTimeout(() => searchDropdown.classList.remove('show'), 180)
+  );
+  searchInput.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { searchInput.value = ''; searchDropdown.classList.remove('show'); }
+  });
+}
+
+function render(data) {
+  lastRenderData = data;
+
+  // ⚓ Demo mode：注入假的抄底資料給 2 個板塊，並補全 net_1d_yi 讓 UI 可預覽
+  if (DEMO_BOTTOM_FISHING) {
+    data.market_chg_1d = -1.85;
+    data.is_market_down = true;
+    const sectorsList = data.sectors || [];
+    // 所有板塊補上模擬當日買超（= 5日均值 * 隨機係數，保留正負方向）
+    sectorsList.forEach(s => {
+      if (s.net_1d_yi == null) {
+        s.net_1d_yi = parseFloat((s.net_5d_yi / 5 * (0.6 + Math.random() * 0.8)).toFixed(2));
+        s.chg_1d = parseFloat((s.chg_5d / 5 * (0.5 + Math.random())).toFixed(2));
+      }
+    });
+    // 隨便挑兩個有在 SECTOR_STOCKS 的板塊塞假抄底資料
+    const candidates = sectorsList.filter(s => SECTOR_STOCKS[s.name]).slice(0, 2);
+    if (candidates[0]) {
+      candidates[0].chg_1d = -2.4;
+      candidates[0].net_1d_yi = 18.6;
+      candidates[0].is_bottom_fishing = true;
+      candidates[0].bottom_score = 7.75;
+    }
+    if (candidates[1]) {
+      candidates[1].chg_1d = -1.2;
+      candidates[1].net_1d_yi = 9.3;
+      candidates[1].is_bottom_fishing = true;
+      candidates[1].bottom_score = 7.75;
+    }
+  }
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('chart').style.display = 'block';
+  const updatedAt = new Date(data.updated_at + 'Z');
+  const twStr = updatedAt.toLocaleString('zh-TW', {
+    timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  });
+  document.getElementById('update-info').innerHTML =
+    `資料日期：${data.date}　｜　最後更新：${twStr}（台灣時間）`;
+
+  const sectors = data.sectors;
+  allSectors = sectors;
+
+  // Fetch per-stock TWSE data in background if not already in JSON
+  if (!data.stock_data) {
+    fetchTWSEStockData(data.date).then(sd => {
+      if (!sd) return;
+      lastRenderData.stock_data = sd;
+      // Refresh panel if open
+      const panel = document.getElementById('stock-panel');
+      if (panel.classList.contains('open')) {
+        const title = document.getElementById('panel-title').textContent;
+        const sector = allSectors.find(s => s.name === title);
+        if (sector) openPanel(sector);
+      }
+    });
+  }
+
+  // Stats
+  sectors.forEach(s => { s.accel = (s.net_5d_yi / 5) - (s.net_20d_yi / 20); });
+  const catCounts = { green: 0, yellow: 0, gray: 0, red: 0 };
+  sectors.forEach(s => { catCounts[classify(s)]++; });
+
+  const CAT_META = [
+    { cat: 'green',  color: '#1D9E75', label: '主力',  sub: '資金加速流入' },
+    { cat: 'yellow', color: '#E4B125', label: '輪動',  sub: '資金流入但放緩' },
+    { cat: 'gray',   color: '#777',    label: '觀望',  sub: '資金沉寂' },
+    { cat: 'red',    color: '#D85A30', label: '退潮',  sub: '資金流出' },
+  ];
+
+  document.getElementById('stats-row').innerHTML = CAT_META.map(m => `
+    <div class="stat-card cat-card ${activeCats.has(m.cat) ? '' : 'inactive'}"
+         data-cat="${m.cat}" style="border-left-color:${m.color}">
+      <div class="stat-label" style="color:${m.color};margin-bottom:2px">${m.label}</div>
+      <div class="stat-value" style="color:${m.color}">${catCounts[m.cat]}</div>
+      <div class="cat-card-sub">${m.sub}</div>
+    </div>
+  `).join('');
+
+  // Chart dimensions — match the container's inner area
+  const chartWrap = document.getElementById('chart-wrap');
+  const padding = 16;
+  const W = (chartWrap.clientWidth || 940 + padding * 2) - padding * 2;
+  const H = (chartWrap.clientHeight || 580 + padding * 2) - padding * 2;
+  const svg = document.getElementById('chart');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const PAD = { t:40, r:30, b:50, l:85 };
+  const innerW = W - PAD.l - PAD.r;
+  const innerH = H - PAD.t - PAD.b;
+
+  const flows = sectors.map(s => s.net_5d_yi);
+  const accels = sectors.map(s => s.accel);
+
+  const rawXMin = Math.min(...flows), rawXMax = Math.max(...flows);
+  const rawYMin = Math.min(...accels), rawYMax = Math.max(...accels);
+
+  function niceStep(range, targetTicks) {
+    const rough = range / targetTicks;
+    const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+    const norm = rough / mag;
+    const nice = norm < 1.5 ? 1 : norm < 3.5 ? 2 : norm < 7.5 ? 5 : 10;
+    return nice * mag;
+  }
+
+  const xStep = niceStep(rawXMax - rawXMin || 1, 6);
+  const xMin = Math.floor(rawXMin / xStep) * xStep - xStep * 0.3;
+  const xMax = Math.ceil(rawXMax / xStep) * xStep + xStep * 0.3;
+
+  const yPad = (rawYMax - rawYMin || 1) * 0.15;
+  const yMin = rawYMin - yPad;
+  const yMax = rawYMax + yPad;
+
+  // Group-space coordinate mapping (before zoom transform)
+  const gx = v => PAD.l + ((v - xMin) / (xMax - xMin)) * innerW;
+  const gy = v => PAD.t + (1 - (v - yMin) / (yMax - yMin)) * innerH;
+  chartLayout = { W, H, PAD, innerW, innerH, gx, gy, xMin, xMax, yMin, yMax };
+
+  const abs20 = sectors.map(s => Math.abs(s.net_20d_yi));
+  const max20 = Math.max(...abs20, 1);
+  const sr = v => Math.max(22, Math.min(55, 22 + (v / max20) * 33));
+
+  // Build only bubbles (axes are drawn separately via redrawAxes)
+  let bubblesHtml = '';
+  sectors.forEach((s, i) => {
+    const bx = gx(s.net_5d_yi);
+    const by = gy(s.accel);
+    const r = sr(Math.abs(s.net_20d_yi));
+    const cat = classify(s);
+    const color = COLORS[cat];
+    const sign = s.net_5d_yi >= 0 ? '+' : '';
+    const fs1 = Math.max(10, Math.min(18, r * 0.38));
+    const fs2 = Math.max(9, Math.min(16, r * 0.34));
+    const fs3 = Math.max(8, Math.min(14, r * 0.30));
+    const maxChars = Math.floor(r * 1.6 / fs1);
+    const nameStr = s.name.length > maxChars ? s.name.slice(0, maxChars) + '…' : s.name;
+    const chgSign = s.chg_5d >= 0 ? '+' : '';
+    const chgColor = s.chg_5d >= 0 ? '#7ef5c8' : '#ffaa88';
+    // 兩行（平常）置中
+    const lineGap = 2;
+    const twoLineHalf = (fs1 + lineGap + fs2) / 2;
+    const y1 = by - twoLineHalf + fs1;
+    const y2 = y1 + lineGap + fs2;
+    const y3 = y2 + lineGap + fs3;
+
+    bubblesHtml += `<g class="bubble" data-i="${i}" data-cat="${cat}">
+      <clipPath id="cp${i}"><circle cx="${bx}" cy="${by}" r="${r - 1}"/></clipPath>
+      <circle cx="${bx}" cy="${by}" r="${r}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="1.5"/>
+      <text class="bubble-label" clip-path="url(#cp${i})" font-size="${fs1}" x="${bx}" y="${y1}">${nameStr}</text>
+      <text class="bubble-pct" clip-path="url(#cp${i})" font-size="${fs2}" x="${bx}" y="${y2}">${sign}${s.net_5d_yi.toFixed(1)}億</text>
+      <text class="bubble-chg" clip-path="url(#cp${i})" font-size="${fs3}" x="${bx}" y="${y3}" fill="${chgColor}">${chgSign}${s.chg_5d.toFixed(1)}%</text>
+    </g>`;
+  });
+
+  svg.innerHTML =
+    `<defs><clipPath id="data-clip"><rect x="${PAD.l}" y="${PAD.t}" width="${innerW}" height="${innerH}"/></clipPath></defs>` +
+    `<g id="grid-group"></g>` +
+    `<g id="center-lines-group"></g>` +
+    `<g id="zoom-group">${bubblesHtml}</g>` +
+    `<g id="axis-labels-group"></g>` +
+    `<g id="static-group">` +
+      `<text class="axis-label" x="${W-PAD.r}" y="${H-PAD.b+46}" text-anchor="end">資金流入（億）→</text>` +
+      `<text class="axis-label" x="${PAD.l}" y="${H-PAD.b+46}">← 資金流出（億）</text>` +
+      `<text class="quad-label" x="${W-PAD.r-10}" y="${PAD.t+18}" text-anchor="end">主力加速流入 ⭐</text>` +
+      `<text class="quad-label" x="${W-PAD.r-10}" y="${H-PAD.b-10}" text-anchor="end">流入但放緩</text>` +
+      `<text class="quad-label" x="${PAD.l+10}" y="${PAD.t+18}">加速流出</text>` +
+      `<text class="quad-label" x="${PAD.l+10}" y="${H-PAD.b-10}">低迷流出</text>` +
+    `</g>`;
+
+  // Redraw grid lines + axis tick labels to match current zoom
+  function redrawAxes(tx, ty, zs) {
+    // Screen-space position of a data value (accounts for zoom transform)
+    const screenX = v => tx + gx(v) * zs;
+    const screenY = v => ty + gy(v) * zs;
+
+    // Visible data range derived from current transform
+    const visXMin = xMin + ((PAD.l - tx) / zs - PAD.l) / innerW * (xMax - xMin);
+    const visXMax = xMin + ((W - PAD.r - tx) / zs - PAD.l) / innerW * (xMax - xMin);
+    const visYMax = yMin + (1 - ((PAD.t - ty) / zs - PAD.t) / innerH) * (yMax - yMin);
+    const visYMin = yMin + (1 - ((H - PAD.b - ty) / zs - PAD.t) / innerH) * (yMax - yMin);
+
+    const xTickStep = niceStep(visXMax - visXMin || 1, 6);
+    const yTickStep = niceStep(visYMax - visYMin || 1, 5);
+
+    let gridHtml = '', centerHtml = '', labelsHtml = '';
+
+    // X axis ticks
+    let xCount = 0;
+    for (let v = Math.ceil(visXMin / xTickStep) * xTickStep; v <= visXMax + 1e-9 && xCount < 20; v = Math.round((v + xTickStep) * 1e6) / 1e6, xCount++) {
+      const px = screenX(v);
+      if (px < PAD.l - 1 || px > W - PAD.r + 1) continue;
+      gridHtml += `<line class="grid-line" x1="${px}" x2="${px}" y1="${PAD.t}" y2="${H-PAD.b}"/>`;
+      const absV = Math.abs(v);
+      const label = absV < xTickStep * 0.01 ? '0' : (v > 0 ? '+' : '') + (absV >= 100 ? v.toFixed(0) : absV < 10 ? v.toFixed(1) : v.toFixed(0));
+      labelsHtml += `<text class="axis-label" x="${px}" y="${H-PAD.b+16}" text-anchor="middle">${label}</text>`;
+    }
+
+    // Y axis ticks
+    const yTicks = [];
+    for (let v = Math.ceil(visYMin / yTickStep) * yTickStep; v <= visYMax + 1e-9 && yTicks.length < 20; v = Math.round((v + yTickStep) * 1e6) / 1e6) {
+      yTicks.push(v);
+    }
+    const nearTop = yTicks.length && yTicks[yTicks.length - 1] >= yMax - yTickStep * 0.6;
+    const nearBot = yTicks.length && yTicks[0] <= yMin + yTickStep * 0.6;
+    yTicks.forEach((v, idx) => {
+      const py = screenY(v);
+      if (py < PAD.t - 1 || py > H - PAD.b + 1) return;
+      gridHtml += `<line class="grid-line" x1="${PAD.l}" x2="${W-PAD.r}" y1="${py}" y2="${py}"/>`;
+      let label;
+      if (idx === yTicks.length - 1 && nearTop) label = '加速流入 ↑';
+      else if (idx === 0 && nearBot) label = '加速流出 ↓';
+      else { const sg = v >= 0 ? '+' : ''; label = sg + v.toFixed(1) + '億/天'; }
+      labelsHtml += `<text class="axis-label" x="${PAD.l-6}" y="${py+4}" text-anchor="end">${label}</text>`;
+    });
+
+    // Center divider lines (x=0 and y=0 acceleration)
+    const cx = screenX(0), cy = screenY(0);
+    if (cx >= PAD.l && cx <= W - PAD.r)
+      centerHtml += `<line x1="${cx}" x2="${cx}" y1="${PAD.t}" y2="${H-PAD.b}" stroke="#3a4556" stroke-width="1.5"/>`;
+    if (cy >= PAD.t && cy <= H - PAD.b)
+      centerHtml += `<line x1="${PAD.l}" x2="${W-PAD.r}" y1="${cy}" y2="${cy}" stroke="#3a4556" stroke-width="1.5"/>`;
+
+    document.getElementById('grid-group').innerHTML = gridHtml;
+    document.getElementById('center-lines-group').innerHTML = centerHtml;
+    document.getElementById('axis-labels-group').innerHTML = labelsHtml;
+  }
+
+  redrawAxes(0, 0, 1);
+  zoomController = setupZoom(svg, redrawAxes, (tx, ty, zs) => {
+    const mX = innerW * (zs - 1) / 2;
+    const mY = innerH * (zs - 1) / 2;
+    return {
+      tx: Math.min(PAD.l * (1 - zs) + mX, Math.max((W - PAD.r) * (1 - zs) - mX, tx)),
+      ty: Math.min(PAD.t * (1 - zs) + mY, Math.max((H - PAD.b) * (1 - zs) - mY, ty))
+    };
+  });
+
+  // Tooltip
+  const tt = document.getElementById('tt');
+  const wrap = chartWrap;
+
+  document.querySelectorAll('.bubble').forEach(b => {
+    b.addEventListener('mouseenter', () => {
+      const s = sectors[+b.dataset.i];
+      const cat = classify(s);
+      const color = COLORS[cat];
+      const statusBg = color + '25';
+      const sign5 = s.net_5d_yi >= 0 ? '+' : '';
+      const sign20 = s.net_20d_yi >= 0 ? '+' : '';
+      const col5 = s.net_5d_yi >= 0 ? '#1D9E75' : '#D85A30';
+      const col20 = s.net_20d_yi >= 0 ? '#1D9E75' : '#D85A30';
+      const accelSign = s.accel >= 0 ? '+' : '';
+      const accelCol = s.accel >= 0 ? '#1D9E75' : '#D85A30';
+      const accelLabel = s.accel > 0.5 ? '強勢加速' : s.accel > 0 ? '緩步加速' : s.accel > -0.5 ? '略為放緩' : '明顯退潮';
+
+      const isBottomFs = s.is_bottom_fishing;
+      const signalBadge = isBottomFs
+        ? `<span class="tt-status" style="background:#1a2a10;color:#88dd66;">⚓ 抄底訊號・大跌中法人逆勢買入</span>`
+        : '';
+
+      const has1d = s.net_1d_yi != null;
+      const sign1d = has1d && s.net_1d_yi >= 0 ? '+' : '';
+      const col1d = has1d && s.net_1d_yi >= 0 ? '#1D9E75' : '#D85A30';
+      tt.innerHTML = `
+        <div class="tt-name">${s.name}</div>
+        ${has1d ? `<div class="tt-row"><span>當日法人淨買超</span><strong style="color:${col1d}">${sign1d}${s.net_1d_yi.toFixed(2)} 億</strong></div>` : ''}
+        <div class="tt-row"><span>近 5 日法人淨買超</span><strong style="color:${col5}">${sign5}${s.net_5d_yi.toFixed(2)} 億</strong></div>
+        <div class="tt-row"><span>近 20 日累計</span><strong style="color:${col20}">${sign20}${s.net_20d_yi.toFixed(2)} 億</strong></div>
+        <div class="tt-row"><span>資金加速度</span><strong style="color:${accelCol}">${accelSign}${s.accel.toFixed(2)} 億/天（${accelLabel}）</strong></div>
+        <div class="tt-row"><span>近 5 日漲跌</span><strong style="color:${s.chg_5d>=0?'#1D9E75':'#D85A30'}">${s.chg_5d>=0?'+':''}${s.chg_5d.toFixed(2)}%</strong></div>
+        ${signalBadge}
+        <span class="tt-status" style="background:${statusBg};color:${color};">${statusLabel(cat)}</span>
+        <div class="tt-stocks">代表股：${s.stocks.join('、')}</div>
+      `;
+      tt.style.opacity = '1';
+    });
+    b.addEventListener('mousemove', e => {
+      const rect = wrap.getBoundingClientRect();
+      let x = e.clientX - rect.left + 16;
+      let y = e.clientY - rect.top + 16;
+      if (x + 280 > rect.width) x = e.clientX - rect.left - 290;
+      if (y + 250 > rect.height) y = e.clientY - rect.top - 260;
+      tt.style.left = x + 'px';
+      tt.style.top = y + 'px';
+    });
+    b.addEventListener('mouseleave', () => { tt.style.opacity = '0'; });
+
+    b.addEventListener('click', e => {
+      const overlapping = getOverlappingBubbles(b, sectors);
+      if (overlapping.length > 1) {
+        showOverlapMenu(overlapping, sectors, e);
+      } else {
+        openPanel(sectors[+b.dataset.i]);
+      }
+    });
+  });
+
+  // ── Overlap detection ──
+  function getOverlappingBubbles(targetBubble, sectors) {
+    const allBubbles = Array.from(document.querySelectorAll('.bubble'));
+    const visibleBubbles = allBubbles.filter(b => b.style.display !== 'none');
+    const tc = targetBubble.querySelector('circle');
+    if (!tc) return [targetBubble];
+
+    const tx = parseFloat(tc.getAttribute('cx'));
+    const ty = parseFloat(tc.getAttribute('cy'));
+    const tr = parseFloat(tc.getAttribute('r'));
+
+    // Get current zoom transform
+    const zg = document.getElementById('zoom-group');
+    const transform = zg ? zg.getAttribute('transform') || '' : '';
+    let zScale = 1, zTx = 0, zTy = 0;
+    const m = transform.match(/translate\(([\d.-]+),([\d.-]+)\)\s*scale\(([\d.-]+)\)/);
+    if (m) { zTx = +m[1]; zTy = +m[2]; zScale = +m[3]; }
+
+    return visibleBubbles.filter(b => {
+      const c = b.querySelector('circle');
+      if (!c) return false;
+      const bx = parseFloat(c.getAttribute('cx'));
+      const by = parseFloat(c.getAttribute('cy'));
+      const br = parseFloat(c.getAttribute('r'));
+      const dist = Math.hypot(tx - bx, ty - by);
+      return dist < (tr + br) * 0.85;
+    });
+  }
+
+  function showOverlapMenu(bubbles, sectors, e) {
+    const menu = document.getElementById('overlap-menu');
+    const wrap = document.getElementById('chart-wrap');
+    const wrapRect = wrap.getBoundingClientRect();
+
+    const items = bubbles.map(b => {
+      const s = sectors[+b.dataset.i];
+      const cat = classify(s);
+      const color = COLORS[cat];
+      const sign = s.net_5d_yi >= 0 ? '+' : '';
+      const valColor = s.net_5d_yi >= 0 ? '#1D9E75' : '#D85A30';
+      return { s, color, sign, valColor };
+    }).sort((a, b) => b.s.net_5d_yi - a.s.net_5d_yi);
+
+    menu.innerHTML = `
+      <div class="overlap-menu-header">重疊板塊 · ${items.length} 個</div>
+      <div class="overlap-menu-list">
+        ${items.map(({ s, color, sign, valColor }) => `
+          <div class="overlap-menu-item" data-name="${s.name}">
+            <span class="overlap-dot" style="background:${color}"></span>
+            <span class="overlap-name">${s.name}</span>
+            <span class="overlap-val" style="color:${valColor}">${sign}${s.net_5d_yi.toFixed(1)}億</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    // Position: prefer below-right, flip if near edges
+    const menuW = 260;
+    const maxMenuH = 354; // 34px header + 320px list
+    const clickX = e.clientX - wrapRect.left;
+    const clickY = e.clientY - wrapRect.top;
+    const spaceRight = wrapRect.width - clickX;
+    const spaceBottom = wrapRect.height - clickY;
+    const spaceLeft = clickX;
+    const spaceTop = clickY;
+
+    let x = spaceRight >= menuW + 12 ? clickX + 8 : clickX - menuW - 8;
+    let y = spaceBottom >= maxMenuH + 12 ? clickY + 8
+          : spaceTop >= maxMenuH + 12 ? clickY - Math.min(maxMenuH, spaceTop) - 8
+          : Math.max(8, wrapRect.height - maxMenuH - 8);
+
+    // Clamp within wrap
+    x = Math.max(8, Math.min(x, wrapRect.width - menuW - 8));
+    y = Math.max(8, Math.min(y, wrapRect.height - 60));
+
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    menu.style.display = 'block';
+    menu.classList.add('overlap-menu');
+
+    // Hide tooltip
+    document.getElementById('tt').style.opacity = '0';
+
+    // Item click
+    menu.querySelectorAll('.overlap-menu-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const name = item.dataset.name;
+        const sector = sectors.find(s => s.name === name);
+        if (sector) openPanel(sector);
+        menu.style.display = 'none';
+      });
+    });
+  }
+
+  // ── Ranking view ──
+  function buildRanking() {
+    const wrap = document.getElementById('ranking-wrap');
+    const bottomCount = sectors.filter(s => s.is_bottom_fishing && SECTOR_STOCKS[s.name]).length;
+    const tabsHtml = `
+      <div class="ranking-tabs">
+        <button class="ranking-tab ${rankingMode === 'cp' ? 'active' : ''}" data-mode="cp">⚡ CP值排行</button>
+        <button class="ranking-tab tab-bottom ${rankingMode === 'bottom' ? 'active' : ''}" data-mode="bottom">⚓ 抄底偵測${bottomCount > 0 ? ` (${bottomCount})` : ''}</button>
+      </div>
+    `;
+
+    let bodyHtml = '';
+    if (rankingMode === 'cp') {
+      bodyHtml = buildCpRanking();
+    } else {
+      bodyHtml = buildBottomRanking();
+    }
+
+    wrap.innerHTML = tabsHtml + bodyHtml;
+
+    // Tab clicks
+    wrap.querySelectorAll('.ranking-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        rankingMode = tab.dataset.mode;
+        buildRanking();
+      });
+    });
+
+    // Item clicks
+    wrap.querySelectorAll('.ranking-item[data-name]').forEach(item => {
+      item.addEventListener('click', () => {
+        const sector = sectors.find(x => x.name === item.dataset.name);
+        if (sector) openPanel(sector);
+      });
+    });
+  }
+  buildRankingFn = buildRanking;
+
+  function buildCpRanking() {
+    // CP值 = net_5d_yi × (1 - chg_5d/100)：資金多、漲幅低 → 排名高
+    const sorted = [...sectors]
+      .filter(s => classify(s) === 'green' && SECTOR_STOCKS[s.name])
+      .map(s => ({ ...s, cp: s.net_5d_yi * (1 - s.chg_5d / 100) }))
+      .sort((a, b) => b.cp - a.cp);
+
+    if (sorted.length === 0) {
+      return `<div class="empty-state">目前沒有符合條件的主力板塊</div>`;
+    }
+
+    const maxCp = Math.max(...sorted.map(s => s.cp), 1);
+
+    return `
+      <div class="ranking-disclaimer">⚡ 資金大量流入但漲幅仍低的板塊排名最前——代表主力已佈局但股價還沒反應</div>
+      <div class="ranking-col-header">
+        <span style="min-width:22px"></span>
+        <span style="width:9px"></span>
+        <span class="ranking-col-header-name"></span>
+        <span class="ranking-col-header-chg">5日漲跌</span>
+        <span class="ranking-col-header-flow">5日淨買超(億)</span>
+      </div>
+      ${sorted.slice(0, 10).map((s, idx) => {
+        const cat = classify(s);
+        const color = COLORS[cat];
+        const chgSign = s.chg_5d >= 0 ? '+' : '';
+        const chgColor = s.chg_5d >= 0 ? '#1D9E75' : '#D85A30';
+        const flowSign = s.net_5d_yi >= 0 ? '+' : '';
+        const barW = Math.round(s.cp / maxCp * 100);
+        return `<div class="ranking-item" data-name="${s.name}">
+          <span class="ranking-rank">${idx + 1}</span>
+          <span class="ranking-dot" style="background:${color}"></span>
+          <span class="ranking-name">${s.name}</span>
+          <span class="ranking-chg" style="color:${chgColor}">${chgSign}${s.chg_5d.toFixed(1)}%</span>
+          <div class="ranking-flow-col">
+            <span class="ranking-flow" style="color:#1D9E75">${flowSign}${s.net_5d_yi.toFixed(1)}億</span>
+            <div class="ranking-bar-wrap">
+              <div class="ranking-bar-bg">
+                <div class="ranking-bar-fill" style="width:${barW}%;background:${color}"></div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    `;
+  }
+
+  function buildBottomRanking() {
+    const sorted = [...sectors]
+      .filter(s => s.is_bottom_fishing && SECTOR_STOCKS[s.name])
+      .sort((a, b) => (b.bottom_score || 0) - (a.bottom_score || 0));
+
+    const mChg = lastRenderData.market_chg_1d || 0;
+    const isDown = lastRenderData.is_market_down;
+
+    if (!isDown) {
+      return `
+        <div class="ranking-disclaimer" style="border-left-color:#777;">
+          ☀️ 今天大盤 ${mChg >= 0 ? '+' : ''}${mChg.toFixed(2)}%，沒有顯著下跌，抄底偵測沒有啟動
+        </div>
+        <div class="empty-state">大盤跌幅超過 1% 時才會啟動抄底偵測</div>
+      `;
+    }
+
+    if (sorted.length === 0) {
+      return `
+        <div class="ranking-disclaimer" style="border-left-color:#E4B125;">
+          ⚓ 大盤跌 ${mChg.toFixed(2)}%，但今天沒偵測到顯著的抄底訊號
+        </div>
+        <div class="empty-state">沒有板塊符合「跌時被法人買」的條件</div>
+      `;
+    }
+
+    const maxScore = Math.max(...sorted.map(s => s.bottom_score || 0), 1);
+
+    return `
+      <div class="ranking-disclaimer" style="border-left-color:#E4B125;">
+        ⚓ 大盤跌 <strong style="color:#fff">${mChg.toFixed(2)}%</strong>，這些板塊跌的時候被法人偷偷買——抄底力道由強到弱
+      </div>
+      <div class="ranking-col-header">
+        <span style="min-width:22px"></span>
+        <span style="width:9px"></span>
+        <span class="ranking-col-header-name"></span>
+        <span class="ranking-col-header-chg">當日漲跌</span>
+        <span class="ranking-col-header-flow">當日淨買超(億)</span>
+      </div>
+      ${sorted.slice(0, 10).map((s, idx) => {
+        const cat = classify(s);
+        const color = COLORS[cat];
+        const chgSign = s.chg_1d >= 0 ? '+' : '';
+        const flowSign = s.net_1d_yi >= 0 ? '+' : '';
+        const barW = Math.round((s.bottom_score || 0) / maxScore * 100);
+        return `<div class="ranking-item" data-name="${s.name}">
+          <span class="ranking-rank">${idx + 1}</span>
+          <span class="ranking-dot" style="background:${color}"></span>
+          <span class="ranking-name">${s.name}</span>
+          <span class="ranking-chg" style="color:#D85A30">${chgSign}${s.chg_1d.toFixed(1)}%</span>
+          <div class="ranking-flow-col">
+            <span class="ranking-flow" style="color:#1D9E75">${flowSign}${s.net_1d_yi.toFixed(1)}億</span>
+            <div class="ranking-bar-wrap">
+              <div class="ranking-bar-bg">
+                <div class="ranking-bar-fill" style="width:${barW}%;background:#E4B125"></div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    `;
+  }
+
+  // ── Static listeners — added only once across all re-renders ──
+  if (!staticListenersAdded) {
+    staticListenersAdded = true;
+
+    document.addEventListener('click', e => {
+      const menu = document.getElementById('overlap-menu');
+      if (menu && !menu.contains(e.target) && !e.target.closest('.bubble')) {
+        menu.style.display = 'none';
+      }
+    });
+
+    document.getElementById('panel-close').addEventListener('click', closePanel);
+    document.getElementById('panel-overlay').addEventListener('click', closePanel);
+
+    document.getElementById('stats-row').addEventListener('click', e => {
+      const card = e.target.closest('.cat-card');
+      if (!card) return;
+      const cat = card.dataset.cat;
+      const allCats = ['green', 'yellow', 'gray', 'red'];
+      if (activeCats.size === 1 && activeCats.has(cat)) {
+        allCats.forEach(c => activeCats.add(c));
+      } else {
+        allCats.forEach(c => activeCats.delete(c));
+        activeCats.add(cat);
+      }
+      document.getElementById('tt').style.opacity = '0';
+      applyFilter();
+    });
+
+    setupSearch(allSectors);
+
+    document.getElementById('btn-chart').addEventListener('click', () => {
+      currentView = 'chart';
+      document.getElementById('chart').style.display = 'block';
+      document.getElementById('ranking-wrap').style.display = 'none';
+      document.querySelector('.zoom-hint') && (document.querySelector('.zoom-hint').style.display = '');
+      document.getElementById('btn-chart').classList.add('active');
+      document.getElementById('btn-rank').classList.remove('active');
+    });
+
+    document.getElementById('btn-rank').addEventListener('click', () => {
+      currentView = 'rank';
+      document.getElementById('chart').style.display = 'none';
+      document.getElementById('ranking-wrap').style.display = 'block';
+      document.getElementById('overlap-menu').style.display = 'none';
+      document.getElementById('tt').style.opacity = '0';
+      document.querySelector('.zoom-hint') && (document.querySelector('.zoom-hint').style.display = 'none');
+      document.getElementById('btn-chart').classList.remove('active');
+      document.getElementById('btn-rank').classList.add('active');
+      if (buildRankingFn) buildRankingFn();
+    });
+  }
+
+  // Restore view state after re-render (e.g. resize or orientation change)
+  if (currentView === 'rank') {
+    document.getElementById('chart').style.display = 'none';
+    document.getElementById('ranking-wrap').style.display = 'block';
+    document.querySelector('.zoom-hint') && (document.querySelector('.zoom-hint').style.display = 'none');
+    document.getElementById('btn-chart').classList.remove('active');
+    document.getElementById('btn-rank').classList.add('active');
+    buildRanking();
+  }
+
+  applyFilter();
+}
+
+// ── Zoom & Pan ──
+function setupZoom(svgEl, onTransformChange, clampFn) {
+  if (zoomAbortController) zoomAbortController.abort();
+  zoomAbortController = new AbortController();
+  const { signal } = zoomAbortController;
+
+  let scale = 1, tx = 0, ty = 0;
+  let dragging = false, startX = 0, startY = 0, startTx = 0, startTy = 0;
+  let animRaf = null;
+
+  function applyTransform() {
+    if (clampFn) { const c = clampFn(tx, ty, scale); tx = c.tx; ty = c.ty; }
+    const inner = svgEl.querySelector('#zoom-group');
+    if (inner) inner.setAttribute('transform', `translate(${tx},${ty}) scale(${scale})`);
+    if (onTransformChange) onTransformChange(tx, ty, scale);
+  }
+
+  function cancelAnim() {
+    if (animRaf) { cancelAnimationFrame(animRaf); animRaf = null; }
+  }
+
+  function setTransform(newTx, newTy, newScale) {
+    cancelAnim();
+    const fromTx = tx, fromTy = ty, fromScale = scale;
+    const t0 = performance.now();
+    const dur = 480;
+    function frame(now) {
+      const t = Math.min(1, (now - t0) / dur);
+      const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+      tx = fromTx + (newTx - fromTx) * ease;
+      ty = fromTy + (newTy - fromTy) * ease;
+      scale = fromScale + (newScale - fromScale) * ease;
+      applyTransform();
+      animRaf = t < 1 ? requestAnimationFrame(frame) : null;
+    }
+    animRaf = requestAnimationFrame(frame);
+  }
+
+  svgEl.addEventListener('wheel', e => {
+    cancelAnim();
+    e.preventDefault();
+    const rect = svgEl.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (svgEl.viewBox.baseVal.width / rect.width);
+    const my = (e.clientY - rect.top) * (svgEl.viewBox.baseVal.height / rect.height);
+    const delta = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    const newScale = Math.min(8, Math.max(1, scale * delta));
+    tx = mx - (mx - tx) * (newScale / scale);
+    ty = my - (my - ty) * (newScale / scale);
+    scale = newScale;
+    applyTransform();
+  }, { passive: false });
+
+  svgEl.addEventListener('mousedown', e => {
+    cancelAnim();
+    if (e.button !== 0) return;
+    dragging = true;
+    startX = e.clientX; startY = e.clientY;
+    startTx = tx; startTy = ty;
+    svgEl.classList.add('dragging');
+  });
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const rect = svgEl.getBoundingClientRect();
+    const scaleX = svgEl.viewBox.baseVal.width / rect.width;
+    const scaleY = svgEl.viewBox.baseVal.height / rect.height;
+    tx = startTx + (e.clientX - startX) * scaleX;
+    ty = startTy + (e.clientY - startY) * scaleY;
+    applyTransform();
+  }, { signal });
+  window.addEventListener('mouseup', () => { dragging = false; svgEl.classList.remove('dragging'); }, { signal });
+
+  // Touch support
+  let lastDist = 0, lastTouchX = 0, lastTouchY = 0;
+  let touchMoved = false, tapTarget = null;
+  let lastMidX = 0, lastMidY = 0;
+  svgEl.addEventListener('touchstart', e => {
+    cancelAnim();
+    if (e.touches.length === 1) {
+      touchMoved = false;
+      tapTarget = null;
+      const els = document.elementsFromPoint(e.touches[0].clientX, e.touches[0].clientY);
+      for (const el of els) { const b = el.closest && el.closest('.bubble'); if (b) { tapTarget = b; break; } }
+      lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
+      startTx = tx; startTy = ty;
+    } else if (e.touches.length === 2) {
+      touchMoved = true;
+      lastDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      lastMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      lastMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    }
+    e.preventDefault();
+  }, { passive: false });
+  svgEl.addEventListener('touchmove', e => {
+    const rect = svgEl.getBoundingClientRect();
+    const sx2 = svgEl.viewBox.baseVal.width / rect.width;
+    const sy2 = svgEl.viewBox.baseVal.height / rect.height;
+    if (e.touches.length === 1) {
+      const dx = e.touches[0].clientX - lastTouchX;
+      const dy = e.touches[0].clientY - lastTouchY;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) touchMoved = true;
+      tx = startTx + dx * sx2;
+      ty = startTy + dy * sy2;
+    } else if (e.touches.length === 2) {
+      const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      // Focal point in SVG space (midpoint between fingers)
+      const focalX = (midX - rect.left) * sx2;
+      const focalY = (midY - rect.top) * sy2;
+      const newScale = Math.min(8, Math.max(1, scale * dist / (lastDist || dist)));
+      // Zoom around focal point, then pan by midpoint movement
+      tx = focalX - (focalX - tx) * (newScale / scale) + (midX - lastMidX) * sx2;
+      ty = focalY - (focalY - ty) * (newScale / scale) + (midY - lastMidY) * sy2;
+      scale = newScale;
+      lastDist = dist;
+      lastMidX = midX;
+      lastMidY = midY;
+    }
+    applyTransform();
+    e.preventDefault();
+  }, { passive: false });
+  svgEl.addEventListener('touchend', e => {
+    if (e.changedTouches.length === 1 && !touchMoved && tapTarget)
+      tapTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    tapTarget = null;
+  });
+
+  return { setTransform };
+}
+
+// ── Re-render on resize / orientation change ──
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { if (lastRenderData) render(lastRenderData); }, 120);
+});
+
+// ── Fullscreen toggle ──
+document.getElementById('fullscreen-btn').addEventListener('click', () => {
+  const wrap = document.getElementById('chart-wrap');
+  const isFs = wrap.classList.toggle('chart-fullscreen');
+  document.getElementById('fullscreen-btn').textContent = isFs ? '✕' : '⛶';
+  if (lastRenderData) requestAnimationFrame(() => requestAnimationFrame(() => render(lastRenderData)));
+});
+
+init();
+</script>
+</body>
+</html>

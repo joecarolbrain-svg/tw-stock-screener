@@ -211,39 +211,12 @@
   </section>
 
   <section class="tab-panel" data-panel="sector-flow">
-    <div class="filters">
-      <div class="filter-row">
-        <div class="filter-group small">
-          <label class="filter-label">狀態</label>
-          <select id="sf-state" class="inline-select">
-            <option value="all" selected>全部</option>
-            <option value="🟢主力">🟢 主力</option>
-            <option value="🟡輪動">🟡 輪動</option>
-            <option value="⚪觀望">⚪ 觀望</option>
-            <option value="🔴退潮">🔴 退潮</option>
-          </select>
-        </div>
-        <div class="filter-group small">
-          <label class="filter-label">族群</label>
-          <input type="text" id="sf-search" placeholder="例如 PCB / HBM / 散熱" style="width:160px" />
-        </div>
-        <span class="filler"></span>
-        <span class="muted" id="sf-meta">--</span>
-      </div>
-      <div class="filter-row legend-row">
-        <span class="legend-label">說明：</span>
-        <span class="legend-item">三大法人合計淨買超(絕對億)＋加速度 → 🟢主力/🟡輪動/⚪觀望/🔴退潮</span>
-        <span class="legend-item">回測：主力族群後續贏母體（全 regime，盤整最威）</span>
-        <span class="legend-item">🐎黑馬＝低基期被偷買（僅空頭顯示）</span>
-        <span class="legend-item">點族群列 → 展開成分股（依近5日淨買排序）</span>
-      </div>
-    </div>
-    <main>
-      <div id="sf-summary" style="padding:8px 12px;color:#e0e0e0"></div>
-      <div id="sf-table"></div>
-      <div id="sf-stocks-title" style="padding:12px 12px 4px;color:#00d4aa;font-weight:600"></div>
-      <div id="sf-stocks-table"></div>
-    </main>
+    <!-- 族群資金流向＝joe sector-rotation 泡泡圖（獨立頁 sector.html，iframe 嵌入，CSS 完全隔離）
+         X=近5日法人淨買超 / Y=加速度 / 泡泡大小=近20日累計 / 四象限配色＋搜尋＋面板。
+         資料 data/sector_bubble/latest.json（export_to_json.export_sector_bubble 產）。
+         src 於切到本 tab 時才 lazy 設定（見 app.js bindTabs）。 -->
+    <iframe id="sf-bubble-frame" data-src="sector.html" title="族群資金流向泡泡圖"
+            style="width:100%;height:calc(100vh - 110px);border:0;display:block;background:#0e1218"></iframe>
   </section>
 
   <section class="tab-panel" data-panel="industry-ranking">

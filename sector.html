@@ -203,10 +203,35 @@
   .topn-range{width:96px;accent-color:#3a8fd8;cursor:pointer;vertical-align:middle;}
   .topn-val{min-width:36px;color:#9fb2c8;font-variant-numeric:tabular-nums;font-size:12px;}
 
-  /* Heatmap / Treemap / Map shared wrap */
-  .heatmap-wrap,.treemap-wrap,.map-wrap{position:absolute;inset:16px;overflow:auto;display:none;}
-  .heatmap-wrap::-webkit-scrollbar,.treemap-wrap::-webkit-scrollbar,.map-wrap::-webkit-scrollbar{width:5px;height:5px;}
-  .heatmap-wrap::-webkit-scrollbar-thumb,.treemap-wrap::-webkit-scrollbar-thumb,.map-wrap::-webkit-scrollbar-thumb{background:#2a3344;border-radius:2px;}
+  /* Heatmap / Treemap / Map / Strength shared wrap */
+  .heatmap-wrap,.treemap-wrap,.map-wrap,.strength-wrap{position:absolute;inset:16px;overflow:auto;display:none;}
+  .heatmap-wrap::-webkit-scrollbar,.treemap-wrap::-webkit-scrollbar,.map-wrap::-webkit-scrollbar,.strength-wrap::-webkit-scrollbar{width:5px;height:5px;}
+  .heatmap-wrap::-webkit-scrollbar-thumb,.treemap-wrap::-webkit-scrollbar-thumb,.map-wrap::-webkit-scrollbar-thumb,.strength-wrap::-webkit-scrollbar-thumb{background:#2a3344;border-radius:2px;}
+
+  /* 強勢視圖 */
+  .str-disclaimer{font-size:12px;color:#666;margin-bottom:10px;padding:8px 12px;background:#1a2030;border-radius:8px;border-left:3px solid #e0a93a;line-height:1.5;}
+  .str-winbar{display:flex;align-items:center;gap:6px;margin-bottom:10px;}
+  .str-win-btn{background:#1a2030;border:1px solid #2a3344;border-radius:6px;color:#888;font-size:12px;padding:4px 12px;cursor:pointer;}
+  .str-win-btn.active{background:#2d6cdf;color:#fff;font-weight:600;border-color:#2d6cdf;}
+  .str-market{margin-left:8px;font-size:12px;color:#888;}
+  .str-ind{border-bottom:1px solid #1a2030;}
+  .str-ind-head{display:flex;align-items:center;gap:10px;padding:9px 6px;cursor:pointer;border-radius:6px;}
+  .str-ind-head:hover{background:#1a2030;}
+  .str-rank{font-size:12px;color:#555;min-width:24px;text-align:right;}
+  .str-ind-name{font-size:14px;color:#e8e8e8;min-width:120px;flex-shrink:0;}
+  .str-ind-rs{font-size:14px;font-weight:700;min-width:60px;text-align:right;font-variant-numeric:tabular-nums;}
+  .str-bar-wrap{flex:1;height:5px;background:#1a2030;border-radius:3px;overflow:hidden;max-width:260px;}
+  .str-bar{height:5px;border-radius:3px;}
+  .str-ind-flow{font-size:12px;color:#888;min-width:74px;text-align:right;}
+  .str-stocks{padding:2px 0 8px 34px;}
+  .str-stk{display:flex;align-items:center;gap:10px;padding:5px 8px;font-size:13px;border-bottom:1px solid #161b24;}
+  .str-stk-code{color:#cfd6e0;font-weight:600;min-width:44px;}
+  .str-stk-name{color:#9aa6b4;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .str-stk-chg{min-width:60px;text-align:right;font-variant-numeric:tabular-nums;}
+  .str-stk-rs{min-width:70px;text-align:right;font-variant-numeric:tabular-nums;}
+  .str-tag{font-size:11px;padding:1px 6px;border-radius:4px;min-width:52px;text-align:center;}
+  .str-tag.real{background:#13361f;color:#5fd68a;}
+  .str-tag.fake{background:#3a2a12;color:#e0a93a;}
 
   /* 熱力圖（色塊地圖） */
   .map-disclaimer{font-size:12px;color:#555;margin-bottom:10px;padding:8px 12px;background:#1a2030;border-radius:8px;border-left:3px solid #3a8fd8;}
@@ -417,9 +442,11 @@
     <div class="map-wrap" id="map-wrap"></div>
     <div class="heatmap-wrap" id="heatmap-wrap"></div>
     <div class="treemap-wrap" id="treemap-wrap"></div>
+    <div class="strength-wrap" id="strength-wrap"></div>
     <div style="position:absolute;top:10px;right:14px;display:flex;gap:6px;z-index:10;align-items:center;">
       <div class="view-toggle" style="position:static;">
         <button class="view-btn active" id="btn-chart">泡泡圖</button>
+        <button class="view-btn" id="btn-strength">💪強勢</button>
         <button class="view-btn" id="btn-heat">熱力圖</button>
         <button class="view-btn" id="btn-evo">演化</button>
         <button class="view-btn" id="btn-tree">樹狀圖</button>
@@ -561,6 +588,8 @@ const WIN_ACC = { 1: 'accel_1', 3: 'accel_3', 5: 'accel', 10: 'accel_10', 20: 'a
 let buildHeatmapFn = null;
 let buildTreemapFn = null;
 let buildSectorMapFn = null;
+let buildStrengthFn = null;
+let strengthWin = 1;       // 強勢視圖 RS 窗格：今日(1)/5日(5)/20日(20)
 function winLabel() { return lookbackWin + ' 日'; }
 
 // 依目前回看窗格設定每族群的 _x（X 軸值＝該窗格淨買超）/ _accel（Y 軸值＝該窗格加速度）。泡泡大小固定 |net20|。
@@ -1573,6 +1602,75 @@ function render(data) {
     `;
   }
 
+  // ── 強勢視圖（相對強度 RS = 個股漲跌幅 − 大盤；產業=成分股RS中位數；疊資金流分真強/假強） ──
+  function buildStrength() {
+    const wrap = document.getElementById('strength-wrap');
+    const W = strengthWin;
+    const chgF = W === 1 ? 'chg_1d' : (W === 5 ? 'chg_5d' : 'chg_20d');
+    const mkt = (lastRenderData['market_chg_' + (W === 1 ? '1d' : W + 'd')]) || 0;
+    const sd = lastRenderData.stock_data || {};
+    const median = arr => {
+      if (!arr.length) return 0;
+      const a = [...arr].sort((x, y) => x - y), m = Math.floor(a.length / 2);
+      return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+    };
+    const rows = sectors.map(s => {
+      const stocks = [];
+      (s.stocks || []).forEach(code => {
+        const d = sd[code]; if (!d) return;
+        const rs = (d[chgF] || 0) - mkt;
+        stocks.push({ code, name: d.name || STOCK_NAMES[code] || '', chg: d[chgF] || 0, rs, buy: (d.net_5d_yi || 0) > 0 });
+      });
+      stocks.sort((a, b) => b.rs - a.rs);
+      return { name: s.name, indRS: median(stocks.map(x => x.rs)), n: stocks.length,
+               buyN: stocks.filter(x => x.buy).length, stocks };
+    }).filter(r => r.n > 0).sort((a, b) => b.indRS - a.indRS);
+    const maxAbs = Math.max(1, ...rows.map(r => Math.abs(r.indRS)));
+
+    wrap.innerHTML = `
+      <div class="str-disclaimer">💪 <b>相對強度 RS</b> = 個股漲跌幅 − 大盤(剔除 beta)。產業 = 成分股 RS 中位數，越強排越前。
+        <span class="str-tag real" style="display:inline-block">✅真強</span> = RS&gt;0 且法人近5日買；
+        <span class="str-tag fake" style="display:inline-block">⚡假強</span> = 漲但法人沒進(投機)。點產業展開個股。</div>
+      <div class="str-winbar">
+        ${[[1, '今日'], [5, '近5日'], [20, '近20日']].map(([w, l]) =>
+          `<button class="str-win-btn ${w === W ? 'active' : ''}" data-w="${w}">${l}</button>`).join('')}
+        <span class="str-market">大盤同期 ${mkt >= 0 ? '+' : ''}${mkt.toFixed(2)}%</span>
+      </div>
+      <div class="str-list">
+        ${rows.map((r, i) => {
+          const col = r.indRS >= 0 ? '#1D9E75' : '#D85A30';
+          const bw = Math.round(Math.abs(r.indRS) / maxAbs * 100);
+          return `<div class="str-ind">
+            <div class="str-ind-head" data-name="${r.name}">
+              <span class="str-rank">${i + 1}</span>
+              <span class="str-ind-name">${r.name}</span>
+              <span class="str-ind-rs" style="color:${col}">${r.indRS >= 0 ? '+' : ''}${r.indRS.toFixed(2)}</span>
+              <div class="str-bar-wrap"><div class="str-bar" style="width:${bw}%;background:${col}"></div></div>
+              <span class="str-ind-flow">法人買 ${r.buyN}/${r.n}</span>
+            </div>
+            <div class="str-stocks" style="display:none">
+              ${r.stocks.map(st => {
+                const sc = st.rs >= 0 ? '#1D9E75' : '#D85A30';
+                const tag = st.rs > 0 ? (st.buy ? '<span class="str-tag real">✅真強</span>' : '<span class="str-tag fake">⚡假強</span>') : '<span class="str-tag" style="min-width:52px"></span>';
+                return `<div class="str-stk">
+                  <span class="str-stk-code">${st.code}</span>
+                  <span class="str-stk-name">${st.name}</span>
+                  <span class="str-stk-chg" style="color:${st.chg >= 0 ? '#1D9E75' : '#D85A30'}">${st.chg >= 0 ? '+' : ''}${st.chg.toFixed(2)}%</span>
+                  <span class="str-stk-rs" style="color:${sc}">RS ${st.rs >= 0 ? '+' : ''}${st.rs.toFixed(2)}</span>
+                  ${tag}
+                </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    wrap.querySelectorAll('.str-win-btn').forEach(b =>
+      b.addEventListener('click', () => { strengthWin = parseInt(b.dataset.w, 10) || 1; buildStrength(); }));
+    wrap.querySelectorAll('.str-ind-head').forEach(h =>
+      h.addEventListener('click', () => { const st = h.nextElementSibling; st.style.display = st.style.display === 'none' ? 'block' : 'none'; }));
+  }
+  buildStrengthFn = buildStrength;
+
   // ── 熱力圖（色塊地圖：單一回看期間，顏色＝淨買超強弱，跟時間下拉連動） ──
   function buildSectorMap() {
     const wrap = document.getElementById('map-wrap');
@@ -1726,6 +1824,7 @@ function render(data) {
     setupSearch(allSectors);
 
     document.getElementById('btn-chart').addEventListener('click', () => setView('chart'));
+    document.getElementById('btn-strength').addEventListener('click', () => setView('strength'));
     document.getElementById('btn-heat').addEventListener('click', () => setView('heat'));
     document.getElementById('btn-evo').addEventListener('click', () => setView('evo'));
     document.getElementById('btn-tree').addEventListener('click', () => setView('tree'));
@@ -1804,6 +1903,7 @@ function squarify(items, total, x0, y0, w, h) {
 function setView(view) {
   currentView = view;
   document.getElementById('chart').style.display = view === 'chart' ? 'block' : 'none';
+  document.getElementById('strength-wrap').style.display = view === 'strength' ? 'block' : 'none';  // 強勢
   document.getElementById('map-wrap').style.display = view === 'heat' ? 'block' : 'none';      // 熱力圖（色塊地圖）
   document.getElementById('heatmap-wrap').style.display = view === 'evo' ? 'block' : 'none';    // 演化矩陣
   document.getElementById('treemap-wrap').style.display = view === 'tree' ? 'block' : 'none';
@@ -1816,10 +1916,11 @@ function setView(view) {
   const zh = document.querySelector('.zoom-hint'); if (zh) zh.style.display = view === 'chart' ? '' : 'none';
   const om = document.getElementById('overlap-menu'); if (om) om.style.display = 'none';
   document.getElementById('tt').style.opacity = '0';
-  [['chart', 'btn-chart'], ['heat', 'btn-heat'], ['evo', 'btn-evo'], ['tree', 'btn-tree'], ['rank', 'btn-rank']].forEach(([v, id]) => {
+  [['chart', 'btn-chart'], ['strength', 'btn-strength'], ['heat', 'btn-heat'], ['evo', 'btn-evo'], ['tree', 'btn-tree'], ['rank', 'btn-rank']].forEach(([v, id]) => {
     const b = document.getElementById(id); if (b) b.classList.toggle('active', v === view);
   });
   if (view === 'rank' && buildRankingFn) buildRankingFn();
+  if (view === 'strength' && buildStrengthFn) buildStrengthFn();
   if (view === 'heat' && buildSectorMapFn) buildSectorMapFn();
   if (view === 'evo' && buildHeatmapFn) buildHeatmapFn();
   if (view === 'tree' && buildTreemapFn) buildTreemapFn();

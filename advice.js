@@ -24,6 +24,33 @@
   const has = (s) => s != null && String(s).trim() !== '' && String(s).trim() !== '—';
   const G = (k) => (ctx.row ? ctx.row[k] : undefined);
 
+  // ── 均線價位（出場/續抱共用）：優先用 K 線 payload 帶的 sma20/ma60（與圖上同源），缺則由收盤序列補算 ──
+  function lastNum(arr) {
+    if (!arr || !arr.length) return null;
+    for (let i = arr.length - 1; i >= 0; i--) { const v = num(arr[i]); if (v != null) return v; }
+    return null;
+  }
+  function smaTail(arr, n) {                      // 末端 n 根簡單均線
+    if (!arr || !arr.length) return null;
+    let s = 0, k = 0;
+    for (let i = arr.length - 1; i >= 0 && k < n; i--) { const v = num(arr[i]); if (v != null) { s += v; k++; } }
+    return k ? s / k : null;
+  }
+  function holdLevels(dArg) {
+    const d = dArg || ctx.data; if (!d || !d.c) return null;
+    let ma20 = d.sma20 ? lastNum(d.sma20) : null; if (ma20 == null) ma20 = smaTail(d.c, 20);
+    let ma60 = d.ma60 ? lastNum(d.ma60) : null; if (ma60 == null) ma60 = smaTail(d.c, 60);
+    return { close: lastNum(d.c), ma5: smaTail(d.c, 5), ma20, ma60 };
+  }
+  // 回檔參考買區（無明確進場訊號時，給可等待的均線價位）
+  function pullbackZoneBits() {
+    const lv = holdLevels(); if (!lv) return '';
+    const b = [];
+    if (lv.ma5 != null) b.push(`5日線 <b>${fnum(lv.ma5)}</b>`);
+    if (lv.ma20 != null) b.push(`月線(MA20) <b>${fnum(lv.ma20)}</b>`);
+    return b.length ? `<div class="adv-px" style="margin-top:5px;line-height:1.7">回檔參考買區：${b.join('　｜　')}</div>` : '';
+  }
+
   // ── 進場價位推算：回後買上漲 / 盤整突破（純前端，從 K 線 OHLC 算）──
   // 回傳 { kind, entry, trigger, triggerLabel, stop, stopLabel, stopPct, target, targetLabel, rr, ma5 } 或 null
   // 規則對齊 zhuEntry 的 desc：回後買上漲＝多頭回檔觸5日線後中長紅K收盤突破昨高；盤整突破＝窄幅盤整後突破上緣。
@@ -86,6 +113,14 @@
     return b.length ? `<div class="adv-px" style="margin-top:5px;line-height:1.7">${b.join('　｜　')}</div>` : '';
   }
 
+  // R:R → 號誌色：≥2 綠（值得進）/ 1–2 琥珀（賠率普通、減碼）/ <1 紅（賠率差、別追）/ 無法算→不懲罰維持綠
+  function rrQuality(rr) {
+    if (rr == null) return { icon: '🟢', cls: 'go', note: '' };
+    if (rr >= 2) return { icon: '🟢', cls: 'go', note: `（R:R ${rr.toFixed(1)}）` };
+    if (rr >= 1) return { icon: '🟡', cls: 'warn', note: `（R:R ${rr.toFixed(1)} 偏低，建議減碼／等更好點）` };
+    return { icon: '⚠️', cls: 'stop', note: `（R:R ${rr.toFixed(1)}<1，賠率差、不建議追）` };
+  }
+
   // ── 進場：朱家泓主升型態 ─────────────────────────────
   // 回傳 { icon, cls, head, desc, sub } 或 null
   function zhuEntry() {
@@ -104,17 +139,21 @@
     if (truthy(G('weekly_lit'))) subBits.push('週線亮燈');
     const sub = subBits.join('　·　');
 
-    if (e === '回後買上漲')
-      return { icon: '🟢', cls: 'go', head: '回後買上漲（朱家泓第二波起漲）',
-        desc: '多頭中回檔觸及/跌破5日線後，中長紅K收盤突破昨日高 = 第二波起漲點。' + mainupPriceBits(mainupLevels()), sub };
-    if (e === '盤整突破')
-      return { icon: '🟢', cls: 'go', head: '盤整突破',
-        desc: '近20日窄幅盤整後，中長紅K收盤突破盤整上緣。' + mainupPriceBits(mainupLevels()), sub };
+    if (e === '回後買上漲') {
+      const lv = mainupLevels(); const q = rrQuality(lv && lv.rr);
+      return { icon: q.icon, cls: q.cls, head: '回後買上漲（朱家泓第二波起漲）' + q.note,
+        desc: '多頭中回檔觸及/跌破5日線後，中長紅K收盤突破昨日高 = 第二波起漲點。' + mainupPriceBits(lv), sub };
+    }
+    if (e === '盤整突破') {
+      const lv = mainupLevels(); const q = rrQuality(lv && lv.rr);
+      return { icon: q.icon, cls: q.cls, head: '盤整突破' + q.note,
+        desc: '近20日窄幅盤整後，中長紅K收盤突破盤整上緣。' + mainupPriceBits(lv), sub };
+    }
     if (e === '⚠過高勿追')
       return { icon: '🟠', cls: 'warn', head: '⚠ 過高勿追',
-        desc: '距底部已漲多又創120日新高，非好進場點 — 等回檔出現「回後買上漲」再進。', sub };
+        desc: '距底部已漲多又創120日新高，非好進場點 — 等回檔出現「回後買上漲」再進。' + pullbackZoneBits(), sub };
     return { icon: '⚪', cls: 'off', head: '今日無「回後買上漲 / 盤整突破」訊號',
-      desc: '朱家泓只在兩個起漲位置進場：回後買上漲、盤整突破；其餘觀望。', sub };
+      desc: '朱家泓只在兩個起漲位置進場：回後買上漲、盤整突破；其餘觀望。' + pullbackZoneBits(), sub };
   }
 
   // ── 進場：Anchor 反應K買點 ──────────────────────────
@@ -153,11 +192,25 @@
   // ── 出場：守均線（朱家泓主升 B3 出場引擎）──────────
   function maExit() {
     const w = G('exit_warn');
+    const lv = holdLevels();
+    const close = lv ? lv.close : null;
+    const pxBit = (label, v) => {
+      if (v == null) return null;
+      const pct = (close != null && v) ? (close - v) / v * 100 : null;
+      const col = (pct != null && pct < 0) ? '#ff5252' : '#26a69a';
+      return `${label} <b style="color:#ffd54f">${fnum(v)}</b>` +
+        (pct != null ? `（現價<b style="color:${col}">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</b>）` : '');
+    };
+    const px = [pxBit('守MA20', lv && lv.ma20), pxBit('出場MA60', lv && lv.ma60)].filter(Boolean);
+    const pxRow = px.length ? `<div class="adv-px" style="margin-top:5px;line-height:1.7">${px.join('　｜　')}</div>` : '';
     if (has(w)) {
       const cls = /跌破MA60/.test(w) ? 'stop' : /跌破MA20/.test(w) ? 'warn' : 'go';
       return { icon: cls === 'stop' ? '🔴' : cls === 'warn' ? '🟠' : '🟢', cls, head: esc(w),
-        desc: '主升段守均線：跌破MA20＝早期警示、跌破MA60＝現股出場（回測：守MA20/MA60 期望值最高）。' };
+        desc: '主升段守均線：跌破MA20＝早期警示、跌破MA60＝現股出場（回測：守MA20/MA60 期望值最高）。' + pxRow };
     }
+    if (px.length)
+      return { icon: '🟢', cls: 'go', head: '續抱中 — 守均線出場',
+        desc: '價格在均線之上：跌破MA20＝早期警示、跌破MA60＝現股出場。' + pxRow };
     return { icon: '⚪', cls: 'off', head: '尚無均線出場訊號', desc: '守MA20（早期警示）/ MA60（現股出場）。', sub: '' };
   }
 
@@ -184,7 +237,8 @@
       const lv = mainupLevels();
       let t = e;
       if (lv && lv.entry != null) t += ` 進${fnum(lv.entry)}` + (lv.stop != null ? `/損${fnum(lv.stop)}` : '');
-      return { t, cls: 'go' };
+      if (lv && lv.rr != null) t += ` R:R${lv.rr.toFixed(1)}`;
+      return { t, cls: rrQuality(lv && lv.rr).cls };
     }
     if (e === '⚠過高勿追') return { t: '⚠過高勿追', cls: 'warn' };
     if (has(G('reaction_bar_type'))) {
@@ -194,6 +248,8 @@
     const st = hankuState();
     if (st && /持有|抱/.test(st.狀態 || '')) return { t: `波段${st.狀態}`, cls: 'go' };
     if (st && st.狀態) return { t: `波段${st.狀態}`, cls: 'off' };
+    const lv = holdLevels();
+    if (lv && lv.ma5 != null) return { t: `無訊號·回測5日線 ${fnum(lv.ma5)} 再看`, cls: 'off' };
     return { t: '無明確進場訊號', cls: 'off' };
   }
   function exitSummaryText() {
@@ -203,6 +259,8 @@
     if (has(w)) { bits.push(w); cls = /跌破MA60/.test(w) ? 'stop' : /跌破MA20/.test(w) ? 'warn' : 'go'; }
     if (truthy(G('mainup_dist'))) { bits.unshift('⚠出貨警訊'); cls = 'stop'; }
     const st = hankuState();
+    const lv = holdLevels();
+    if (!bits.length && lv && lv.ma60 != null) { bits.push(`守MA60 ${fnum(lv.ma60)}`); cls = 'go'; }
     if (!bits.length && st && st.週9停損 != null) bits.push(`守9週停損≈${st.週9停損}`);
     return { t: bits.length ? bits.join('｜') : '—', cls };
   }
@@ -300,5 +358,5 @@
     if (advBtn && advBtn.classList.contains('active')) renderFull();
   }
 
-  window.AdvicePanel = { onKline, renderBar, renderFull, mainupLevels };
+  window.AdvicePanel = { onKline, renderBar, renderFull, mainupLevels, holdLevels };
 })();

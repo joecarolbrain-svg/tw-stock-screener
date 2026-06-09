@@ -2704,6 +2704,22 @@ function klBuild(d) {
     }
   } catch (e) { /* 價位線非關鍵，失敗不影響主圖 */ }
 
+  // 出場價位線：守MA20（點線）/ 出場MA60（紅虛線）。僅在「非回後買上漲/盤整突破」時畫，避免與進場線打架
+  try {
+    const lv = (window.AdvicePanel && window.AdvicePanel.mainupLevels)
+      ? window.AdvicePanel.mainupLevels(d, klineState.row) : null;
+    const hl = (window.AdvicePanel && window.AdvicePanel.holdLevels)
+      ? window.AdvicePanel.holdLevels(d) : null;
+    if (!lv && hl) {
+      const pl = (price, color, title, style) => {
+        if (price != null && isFinite(price))
+          candle.createPriceLine({ price: +price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title });
+      };
+      pl(hl.ma20, '#90a4ae', `守20 ${hl.ma20 != null ? (+hl.ma20).toFixed(2) : ''}`, 1);   // 點線：守MA20（早期警示）
+      pl(hl.ma60, '#ef5350', `出60 ${hl.ma60 != null ? (+hl.ma60).toFixed(2) : ''}`, 2);   // 虛線：出場MA60（現股出場）
+    }
+  } catch (e) { /* 出場線非關鍵，失敗不影響主圖 */ }
+
   klineState.charts.push(pChart);
 
   // ── 法人副圖 ──

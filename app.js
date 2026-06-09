@@ -2688,7 +2688,7 @@ function klBuild(d) {
     candle.setMarkers(_mk);
   }
 
-  // 朱家泓 回後買上漲 / 盤整突破：進場/觸發/停損/目標 價位線（advice.js 純前端推算）
+  // 主升 回後買上漲 / 盤整突破：進場/觸發/停損/目標 價位線（advice.js 純前端推算）
   try {
     const lv = (window.AdvicePanel && window.AdvicePanel.mainupLevels)
       ? window.AdvicePanel.mainupLevels(d, klineState.row) : null;
@@ -2797,7 +2797,7 @@ async function openKlineModal(ticker, name, market) {
   // 從主篩選資料查回這一列（不論從哪個表點開都用主表的權威訊號列）
   const advRow = (state.data && state.data.rows)
     ? state.data.rows.find(r => String(r.ticker) === String(ticker)) || null : null;
-  klineState.row = advRow;   // 供 klBuild 畫朱家泓進場/停損/目標價位線（切換勾選重建圖也在）
+  klineState.row = advRow;   // 供 klBuild 畫主升進場/停損/目標價位線（切換勾選重建圖也在）
 
   try {
     let d = klineState.cache[ticker];

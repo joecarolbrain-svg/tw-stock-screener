@@ -4,7 +4,7 @@
      + K 線 payload 的 hanku.state / markers / dist_markers。
      不需要任何 Python / 重跑匯出。
    - 收錄四種現成方法：
-       ① 朱家泓主升：回後買上漲 / 盤整突破（mainup_strategy.compute_mainup）
+       ① 主升飆股：回後買上漲 / 盤整突破（mainup_strategy.compute_mainup）
        ② Anchor 反應K買點 + 停損 + R:R（anchor_bar.pick_anchor_bar）
        ③ HANKU 波段：金叉進場 / 死叉出場 / 守9週停損（hanku_overlay）
        ④ 出場線 + 出貨警訊 + 飆股停利（B3 出場引擎 / §5 出貨）
@@ -78,7 +78,7 @@
       let lo = Infinity, loIdx = last;
       for (let i = last; i > last - 4 && i >= 0; i--) { const v = num(l[i]); if (v != null && v < lo) { lo = v; loIdx = i; } }
       stop = isFinite(lo) ? lo : null; stopLabel = '回檔低';
-      // 若回檔低距進場 >12%（多為大紅K當日，回檔低其實偏遠），改守5日線 = 更貼朱家泓「守5日線」
+      // 若回檔低距進場 >12%（多為大紅K當日，回檔低其實偏遠），改守5日線 = 更貼「守5日線」
       if (stop != null && ma5 != null && (entry - stop) / entry > 0.12 && ma5 < entry) { stop = ma5; stopLabel = '守5日線'; }
       let hi = -Infinity;                                     // 前波高：回檔低之前 30 根最高
       for (let i = loIdx - 1; i > loIdx - 30 && i >= 0; i--) { const v = num(h[i]); if (v != null && v > hi) hi = v; }
@@ -121,7 +121,7 @@
     return { icon: '⚠️', cls: 'stop', note: `（R:R ${rr.toFixed(1)}<1，賠率差、不建議追）` };
   }
 
-  // ── 進場：朱家泓主升型態 ─────────────────────────────
+  // ── 進場：主升飆股型態 ─────────────────────────────
   // 回傳 { icon, cls, head, desc, sub } 或 null
   function zhuEntry() {
     const e = G('mainup_entry');
@@ -141,7 +141,7 @@
 
     if (e === '回後買上漲') {
       const lv = mainupLevels(); const q = rrQuality(lv && lv.rr);
-      return { icon: q.icon, cls: q.cls, head: '回後買上漲（朱家泓第二波起漲）' + q.note,
+      return { icon: q.icon, cls: q.cls, head: '回後買上漲（第二波起漲）' + q.note,
         desc: '多頭中回檔觸及/跌破5日線後，中長紅K收盤突破昨日高 = 第二波起漲點。' + mainupPriceBits(lv), sub };
     }
     if (e === '盤整突破') {
@@ -153,7 +153,7 @@
       return { icon: '🟠', cls: 'warn', head: '⚠ 過高勿追',
         desc: '距底部已漲多又創120日新高，非好進場點 — 等回檔出現「回後買上漲」再進。' + pullbackZoneBits(), sub };
     return { icon: '⚪', cls: 'off', head: '今日無「回後買上漲 / 盤整突破」訊號',
-      desc: '朱家泓只在兩個起漲位置進場：回後買上漲、盤整突破；其餘觀望。' + pullbackZoneBits(), sub };
+      desc: '主升策略只在兩個起漲位置進場：回後買上漲、盤整突破；其餘觀望。' + pullbackZoneBits(), sub };
   }
 
   // ── 進場：Anchor 反應K買點 ──────────────────────────
@@ -189,7 +189,7 @@
     return st;
   }
 
-  // ── 出場：守均線（朱家泓主升 B3 出場引擎）──────────
+  // ── 出場：守均線（主升 B3 出場引擎）──────────
   function maExit() {
     const w = G('exit_warn');
     const lv = holdLevels();
@@ -318,7 +318,7 @@
   }
 
   function piaoguExitRow() {
-    return row1({ icon: '📘', cls: 'note', head: '飆股停利守則（朱家泓 EP07）',
+    return row1({ icon: '📘', cls: 'note', head: '飆股停利守則',
       desc: '獲利 >20% 後出現「爆量黑K」→ 停利；否則續抱、守MA20/MA60。',
       sub: '回測：飆股停利勝守5均，但長線「守MA20/MA60」期望值最高 — 別太早下車。' });
   }
@@ -328,7 +328,7 @@
     if (!el) return;
     const noRow = !ctx.row;
     const head = `<div class="adv-title">${esc(ctx.ticker)}　${esc(ctx.name || '')}　<span class="adv-mut">進出場建議</span></div>` +
-      (noRow ? `<div class="adv-note-warn">此標的不在今日篩選結果中 — 僅顯示圖上 HANKU / 反應K 疊加，朱家泓主升訊號從缺。</div>` : '');
+      (noRow ? `<div class="adv-note-warn">此標的不在今日篩選結果中 — 僅顯示圖上 HANKU / 反應K 疊加，主升訊號從缺。</div>` : '');
 
     const entryCard = `<div class="adv-card">
       <div class="adv-card-t">📍 進場建議</div>
@@ -346,7 +346,7 @@
     </div>`;
 
     el.innerHTML = `<div class="adv-wrap">${head}${entryCard}${exitCard}
-      <div class="adv-foot">訊號為策略輔助、非投資建議；數值與主篩選表同源（朱家泓飆股5訊號 / Anchor反應K / HANKU波段 / B3出場引擎）。</div>
+      <div class="adv-foot">訊號為策略輔助、非投資建議；數值與主篩選表同源（飆股5訊號 / Anchor反應K / HANKU波段 / B3出場引擎）。</div>
     </div>`;
   }
 

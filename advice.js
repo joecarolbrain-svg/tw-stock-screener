@@ -3,11 +3,12 @@
    - 純前端：資料全部來自「主篩選表那一列」(state.data.rows 已帶的訊號欄)
      + K 線 payload 的 hanku.state / markers / dist_markers。
      不需要任何 Python / 重跑匯出。
-   - 收錄四種現成方法：
+   - 收錄五種現成方法：
        ① 主升飆股：回後買上漲 / 盤整突破（mainup_strategy.compute_mainup）
        ② Anchor 反應K買點 + 停損 + R:R（anchor_bar.pick_anchor_bar）
        ③ HANKU 波段：金叉進場 / 死叉出場 / 守9週停損（hanku_overlay）
-       ④ 出場線 + 出貨警訊 + 飆股停利（B3 出場引擎 / §5 出貨）
+       ④ 艾略特第三浪：過1浪高進場 / 2浪低停損 / Fib1.618目標（wave3_overlay）
+       ⑤ 出場線 + 出貨警訊 + 飆股停利（B3 出場引擎 / §5 出貨）
    - 由 app.js 在開窗載完 K 線後呼叫 onKline(ticker,name,klineData,row)。
    ============================================================ */
 (function () {
@@ -189,6 +190,40 @@
     return st;
   }
 
+  // ── 進場：艾略特第三浪（過1浪高 + 滾量；停損2浪低；目標Fib投射）──
+  function wave3State() {
+    return ctx.data && ctx.data.wave3 ? ctx.data.wave3.state : null;
+  }
+  function wave3Row() {
+    const st = wave3State();
+    if (!st || !st.狀態)
+      return row1({ icon: '⚪', cls: 'off', head: '無第三浪 setup',
+        desc: '需先出現合法 1-2（2浪不破1浪起點、回檔.2–.95），再帶量過第1浪高才算第三浪起。', sub: '' });
+    const trig = st['觸發(過1浪高)'], stop = st['停損(2浪低)'], tgt = st['目標(Fib)'];
+    const entered = st.進場 != null;
+    const bits = [];
+    if (entered) bits.push(`進場 <b style="color:#26a69a">${fnum(entry_(st))}</b>` +
+      (st.報酬 != null ? `（報酬 <b style="color:${st.報酬 >= 0 ? '#ff5252' : '#26a69a'}">${st.報酬 > 0 ? '+' : ''}${st.報酬}%</b>）` : ''));
+    if (trig != null) bits.push(`${entered ? '第1浪高' : '觸發(過高)'} <b>${fnum(trig)}</b>` +
+      (!entered && st.距觸發 != null ? `（距 ${st.距觸發 > 0 ? '+' : ''}${st.距觸發}%）` : ''));
+    if (stop != null) { const sp = (entry_(st) || trig); const pct = sp ? (sp - stop) / sp * 100 : null;
+      bits.push(`停損(2浪低) <b style="color:#ff5252">${fnum(stop)}</b>${pct != null ? `（−${Math.abs(pct).toFixed(1)}%）` : ''}`); }
+    if (tgt != null) bits.push(`目標(Fib1.618) <b style="color:#ffd54f">${fnum(tgt)}</b>`);
+    if (st.rr != null) { const r = num(st.rr); bits.push(`R:R <b style="color:${r >= 2 ? '#22c55e' : r >= 1 ? '#f5b942' : '#888'}">${fnum(st.rr)}</b>`); }
+    const q = rrQuality(num(st.rr));
+    // 狀態決定圖示：🟡待突破→看 R:R；🟢🔵→綠；🎯→金；⚠️→橘；⚪結構失效→灰
+    let icon = q.icon, cls = q.cls;
+    const s = st.狀態 || '';
+    if (/結構失效/.test(s)) { icon = '⚪'; cls = 'off'; }
+    else if (/轉弱/.test(s)) { icon = '⚠️'; cls = 'warn'; }
+    else if (/近Fib目標/.test(s)) { icon = '🎯'; cls = 'go'; }
+    else if (/第三浪/.test(s)) { icon = '🟢'; cls = 'go'; }
+    const sub = [st.w1 != null ? `第1浪幅 ${fnum(st.w1)}` : '', st.回檔比 != null ? `2浪回檔 ${(st.回檔比 * 100).toFixed(0)}%` : '',
+      st.大盤多頭 != null ? (st.大盤多頭 ? '大盤多頭✓' : '大盤非多頭') : ''].filter(Boolean).join('　·　');
+    return row1({ icon, cls, head: `艾略特第三浪：${esc(s)}`, desc: bits.join('　｜　'), sub });
+  }
+  function entry_(st) { return st && st.進場 != null ? num(st.進場) : null; }
+
   // ── 出場：守均線（主升 B3 出場引擎）──────────
   function maExit() {
     const w = G('exit_warn');
@@ -245,9 +280,18 @@
       const buy = G('buy_point');
       return { t: `${G('reaction_bar_type')}${has(buy) ? ' ' + buy : ''}`, cls: 'go' };
     }
+    const w3 = wave3State();
+    if (w3 && /第三浪|近Fib/.test(w3.狀態 || '')) {
+      let t = w3.狀態.replace(/[🟢🔵🎯]/g, '').trim();
+      if (entry_(w3) != null) t += ` 進${fnum(entry_(w3))}`;
+      else if (w3['觸發(過1浪高)'] != null) t += ` 過${fnum(w3['觸發(過1浪高)'])}`;
+      if (w3.rr != null) t += ` R:R${num(w3.rr).toFixed(1)}`;
+      return { t, cls: 'go' };
+    }
     const st = hankuState();
     if (st && /持有|抱/.test(st.狀態 || '')) return { t: `波段${st.狀態}`, cls: 'go' };
     if (st && st.狀態) return { t: `波段${st.狀態}`, cls: 'off' };
+    if (w3 && /待突破/.test(w3.狀態 || '')) return { t: `第三浪待突破 觸發${fnum(w3['觸發(過1浪高)'])}`, cls: 'warn' };
     const lv = holdLevels();
     if (lv && lv.ma5 != null) return { t: `無訊號·回測5日線 ${fnum(lv.ma5)} 再看`, cls: 'off' };
     return { t: '無明確進場訊號', cls: 'off' };
@@ -268,7 +312,7 @@
   function renderBar() {
     const el = document.getElementById('kline-advice-bar');
     if (!el) return;
-    if (!ctx.row && !(ctx.data && ctx.data.hanku)) { el.innerHTML = ''; el.style.display = 'none'; return; }
+    if (!ctx.row && !(ctx.data && (ctx.data.hanku || ctx.data.wave3))) { el.innerHTML = ''; el.style.display = 'none'; return; }
     el.style.display = '';
     const en = entrySummaryText(), ex = exitSummaryText();
     el.innerHTML =
@@ -335,6 +379,7 @@
       ${row1(zhuEntry())}
       ${row1(anchorEntry())}
       ${hankuEntryRow()}
+      ${wave3Row()}
     </div>`;
 
     const exitCard = `<div class="adv-card">
@@ -346,7 +391,7 @@
     </div>`;
 
     el.innerHTML = `<div class="adv-wrap">${head}${entryCard}${exitCard}
-      <div class="adv-foot">訊號為策略輔助、非投資建議；數值與主篩選表同源（飆股5訊號 / Anchor反應K / HANKU波段 / B3出場引擎）。</div>
+      <div class="adv-foot">訊號為策略輔助、非投資建議；數值與主篩選表同源（飆股5訊號 / Anchor反應K / HANKU波段 / 艾略特第三浪 / B3出場引擎）。</div>
     </div>`;
   }
 

@@ -34,6 +34,7 @@
     <button class="tab-btn active" data-tab="dashboard">📊 每日看板</button>
     <button class="tab-btn" data-tab="watchlist">⭐ 自選股</button>
     <button class="tab-btn" data-tab="hanku">🌀 Hanku波段</button>
+    <button class="tab-btn" data-tab="wave3">🌊 第三浪</button>
     <button class="tab-btn" data-tab="sector-flow">🌊 族群資金流向</button>
     <button class="tab-btn" data-tab="market">🏦 大盤狀態</button>
     <button class="tab-btn" data-tab="warrant">🎯 權證精選</button>
@@ -182,8 +183,10 @@
           <select id="hanku-state" class="inline-select">
             <option value="all">全部</option>
             <option value="🟢發散進場" selected>🟢 發散進場</option>
+            <option value="🟢發散進場(4T下彎)">🟢 發散進場(4T下彎)</option>
             <option value="🟡金叉待發散">🟡 金叉待發散</option>
             <option value="🔵守4週持有">🔵 守4週持有</option>
+            <option value="⚠️4T下彎(持有轉弱)">⚠️ 4T下彎(持有轉弱)</option>
             <option value="⚠️跌破4週整理">⚠️ 跌破4週整理</option>
             <option value="⚠️持倉破47預警">⚠️ 持倉破47預警</option>
             <option value="🔴死叉出場">🔴 死叉出場</option>
@@ -207,6 +210,41 @@
     <main>
       <div id="hanku-summary" style="padding:8px 12px;color:#e0e0e0"></div>
       <div id="hanku-table"></div>
+    </main>
+  </section>
+
+  <section class="tab-panel" data-panel="wave3">
+    <div class="filters">
+      <div class="filter-row">
+        <div class="filter-group small">
+          <label class="filter-label">狀態</label>
+          <select id="wave3-state" class="inline-select">
+            <option value="all">全部</option>
+            <option value="🟡待突破1浪高" selected>🟡 待突破1浪高</option>
+            <option value="🟢第三浪起">🟢 第三浪起</option>
+            <option value="🔵第三浪續抱">🔵 第三浪續抱</option>
+            <option value="🎯近Fib目標(可分批)">🎯 近Fib目標</option>
+            <option value="⚠️轉弱(疑4浪)">⚠️ 轉弱(疑4浪)</option>
+          </select>
+        </div>
+        <div class="filter-group small">
+          <label class="filter-label">代號/名稱</label>
+          <input type="text" id="wave3-search" placeholder="例如 2330 或 台積" style="width:160px" />
+        </div>
+        <span class="filler"></span>
+        <span class="muted" id="wave3-meta">--</span>
+      </div>
+      <div class="filter-row legend-row">
+        <span class="legend-label">說明：</span>
+        <span class="legend-item">艾略特<b>第三浪</b>：合法1-2後<b>帶量過第1浪高</b>進場、<b>2浪低</b>停損、<b>Fib1.618</b>目標</span>
+        <span class="legend-item">回測：每筆淨期望<b>+11.9%</b>、門檻越粗越好、多頭佳空頭仍正</span>
+        <span class="legend-item">⚠️ 觀察用指標；<b>選樣偏誤＋多頭母體</b>，低量/興櫃股慎用</span>
+        <span class="legend-item">點代號 → K線（含1-2-3標籤＋三價位）</span>
+      </div>
+    </div>
+    <main>
+      <div id="wave3-summary" style="padding:8px 12px;color:#e0e0e0"></div>
+      <div id="wave3-table"></div>
     </main>
   </section>
 

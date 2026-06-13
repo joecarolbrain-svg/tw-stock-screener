@@ -93,6 +93,7 @@ async function onDateChange(ev) {
   else if (activeTab === 'flow') loadIndustryFlow();
   else if (activeTab === 'concept') loadThemeFlow();
   else if (activeTab === 'hanku') loadHanku();
+  else if (activeTab === 'wave3') loadWave3();
 }
 
 // 市場別 -> TradingView 交易所代碼
@@ -960,6 +961,9 @@ function bindTabs() {
       }
       if (tab === 'hanku') {
         loadHanku();
+      }
+      if (tab === 'wave3') {
+        loadWave3();
       }
       if (tab === 'sector-flow') {
         // 泡泡圖＝獨立頁 sector.html，首次切入才設 src（lazy，避免未看就抓資料）
@@ -2370,6 +2374,7 @@ const HANKU_COLS = [
   { title: '週4守線', field: 'w4', width: 84, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
   { title: '日47', field: 'ma47', width: 76, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
   { title: '破47', field: 'warn47', width: 58, hozAlign: 'center', formatter: (c) => c.getValue() ? '⚠️' : '' },
+  { title: '4T下彎', field: 'w4_down', width: 70, hozAlign: 'center', formatter: (c) => c.getValue() ? '⚠️' : '' },
   { title: '出場日', field: 'exit_date', width: 104 },
 ];
 
@@ -2440,6 +2445,106 @@ function initHankuControls() {
   });
 }
 document.addEventListener('DOMContentLoaded', initHankuControls);
+
+// ═════════════════════════════════════════════════════════
+//  🌊 艾略特第三浪（過1浪高+滾量 進場）分頁
+//  讀 data/daily/{date}/wave3.json.gz → 狀態清單 + 建議價位 + 點代號開 K 線
+// ═════════════════════════════════════════════════════════
+const wave3State = { loaded: false, loadedDate: null, data: null, table: null };
+
+const WAVE3_COLS = [
+  { title: '代號', field: 'ticker', width: 80, frozen: true,
+    formatter: (cell) => `<a class="ticker-link" href="#" data-kline-ticker="${cell.getValue()}">${cell.getValue()}</a>`,
+    cellClick: (e, cell) => {
+      e.preventDefault();
+      const r = cell.getRow().getData();
+      openKlineModal(cell.getValue(), r.name, r.market);
+    } },
+  { title: '名稱', field: 'name', width: 100, frozen: true },
+  { title: '狀態', field: 'state', width: 150 },
+  { title: '當日%', field: 'chg_pct', width: 78, hozAlign: 'right', sorter: 'number', formatter: _hkPct(2) },
+  { title: '現價', field: 'close', width: 76, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
+  { title: '觸發(過1浪高)', field: 'trigger', width: 110, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
+  { title: '距觸發%', field: 'dist_trig', width: 84, hozAlign: 'right', sorter: 'number', formatter: _hkPct(1) },
+  { title: '停損(2浪低)', field: 'stop', width: 100, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
+  { title: '目標(Fib)', field: 'target', width: 92, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
+  { title: 'R:R', field: 'rr', width: 64, hozAlign: 'right', sorter: 'number',
+    formatter: (c) => { const v = c.getValue(); if (v == null) return ''; const col = v >= 2 ? '#22c55e' : (v >= 1 ? '#f5b942' : '#888'); return `<span style="color:${col}">${Number(v).toFixed(2)}</span>`; } },
+  { title: '報酬%', field: 'ret_pct', width: 78, hozAlign: 'right', sorter: 'number', formatter: _hkPct(1) },
+  { title: '1浪幅', field: 'w1', width: 72, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
+  { title: '2浪回檔', field: 'retr', width: 78, hozAlign: 'right', sorter: 'number',
+    formatter: (c) => { const v = c.getValue(); return v == null ? '' : (v * 100).toFixed(0) + '%'; } },
+  { title: '大盤', field: 'bull', width: 56, hozAlign: 'center',
+    formatter: (c) => { const v = c.getValue(); return v == null ? '' : (v ? '多✓' : '空'); } },
+];
+
+async function loadWave3() {
+  if (wave3State.loaded && wave3State.loadedDate === currentDate) { renderWave3(); return; }
+  const metaEl = document.getElementById('wave3-meta');
+  const sumEl = document.getElementById('wave3-summary');
+  const entry = (indexMeta?.dates || []).find(
+    e => e.date === currentDate && (e.has || []).includes('wave3'));
+  let wvDate = currentDate;
+  if (!entry) {
+    const fb = (indexMeta?.dates || []).find(e => (e.has || []).includes('wave3'));
+    if (!fb) {
+      metaEl.textContent = '無 第三浪 資料';
+      sumEl.innerHTML = '<div style="padding:20px;color:#aaa">該日期未提供第三浪資料。請跑 export_wave3_to_json.py。</div>';
+      document.getElementById('wave3-table').innerHTML = '';
+      return;
+    }
+    wvDate = fb.date;
+  }
+  metaEl.textContent = `載入中... (${wvDate})`;
+  try {
+    wave3State.data = await fetchJsonGz(`data/daily/${wvDate}/wave3.json.gz`);
+    wave3State.loaded = true;
+    wave3State.loadedDate = currentDate;
+    const d = wave3State.data;
+    metaEl.textContent = `資料日 ${d.trading_date}　|　${d.rows.length} 檔　|　更新 ${(d.generated_at || '').slice(11, 16)}`;
+    renderWave3();
+  } catch (err) {
+    metaEl.textContent = `載入失敗：${err.message}`;
+  }
+}
+
+function renderWave3() {
+  if (!wave3State.data) return;
+  const stSel = document.getElementById('wave3-state').value;
+  const q = String(document.getElementById('wave3-search').value || '').trim().toLowerCase();
+
+  let rows = wave3State.data.rows.slice();
+  if (stSel !== 'all') rows = rows.filter(r => r.state === stSel);
+  if (q) rows = rows.filter(r =>
+    (r.ticker || '').toLowerCase().includes(q) || (r.name || '').toLowerCase().includes(q));
+
+  const sm = wave3State.data.states || [];
+  document.getElementById('wave3-summary').innerHTML =
+    `<span style="font-size:15px;font-weight:600">狀態分布：</span>` +
+    sm.map(s => `<span style="margin-left:10px">${s.code} <b>${s.count}</b></span>`).join('') +
+    `<span style="margin-left:14px;color:#888">顯示 ${rows.length} 檔</span>` +
+    (wave3State.data.note ? `<div style="margin-top:4px;color:#888;font-size:11px">${wave3State.data.note}</div>` : '');
+
+  if (wave3State.table) wave3State.table.destroy();
+  wave3State.table = new Tabulator('#wave3-table', {
+    data: rows,
+    layout: 'fitDataTable',
+    height: 'calc(100vh - 320px)',
+    columns: WAVE3_COLS,
+    placeholder: '無符合條件的個股',
+    initialSort: [{ column: 'rr', dir: 'desc' }],
+  });
+}
+
+function initWave3Controls() {
+  ['wave3-state', 'wave3-search'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const ev = el.tagName === 'SELECT' ? 'change' : 'input';
+    el.addEventListener(ev, () => { if (wave3State.loaded) renderWave3(); });
+  });
+}
+document.addEventListener('DOMContentLoaded', initWave3Controls);
 
 // ═════════════════════════════════════════════════════════
 //  族群資金流向（sector-flow）— 三大法人合計淨買超+加速度四象限

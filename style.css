@@ -127,6 +127,10 @@ html { overflow-x: hidden; }
 
 /* ── Market（大盤狀態）── */
 .market-content { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.market-stale {
+  background: rgba(255,157,0,0.12); border: 1px solid #ff9d00; color: #ffcf80;
+  border-radius: 8px; padding: 10px 14px; font-size: 13px; font-weight: 600; line-height: 1.5;
+}
 .market-row { display: grid; gap: 12px; }
 .market-row-2 { grid-template-columns: 5fr 7fr; }
 .market-row-5 { grid-template-columns: repeat(5, 1fr); }

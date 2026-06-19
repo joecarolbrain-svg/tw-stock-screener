@@ -1906,6 +1906,17 @@ function _chipColorByZ(z) {
   return '#e0e0e0';
 }
 
+// 兩個 ISO 日期(d1<d2)間的交易日數(扣週末) — 用來算期貨落後幾天
+function _tradingDaysBehind(d1, d2) {
+  let n = 0;
+  const a = new Date(d1 + 'T00:00:00'), b = new Date(d2 + 'T00:00:00');
+  for (let t = new Date(a); t < b; t.setDate(t.getDate() + 1)) {
+    const wd = t.getDay();
+    if (wd !== 0 && wd !== 6) n++;
+  }
+  return n;
+}
+
 function _fmtMillion(v) {
   if (v == null) return '—';
   if (Math.abs(v) >= 10000) return (v > 0 ? '+' : '') + (v / 10000).toFixed(1) + '億';
@@ -1923,6 +1934,15 @@ function renderMarket(d) {
   const state = s.state || '—';
   const stateColor = state.includes('多') ? '#00ff9d' : state.includes('空') ? '#ef5350' : '#aaa';
   const comp = s.composite_score;
+
+  // 現貨 vs 期貨 日期不同步警示（期貨/OI 來源落後時提醒，避免綜合分數混算誤判）
+  let staleHTML = '';
+  if (s.equity_date && s.futures_date && s.futures_date < s.equity_date) {
+    const lag = _tradingDaysBehind(s.futures_date, s.equity_date);
+    staleHTML = `<div class="market-stale">⚠ 期貨/OI 資料落後 ${lag} 個交易日
+      （現貨 ${s.equity_date}，期貨僅到 ${s.futures_date}）—
+      綜合判斷仍含舊期貨資料，僅供參考；補齊期貨來源後重跑匯出即同步</div>`;
+  }
 
   const commentaryHTML = (d.commentary || []).map(c =>
     `<div class="lvl-${c.level || 'info'}">${c.text}</div>`
@@ -1998,6 +2018,7 @@ function renderMarket(d) {
   }
 
   document.getElementById('market-content').innerHTML = `
+    ${staleHTML}
     <div class="market-row market-row-2">
       <div class="market-card market-summary">
         <div class="muted">綜合判斷</div>
@@ -2653,7 +2674,7 @@ function mainCardHtml(r) {
 
 function refreshMainView() {
   if (!state.table) return;
-  const view = state.mainView || (state.mainView = getTabView('main', 'table'));
+  const view = state.mainView || (state.mainView = getTabView('main', 'card'));
   syncViewToggle('main-viewtoggle', view);
   const cardsEl = document.getElementById('main-cards');
   const tableEl = document.getElementById('main-table');

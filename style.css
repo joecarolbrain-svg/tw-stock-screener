@@ -334,6 +334,55 @@ input:focus, select:focus { outline: 2px solid #00d4aa; outline-offset: -1px; }
 .fs-meta { font-size: 11px; color: #888; }
 @media (max-width: 720px) { .fs-cards { grid-template-columns: 1fr; } }
 
+/* ── 表格 ⇄ 卡片 切換鈕 ───────────────────────────── */
+.view-toggle { display: inline-flex; border: 1px solid #2a2a3e; border-radius: 6px; overflow: hidden; align-self: flex-end; }
+.vt-btn { background: #14142a; border: none; color: #9aa0b0; padding: 6px 12px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.vt-btn + .vt-btn { border-left: 1px solid #2a2a3e; }
+.vt-btn:hover { color: #e0e0e0; }
+.vt-btn.active { background: rgba(0,212,170,0.15); color: #00d4aa; font-weight: 600; }
+
+/* ── 個股卡片（Hanku / 第三浪 卡片檢視） ──────────────── */
+.card-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px; padding: 12px;
+}
+.stk-card {
+  text-align: left; cursor: pointer; font-family: inherit; color: #e0e0e0;
+  background: #1a1a2e; border: 1px solid #2a2a3e; border-radius: 10px;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;
+  transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+.stk-card:hover { transform: translateY(-2px); border-color: #00d4aa; box-shadow: 0 4px 14px rgba(0,0,0,0.35); }
+.sc-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.sc-id { font-size: 15px; }
+.sc-id b { color: #cfe1ff; font-weight: 700; margin-right: 4px; }
+.sc-state { font-size: 12px; color: #cdd3e0; white-space: nowrap; }
+.sc-price { display: flex; align-items: baseline; gap: 10px; }
+.sc-chg { font-size: 20px; font-weight: 700; }
+.sc-chg.pos { color: #ef5350; } .sc-chg.neg { color: #26a69a; }
+.sc-close { font-size: 12px; color: #888; }
+.sc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; border-top: 1px solid #23233a; padding-top: 8px; }
+.sc-cell { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
+.sc-cell .k { color: #888; font-size: 11px; }
+.sc-cell .v { font-weight: 600; }
+.sc-cell .v small { color: #777; font-weight: 400; font-size: 10px; }
+.sc-cell .v.pos { color: #ef5350; } .sc-cell .v.neg { color: #26a69a; }
+.sc-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.sc-tags .tag { font-size: 11px; color: #aab8cf; background: #23233a; border-radius: 8px; padding: 1px 8px; }
+.sc-tags .tag-warn { color: #ffb74d; background: rgba(255,157,0,0.12); }
+.sc-tags .tag-good { color: #22c55e; background: rgba(34,197,94,0.14); }
+.sc-pin { font-size: 17px; color: #555; cursor: pointer; line-height: 1; padding: 0 2px; }
+.sc-pin.on { color: #ffd166; }
+.sc-pin:hover { color: #ffd166; }
+.main-card .sc-tags .cat-tag { margin-right: 0; }
+
+/* ── 每日看板主表「去擠」：加大行高 + 字級 + 隔行層次 ── */
+#main-table .tabulator-row { min-height: 34px; }
+#main-table .tabulator-row .tabulator-cell { padding-top: 7px; padding-bottom: 7px; font-size: 12.5px; }
+#main-table .tabulator-row.tabulator-row-even { background: #15152a; }
+#main-table .tabulator-row:hover { background: #1f2540 !important; }
+#main-table .tabulator-col { font-size: 12px; }
+
 .mode-toggle {
   margin-top: 6px;
   display: flex;

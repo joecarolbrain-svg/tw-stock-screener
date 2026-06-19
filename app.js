@@ -125,6 +125,7 @@ const state = {
   distRiskMax: null,
   groupZMin: null,
   table: null,
+  mainView: null,        // 每日看板檢視：table | card
   // 自選股
   pinned: new Set(JSON.parse(localStorage.getItem('pinnedTickers') || '[]')),
   onlyPinned: false,
@@ -551,6 +552,7 @@ function applyFilters() {
     document.getElementById('row-count').textContent = `${visible}/${total} 檔`;
     renderActiveFilters();
     updateGroupCounts();
+    refreshMainView();
   }, 0);
 }
 
@@ -662,6 +664,14 @@ function bindControls() {
   document.getElementById('search-input').addEventListener('input', e => {
     state.search = e.target.value.trim(); applyFilters();
   });
+
+  // 每日看板 表格 ⇄ 卡片 切換
+  const mvt = document.getElementById('main-viewtoggle');
+  if (mvt) mvt.querySelectorAll('.vt-btn').forEach(b => b.addEventListener('click', () => {
+    state.mainView = b.dataset.view;
+    setTabView('main', b.dataset.view);
+    refreshMainView();
+  }));
 
   // 主升模式 radio + 5 訊號 checkbox
   document.querySelectorAll('input[name="mainup-mode"]').forEach(r => {
@@ -2518,7 +2528,7 @@ document.addEventListener('DOMContentLoaded', initCBControls);
 //  🌀 Hanku 波段（週4/9 金叉狀態機）分頁
 //  讀 data/daily/{date}/hanku.json.gz → 狀態清單 + 點代號開 K 線(含疊加)
 // ═════════════════════════════════════════════════════════
-const hankuState = { loaded: false, loadedDate: null, data: null, table: null };
+const hankuState = { loaded: false, loadedDate: null, data: null, table: null, view: null };
 
 function _hkNum(prec) {
   return (cell) => { const v = cell.getValue(); return (v == null) ? '' : Number(v).toFixed(prec); };
@@ -2530,6 +2540,152 @@ function _hkPct(prec) {
     const c = v > 0 ? '#ef5350' : (v < 0 ? '#26a69a' : '#9aa');
     return `<span style="color:${c}">${v > 0 ? '+' : ''}${Number(v).toFixed(prec)}</span>`;
   };
+}
+
+// ── 卡片檢視（Hanku / 第三浪 共用） ──────────────────
+function getTabView(key, fallback = 'card') {
+  const s = localStorage.getItem('tabView_' + key);
+  return (s === 'card' || s === 'table') ? s : fallback;
+}
+function setTabView(key, v) { localStorage.setItem('tabView_' + key, v); }
+function syncViewToggle(id, view) {
+  const vt = document.getElementById(id);
+  if (!vt) return;
+  vt.querySelectorAll('.vt-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+}
+const _cardNum = (v, p = 2) => (v == null || isNaN(v)) ? '--' : Number(v).toFixed(p);
+function _cardPct(v, p = 1) {
+  if (v == null || isNaN(v)) return '<span class="v">--</span>';
+  const cls = v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
+  return `<span class="v ${cls}">${v > 0 ? '+' : ''}${Number(v).toFixed(p)}%</span>`;
+}
+function _chgSpan(v) {
+  const cls = v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
+  return `<span class="sc-chg ${cls}">${isNaN(v) ? '--' : (v > 0 ? '+' : '') + v.toFixed(2) + '%'}</span>`;
+}
+
+function hankuCardHtml(r) {
+  const warns = [];
+  if (r.warn47) warns.push('⚠️破47');
+  if (r.w4_down) warns.push('⚠️4T下彎');
+  return `<button type="button" class="stk-card" data-ticker="${r.ticker}">
+    <div class="sc-head">
+      <span class="sc-id"><b>${r.ticker}</b> ${r.name || ''}</span>
+      <span class="sc-state">${r.state || ''}</span>
+    </div>
+    <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span></div>
+    <div class="sc-grid">
+      <div class="sc-cell"><span class="k">進場</span><span class="v">${_cardNum(r.entry_px)} <small>${r.entry_date ? r.entry_date.slice(5) : ''}</small></span></div>
+      <div class="sc-cell"><span class="k">報酬</span>${_cardPct(r.ret_pct)}</div>
+      <div class="sc-cell"><span class="k">週9停損</span><span class="v">${_cardNum(r.w9_stop)}</span></div>
+      <div class="sc-cell"><span class="k">距9週</span>${_cardPct(r.dist_w9)}</div>
+    </div>
+    <div class="sc-tags">
+      ${r._ind ? `<span class="tag">${r._ind}</span>` : ''}
+      <span class="tag">發散 ${_cardNum(r.gap)}</span>
+      ${warns.map(w => `<span class="tag tag-warn">${w}</span>`).join('')}
+    </div>
+  </button>`;
+}
+
+function wave3CardHtml(r) {
+  const rr = r.rr;
+  const rrCls = rr >= 2 ? 'tag-good' : (rr >= 1 ? 'tag-warn' : '');
+  return `<button type="button" class="stk-card" data-ticker="${r.ticker}">
+    <div class="sc-head">
+      <span class="sc-id"><b>${r.ticker}</b> ${r.name || ''}</span>
+      <span class="sc-state">${r.state || ''}</span>
+    </div>
+    <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span></div>
+    <div class="sc-grid">
+      <div class="sc-cell"><span class="k">觸發(過1浪高)</span><span class="v">${_cardNum(r.trigger)}</span></div>
+      <div class="sc-cell"><span class="k">距觸發</span>${_cardPct(r.dist_trig)}</div>
+      <div class="sc-cell"><span class="k">停損(2浪低)</span><span class="v">${_cardNum(r.stop)}</span></div>
+      <div class="sc-cell"><span class="k">目標(Fib)</span><span class="v">${_cardNum(r.target)}</span></div>
+    </div>
+    <div class="sc-tags">
+      ${r._ind ? `<span class="tag">${r._ind}</span>` : ''}
+      <span class="tag ${rrCls}">R:R ${rr == null ? '--' : Number(rr).toFixed(2)}</span>
+      <span class="tag">報酬 ${r.ret_pct == null ? '--' : (r.ret_pct > 0 ? '+' : '') + Number(r.ret_pct).toFixed(1) + '%'}</span>
+      ${r.bull == null ? '' : `<span class="tag">${r.bull ? '大盤多✓' : '大盤空'}</span>`}
+    </div>
+  </button>`;
+}
+
+function renderStockCards(containerId, rows, htmlFn) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!rows.length) { el.innerHTML = '<div class="muted" style="padding:20px">無符合條件的個股</div>'; return; }
+  el.innerHTML = rows.map(htmlFn).join('');
+  el.querySelectorAll('.stk-card').forEach((card, i) => {
+    const r = rows[i];
+    card.addEventListener('click', () => openKlineModal(r.ticker, r.name, r.market));
+  });
+}
+
+// ── 每日看板 卡片檢視 ────────────────────────────────
+function mainCardHtml(r) {
+  const cmap = (state.data && state.data._catColor) || {};
+  const tags = (r.categories || []).map(code =>
+    `<span class="cat-tag" style="background:${cmap[code] || '#888'}">${code}</span>`).join('');
+  const pinned = state.pinned.has(r.ticker);
+  const entry = r.entry_price != null ? _cardNum(r.entry_price)
+    : (r.buy_point != null ? _cardNum(r.buy_point) : '--');
+  return `<div class="stk-card main-card" data-ticker="${r.ticker}">
+    <div class="sc-head">
+      <span class="sc-id"><b>${r.ticker}</b> ${r.name || ''}</span>
+      <span class="sc-pin ${pinned ? 'on' : ''}" data-pin="${r.ticker}">${pinned ? '★' : '☆'}</span>
+    </div>
+    <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span></div>
+    <div class="sc-grid">
+      <div class="sc-cell"><span class="k">分數</span><span class="v">${r.score != null ? Math.round(r.score) : '--'}</span></div>
+      <div class="sc-cell"><span class="k">命中</span><span class="v">${r.hits || 0}</span></div>
+      <div class="sc-cell"><span class="k">RS</span><span class="v">${_cardNum(r.rs, 0)}</span></div>
+      <div class="sc-cell"><span class="k">進場</span><span class="v">${entry}</span></div>
+    </div>
+    <div class="sc-tags">
+      ${r.industry ? `<span class="tag">${r.industry}</span>` : ''}
+      ${r.mainup_entry ? `<span class="tag tag-good">${r.mainup_entry}</span>` : ''}
+      ${tags}
+    </div>
+  </div>`;
+}
+
+function refreshMainView() {
+  if (!state.table) return;
+  const view = state.mainView || (state.mainView = getTabView('main', 'table'));
+  syncViewToggle('main-viewtoggle', view);
+  const cardsEl = document.getElementById('main-cards');
+  const tableEl = document.getElementById('main-table');
+  if (view !== 'card') {
+    if (cardsEl) { cardsEl.style.display = 'none'; cardsEl.innerHTML = ''; }
+    if (tableEl) tableEl.style.display = '';
+    return;
+  }
+  if (tableEl) tableEl.style.display = 'none';
+  if (cardsEl) cardsEl.style.display = '';
+  const CAP = 200;
+  const active = state.table.getData('active');
+  const shown = active.slice(0, CAP);
+  let html = shown.map(mainCardHtml).join('');
+  if (active.length > CAP)
+    html += `<div class="muted" style="padding:8px;grid-column:1/-1">顯示前 ${CAP} / 共 ${active.length} 檔（縮小篩選或切表格看全部）</div>`;
+  cardsEl.innerHTML = html || '<div class="muted" style="padding:20px">🔍 沒有符合條件的個股</div>';
+  cardsEl.querySelectorAll('.main-card').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.sc-pin')) return;
+      const t = card.dataset.ticker;
+      const r = active.find(x => String(x.ticker) === String(t));
+      openKlineModal(t, r ? r.name : '', r ? r.market : '');
+    });
+  });
+  cardsEl.querySelectorAll('.sc-pin').forEach((p) => {
+    p.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePin(p.dataset.pin);
+      refreshMainView();
+    });
+  });
 }
 
 const HANKU_COLS = [
@@ -2609,15 +2765,28 @@ function renderHanku() {
     `<span style="margin-left:14px;color:#888">顯示 ${rows.length} 檔</span>` +
     (hankuState.data.note ? `<div style="margin-top:4px;color:#888;font-size:11px">${hankuState.data.note}</div>` : '');
 
-  if (hankuState.table) hankuState.table.destroy();
-  hankuState.table = new Tabulator('#hanku-table', {
-    data: rows,
-    layout: 'fitDataTable',
-    height: 'calc(100vh - 320px)',
-    columns: HANKU_COLS,
-    placeholder: '無符合條件的個股',
-    initialSort: [{ column: 'ret_pct', dir: 'desc' }],
-  });
+  const view = hankuState.view || (hankuState.view = getTabView('hanku'));
+  syncViewToggle('hanku-viewtoggle', view);
+  const cardsEl = document.getElementById('hanku-cards');
+  const tableEl = document.getElementById('hanku-table');
+  if (view === 'card') {
+    if (hankuState.table) { hankuState.table.destroy(); hankuState.table = null; }
+    if (tableEl) tableEl.style.display = 'none';
+    if (cardsEl) cardsEl.style.display = '';
+    renderStockCards('hanku-cards', rows, hankuCardHtml);
+  } else {
+    if (cardsEl) { cardsEl.style.display = 'none'; cardsEl.innerHTML = ''; }
+    if (tableEl) tableEl.style.display = '';
+    if (hankuState.table) hankuState.table.destroy();
+    hankuState.table = new Tabulator('#hanku-table', {
+      data: rows,
+      layout: 'fitDataTable',
+      height: 'calc(100vh - 320px)',
+      columns: HANKU_COLS,
+      placeholder: '無符合條件的個股',
+      initialSort: [{ column: 'ret_pct', dir: 'desc' }],
+    });
+  }
 }
 
 function initHankuControls() {
@@ -2627,6 +2796,12 @@ function initHankuControls() {
     const ev = el.tagName === 'SELECT' ? 'change' : 'input';
     el.addEventListener(ev, () => { if (hankuState.loaded) renderHanku(); });
   });
+  const vt = document.getElementById('hanku-viewtoggle');
+  if (vt) vt.querySelectorAll('.vt-btn').forEach(b => b.addEventListener('click', () => {
+    hankuState.view = b.dataset.view;
+    setTabView('hanku', b.dataset.view);
+    if (hankuState.loaded) renderHanku();
+  }));
 }
 document.addEventListener('DOMContentLoaded', initHankuControls);
 
@@ -2634,7 +2809,7 @@ document.addEventListener('DOMContentLoaded', initHankuControls);
 //  🌊 艾略特第三浪（過1浪高+滾量 進場）分頁
 //  讀 data/daily/{date}/wave3.json.gz → 狀態清單 + 建議價位 + 點代號開 K 線
 // ═════════════════════════════════════════════════════════
-const wave3State = { loaded: false, loadedDate: null, data: null, table: null };
+const wave3State = { loaded: false, loadedDate: null, data: null, table: null, view: null };
 
 const WAVE3_COLS = [
   { title: '代號', field: 'ticker', width: 80, frozen: true,
@@ -2714,15 +2889,28 @@ function renderWave3() {
     `<span style="margin-left:14px;color:#888">顯示 ${rows.length} 檔</span>` +
     (wave3State.data.note ? `<div style="margin-top:4px;color:#888;font-size:11px">${wave3State.data.note}</div>` : '');
 
-  if (wave3State.table) wave3State.table.destroy();
-  wave3State.table = new Tabulator('#wave3-table', {
-    data: rows,
-    layout: 'fitDataTable',
-    height: 'calc(100vh - 320px)',
-    columns: WAVE3_COLS,
-    placeholder: '無符合條件的個股',
-    initialSort: [{ column: 'rr', dir: 'desc' }],
-  });
+  const view = wave3State.view || (wave3State.view = getTabView('wave3'));
+  syncViewToggle('wave3-viewtoggle', view);
+  const cardsEl = document.getElementById('wave3-cards');
+  const tableEl = document.getElementById('wave3-table');
+  if (view === 'card') {
+    if (wave3State.table) { wave3State.table.destroy(); wave3State.table = null; }
+    if (tableEl) tableEl.style.display = 'none';
+    if (cardsEl) cardsEl.style.display = '';
+    renderStockCards('wave3-cards', rows, wave3CardHtml);
+  } else {
+    if (cardsEl) { cardsEl.style.display = 'none'; cardsEl.innerHTML = ''; }
+    if (tableEl) tableEl.style.display = '';
+    if (wave3State.table) wave3State.table.destroy();
+    wave3State.table = new Tabulator('#wave3-table', {
+      data: rows,
+      layout: 'fitDataTable',
+      height: 'calc(100vh - 320px)',
+      columns: WAVE3_COLS,
+      placeholder: '無符合條件的個股',
+      initialSort: [{ column: 'rr', dir: 'desc' }],
+    });
+  }
 }
 
 function initWave3Controls() {
@@ -2732,6 +2920,12 @@ function initWave3Controls() {
     const ev = el.tagName === 'SELECT' ? 'change' : 'input';
     el.addEventListener(ev, () => { if (wave3State.loaded) renderWave3(); });
   });
+  const vt = document.getElementById('wave3-viewtoggle');
+  if (vt) vt.querySelectorAll('.vt-btn').forEach(b => b.addEventListener('click', () => {
+    wave3State.view = b.dataset.view;
+    setTabView('wave3', b.dataset.view);
+    if (wave3State.loaded) renderWave3();
+  }));
 }
 document.addEventListener('DOMContentLoaded', initWave3Controls);
 

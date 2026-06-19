@@ -77,10 +77,12 @@ async function onDateChange(ev) {
     state.data = data;
     data._catColor = {};
     data.categories.forEach(c => { data._catColor[c.code] = c.color; });
+    buildTickerIndustry(data);
     renderMeta(data);
     renderCategoryChips(data.categories);
     renderDimensionOptions();
     buildTable(data);
+    renderFocusStrip(data);
     applyFilters();
   } catch (err) {
     console.error(err);
@@ -134,6 +136,55 @@ const state = {
   mainupEntry: '',        // 進場型態篩選（空=不限）；任何模式皆生效
   mainupExclDist: false,  // 排除出貨警訊；任何模式皆生效
 };
+
+// 代號→產業 對照表（供 hanku/wave3 等資料無產業欄的分頁，借主表 row 的 industry）
+let tickerIndustry = {};
+function buildTickerIndustry(data) {
+  tickerIndustry = {};
+  (data.rows || []).forEach(r => { if (r.ticker) tickerIndustry[r.ticker] = r.industry || ''; });
+}
+
+// 依目前 rows 內出現的產業，重建產業下拉選項（保留原選取）
+function populateIndustrySelect(selectEl, rows) {
+  if (!selectEl) return;
+  const prev = selectEl.value;
+  const inds = Array.from(new Set(rows.map(r => r._ind).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+  selectEl.innerHTML = '<option value="all">全部產業</option>' +
+    inds.map(i => `<option value="${i}">${i}</option>`).join('');
+  if (prev && (prev === 'all' || inds.includes(prev))) selectEl.value = prev;
+}
+
+// 🔥 今日突破焦點 Top3（借鏡 aistockmap「今日焦點」榜）
+//   排序：命中數(跨策略共振) → 分數；點卡片開站內 K 線。
+function renderFocusStrip(data) {
+  const el = document.getElementById('focus-strip');
+  if (!el) return;
+  const rows = (data.rows || []).filter(r => (r.hits || 0) >= 1);
+  rows.sort((a, b) => (b.hits || 0) - (a.hits || 0) || (b.score || 0) - (a.score || 0));
+  const top = rows.slice(0, 3);
+  if (!top.length) { el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  el.innerHTML =
+    `<div class="fs-head">🔥 今日突破焦點 <span class="fs-sub">命中數 → 分數 排序，點卡片看 K 線</span></div>` +
+    `<div class="fs-cards">` +
+    top.map((r, i) => {
+      const chg = Number(r.chg_pct);
+      const pos = !(chg < 0);
+      const chgTxt = isNaN(chg) ? '--' : `${chg > 0 ? '+' : ''}${chg.toFixed(2)}%`;
+      return `<button type="button" class="fs-card ${pos ? 'pos' : 'neg'}">
+        <div class="fs-row"><span class="fs-rank">#${i + 1}</span><span class="fs-hits">命中 ${r.hits}</span></div>
+        <div class="fs-chg">${chgTxt}</div>
+        <div class="fs-id"><span class="fs-code">${r.ticker}</span> <span class="fs-name">${r.name || ''}</span></div>
+        <div class="fs-meta">分數 ${r.score != null ? Math.round(r.score) : '--'}　${r.industry || ''}</div>
+      </button>`;
+    }).join('') +
+    `</div>`;
+  el.querySelectorAll('.fs-card').forEach((card, i) => {
+    const r = top[i];
+    card.addEventListener('click', () => openKlineModal(r.ticker, r.name, r.market));
+  });
+}
 
 // 自選股分頁狀態
 const watchState = {
@@ -263,6 +314,7 @@ function renderCategoryChips(cats) {
     const chip = document.createElement('label');
     chip.className = 'cat-chip';
     chip.style.color = c.color;
+    chip.style.setProperty('--cat', c.color);
     chip.dataset.code = c.code;
     chip.innerHTML = `
       <input type="checkbox" value="${c.code}" />
@@ -1966,10 +2018,12 @@ function renderMarket(d) {
     data._catColor = {};
     data.categories.forEach(c => { data._catColor[c.code] = c.color; });
 
+    buildTickerIndustry(data);
     renderMeta(data);
     renderCategoryChips(data.categories);
     renderDimensionOptions();
     buildTable(data);
+    renderFocusStrip(data);
     bindControls();
     bindGroupToggles();
     bindTabs();
@@ -1983,6 +2037,129 @@ function renderMarket(d) {
   }
 })();
 
+
+// ─── 權證自選清單 ────────────────────────────────────
+const WW_STORE = 'warrant_watch_v1';
+const warrantWatchState = { list: [], subtab: 'query' };
+
+function wwLoad() {
+  try { warrantWatchState.list = JSON.parse(localStorage.getItem(WW_STORE) || '[]'); }
+  catch { warrantWatchState.list = []; }
+}
+function wwSave() {
+  localStorage.setItem(WW_STORE, JSON.stringify(warrantWatchState.list));
+}
+function wwAdd(code) {
+  code = String(code).trim();
+  if (!code || warrantWatchState.list.includes(code)) return;
+  warrantWatchState.list.push(code);
+  wwSave();
+  renderWarrantWatch();
+}
+function wwRemove(code) {
+  warrantWatchState.list = warrantWatchState.list.filter(c => c !== code);
+  wwSave();
+  renderWarrantWatch();
+}
+
+function renderWarrantWatch() {
+  const container = document.getElementById('warrant-watch-cards');
+  if (!container) return;
+  const strat = document.getElementById('ww-strategy')?.value || '短打';
+  const us = warrantState.data?.underlyings || {};
+
+  if (!warrantState.data) {
+    container.innerHTML = '<div style="padding:40px;color:#ff9d00;text-align:center">⚠️ 尚未載入權證資料，請稍後再試</div>';
+    return;
+  }
+  if (warrantWatchState.list.length === 0) {
+    container.innerHTML = '<div style="padding:40px;color:#888;text-align:center">清單是空的，在上方輸入股號後按「＋ 加入」</div>';
+    return;
+  }
+
+  container.innerHTML = warrantWatchState.list.map(code => {
+    const u = us[code];
+    if (!u) {
+      return `<div class="ww-card ww-card-missing">
+        <div class="ww-card-head">
+          <span class="ww-code">${code}</span>
+          <span class="muted" style="margin-left:8px">資料中無此標的（無認購權證或未達門檻）</span>
+          <button class="ww-rm btn btn-ghost btn-danger" data-code="${code}" style="margin-left:auto">✕</button>
+        </div>
+      </div>`;
+    }
+    const top = (u.strategies?.[strat] || [])[0];
+    const topHtml = top
+      ? `<div class="ww-best">
+           <span class="ww-strat-lbl">${strat} #1</span>
+           <b>${top['權證代號'] || ''}</b>
+           <span style="color:#aaa;margin:0 4px">${top['權證名稱'] || ''}</span>
+           <span class="ww-check">${top['小哥檢核'] || ''}</span>
+           <span class="ww-attrs">
+             ${top['剩餘天數'] != null ? `剩<b>${top['剩餘天數']}</b>天` : ''}
+             ${top['有效槓桿'] != null ? `槓<b>${Number(top['有效槓桿']).toFixed(1)}x</b>` : ''}
+             ${top['隱含波動率'] != null ? `IV<b>${Number(top['隱含波動率']).toFixed(0)}%</b>` : ''}
+             ${top['分數'] != null ? `分<b>${Number(top['分數']).toFixed(1)}</b>` : ''}
+           </span>
+         </div>`
+      : `<div class="ww-best muted" style="padding:4px 0">該策略下無排名</div>`;
+
+    return `<div class="ww-card">
+      <div class="ww-card-head">
+        <span class="ww-code">${code}</span>
+        <span class="ww-name">${u.name || ''}</span>
+        <span class="ww-price">${u.price != null ? u.price.toFixed(1) : '—'}</span>
+        <span class="muted" style="margin-left:8px">認購${u.warrant_count || 0}檔　IV均${u.avg_iv ?? '—'}%</span>
+        <button class="ww-detail btn btn-ghost" data-code="${code}" style="margin-left:auto">🔍 詳查</button>
+        <button class="ww-rm btn btn-ghost btn-danger" data-code="${code}" style="margin-left:4px">✕</button>
+      </div>
+      ${topHtml}
+    </div>`;
+  }).join('');
+
+  container.querySelectorAll('.ww-rm').forEach(btn => {
+    btn.addEventListener('click', () => wwRemove(btn.dataset.code));
+  });
+  container.querySelectorAll('.ww-detail').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setWarrantSubtab('query');
+      document.getElementById('warrant-stock').value = btn.dataset.code;
+      renderWarrant();
+    });
+  });
+}
+
+function setWarrantSubtab(sub) {
+  warrantWatchState.subtab = sub;
+  document.querySelectorAll('.warrant-subtab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.wsub === sub));
+  document.getElementById('warrant-query-panel').style.display = sub === 'query' ? '' : 'none';
+  document.getElementById('warrant-watch-panel').style.display  = sub === 'watch'  ? '' : 'none';
+  if (sub === 'watch') renderWarrantWatch();
+}
+
+function bindWarrantWatchControls() {
+  if (bindWarrantWatchControls._done) return;
+  bindWarrantWatchControls._done = true;
+  wwLoad();
+
+  document.querySelectorAll('.warrant-subtab-btn').forEach(btn => {
+    btn.addEventListener('click', () => setWarrantSubtab(btn.dataset.wsub));
+  });
+
+  const input = document.getElementById('ww-input');
+  document.getElementById('ww-add-btn')?.addEventListener('click', () => {
+    wwAdd(input.value); input.value = '';
+  });
+  input?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { wwAdd(input.value); input.value = ''; }
+  });
+  document.getElementById('ww-clear-btn')?.addEventListener('click', () => {
+    if (!confirm('確定清空自選清單？')) return;
+    warrantWatchState.list = []; wwSave(); renderWarrantWatch();
+  });
+  document.getElementById('ww-strategy')?.addEventListener('change', renderWarrantWatch);
+}
 
 // ─── 權證精選分頁 ────────────────────────────────────
 async function loadWarrants() {
@@ -2014,7 +2191,9 @@ async function loadWarrants() {
     collectIssuers();
     renderIssuerChecks();
     bindWarrantControls();
+    bindWarrantWatchControls();
     renderWarrant();
+    if (warrantWatchState.subtab === 'watch') renderWarrantWatch();
   } catch (err) {
     metaEl.textContent = `❌ ${err.message}`;
     console.error(err);
@@ -2362,6 +2541,7 @@ const HANKU_COLS = [
       openKlineModal(cell.getValue(), r.name, r.market);
     } },
   { title: '名稱', field: 'name', width: 100, frozen: true },
+  { title: '產業', field: '_ind', width: 110 },
   { title: '狀態', field: 'state', width: 135 },
   { title: '當日%', field: 'chg_pct', width: 78, hozAlign: 'right', sorter: 'number', formatter: _hkPct(2) },
   { title: '現價', field: 'close', width: 76, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
@@ -2400,6 +2580,8 @@ async function loadHanku() {
     hankuState.data = await fetchJsonGz(`data/daily/${hkDate}/hanku.json.gz`);
     hankuState.loaded = true;
     hankuState.loadedDate = currentDate;
+    (hankuState.data.rows || []).forEach(r => { r._ind = tickerIndustry[r.ticker] || ''; });
+    populateIndustrySelect(document.getElementById('hanku-industry'), hankuState.data.rows);
     const d = hankuState.data;
     metaEl.textContent = `資料日 ${d.trading_date}　|　${d.rows.length} 檔　|　更新 ${(d.generated_at || '').slice(11, 16)}`;
     renderHanku();
@@ -2411,10 +2593,12 @@ async function loadHanku() {
 function renderHanku() {
   if (!hankuState.data) return;
   const stSel = document.getElementById('hanku-state').value;
+  const indSel = (document.getElementById('hanku-industry') || {}).value || 'all';
   const q = String(document.getElementById('hanku-search').value || '').trim().toLowerCase();
 
   let rows = hankuState.data.rows.slice();
   if (stSel !== 'all') rows = rows.filter(r => r.state === stSel);
+  if (indSel !== 'all') rows = rows.filter(r => r._ind === indSel);
   if (q) rows = rows.filter(r =>
     (r.ticker || '').toLowerCase().includes(q) || (r.name || '').toLowerCase().includes(q));
 
@@ -2437,7 +2621,7 @@ function renderHanku() {
 }
 
 function initHankuControls() {
-  ['hanku-state', 'hanku-search'].forEach(id => {
+  ['hanku-state', 'hanku-industry', 'hanku-search'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const ev = el.tagName === 'SELECT' ? 'change' : 'input';
@@ -2461,6 +2645,7 @@ const WAVE3_COLS = [
       openKlineModal(cell.getValue(), r.name, r.market);
     } },
   { title: '名稱', field: 'name', width: 100, frozen: true },
+  { title: '產業', field: '_ind', width: 110 },
   { title: '狀態', field: 'state', width: 150 },
   { title: '當日%', field: 'chg_pct', width: 78, hozAlign: 'right', sorter: 'number', formatter: _hkPct(2) },
   { title: '現價', field: 'close', width: 76, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
@@ -2500,6 +2685,8 @@ async function loadWave3() {
     wave3State.data = await fetchJsonGz(`data/daily/${wvDate}/wave3.json.gz`);
     wave3State.loaded = true;
     wave3State.loadedDate = currentDate;
+    (wave3State.data.rows || []).forEach(r => { r._ind = tickerIndustry[r.ticker] || ''; });
+    populateIndustrySelect(document.getElementById('wave3-industry'), wave3State.data.rows);
     const d = wave3State.data;
     metaEl.textContent = `資料日 ${d.trading_date}　|　${d.rows.length} 檔　|　更新 ${(d.generated_at || '').slice(11, 16)}`;
     renderWave3();
@@ -2511,10 +2698,12 @@ async function loadWave3() {
 function renderWave3() {
   if (!wave3State.data) return;
   const stSel = document.getElementById('wave3-state').value;
+  const indSel = (document.getElementById('wave3-industry') || {}).value || 'all';
   const q = String(document.getElementById('wave3-search').value || '').trim().toLowerCase();
 
   let rows = wave3State.data.rows.slice();
   if (stSel !== 'all') rows = rows.filter(r => r.state === stSel);
+  if (indSel !== 'all') rows = rows.filter(r => r._ind === indSel);
   if (q) rows = rows.filter(r =>
     (r.ticker || '').toLowerCase().includes(q) || (r.name || '').toLowerCase().includes(q));
 
@@ -2537,7 +2726,7 @@ function renderWave3() {
 }
 
 function initWave3Controls() {
-  ['wave3-state', 'wave3-search'].forEach(id => {
+  ['wave3-state', 'wave3-industry', 'wave3-search'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const ev = el.tagName === 'SELECT' ? 'change' : 'input';

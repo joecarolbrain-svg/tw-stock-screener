@@ -300,6 +300,40 @@ input:focus, select:focus { outline: 2px solid #00d4aa; outline-offset: -1px; }
 }
 .cat-chip.checked .count { color: inherit; }
 
+/* chip 降噪：未選＝灰、僅留小色點；選中才上類股色（借鏡 aistockmap 安靜標籤） */
+.cat-chip { background: #16162a; }
+.cat-chip .label { color: #9aa0b0; }
+.cat-chip .dot { opacity: 0.5; }
+.cat-chip:hover .label { color: #d6dae6; }
+.cat-chip.checked { background: color-mix(in srgb, var(--cat, #00d4aa) 18%, #16162a); border-color: currentColor; }
+.cat-chip.checked .label { color: currentColor; font-weight: 600; }
+.cat-chip.checked .dot { opacity: 1; }
+
+/* ── 🔥 今日突破焦點（dashboard 頂部榜單卡） ───────── */
+.focus-strip { padding: 12px 20px 2px; }
+.fs-head { font-size: 13px; font-weight: 700; color: #00d4aa; margin-bottom: 8px; }
+.fs-head .fs-sub { font-weight: 400; color: #888; font-size: 11px; margin-left: 8px; }
+.fs-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.fs-card {
+  text-align: left; cursor: pointer; font-family: inherit;
+  background: #1a1a2e; border: 1px solid #2a2a3e; border-radius: 10px;
+  padding: 12px 14px; color: #e0e0e0;
+  display: flex; flex-direction: column; gap: 4px;
+  transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+.fs-card:hover { transform: translateY(-2px); border-color: #00d4aa; box-shadow: 0 4px 14px rgba(0,0,0,0.35); }
+.fs-row { display: flex; justify-content: space-between; align-items: center; }
+.fs-rank { font-size: 12px; font-weight: 700; color: #ffb347; }
+.fs-hits { font-size: 11px; color: #00d4aa; background: rgba(0,212,170,0.12); padding: 1px 8px; border-radius: 10px; }
+.fs-chg { font-size: 24px; font-weight: 700; line-height: 1.1; }
+.fs-card.pos .fs-chg { color: #ef5350; }
+.fs-card.neg .fs-chg { color: #26a69a; }
+.fs-id { font-size: 14px; }
+.fs-id .fs-code { font-weight: 700; color: #cfe1ff; }
+.fs-id .fs-name { color: #aab8cf; }
+.fs-meta { font-size: 11px; color: #888; }
+@media (max-width: 720px) { .fs-cards { grid-template-columns: 1fr; } }
+
 .mode-toggle {
   margin-top: 6px;
   display: flex;
@@ -703,3 +737,41 @@ footer {
 .fg-body { padding: 10px 14px; background: #0d0d1a; border-bottom: 1px solid #2a2a3e;
   display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-start; }
 .fg-body[data-group="mainup"] { flex-direction: column; gap: 6px; }
+
+/* ── 權證自選清單 ── */
+.ww-card {
+  background: #0d0d1a;
+  border: 1px solid #2a2a3e;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  padding: 10px 14px;
+}
+.ww-card-missing { opacity: 0.6; }
+.ww-card-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ww-code { font-size: 15px; font-weight: 700; color: #00d4aa; }
+.ww-name { font-size: 14px; color: #e0e0e0; }
+.ww-price { font-size: 14px; font-weight: 700; color: #ffb347; margin-left: 6px; }
+.ww-best {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #ccc;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ww-strat-lbl {
+  background: #1e2a40;
+  color: #6ea8ff;
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 11px;
+}
+.ww-check { color: #e0e0e0; }
+.ww-attrs { color: #aaa; font-size: 12px; }
+.ww-attrs b { color: #fff; }

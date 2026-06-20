@@ -672,6 +672,8 @@ function bindControls() {
     setTabView('main', b.dataset.view);
     refreshMainView();
   }));
+  const mcs = document.getElementById('main-card-sort');
+  if (mcs) mcs.addEventListener('change', refreshMainView);
 
   // 主升模式 radio + 5 訊號 checkbox
   document.querySelectorAll('input[name="mainup-mode"]').forEach(r => {
@@ -2645,29 +2647,67 @@ function renderStockCards(containerId, rows, htmlFn) {
 }
 
 // ── 每日看板 卡片檢視 ────────────────────────────────
+// 卡片排序器（預設 命中數→分數）
+const MAIN_CARD_SORT = {
+  hits:        (a, b) => (b.hits || 0) - (a.hits || 0) || (b.score || 0) - (a.score || 0),
+  score:       (a, b) => (b.score || 0) - (a.score || 0),
+  rs:          (a, b) => (b.rs ?? -1e9) - (a.rs ?? -1e9),
+  chg_pct:     (a, b) => (b.chg_pct ?? -1e9) - (a.chg_pct ?? -1e9),
+  rr:          (a, b) => (b.rr ?? -1e9) - (a.rr ?? -1e9),
+  max_group_z: (a, b) => (b.max_group_z ?? -1e9) - (a.max_group_z ?? -1e9) || (b.score || 0) - (a.score || 0),
+};
+
+function _hitTier(h) {
+  h = h || 0;
+  if (h >= 4) return 'q-gold';
+  if (h === 3) return 'q-silver';
+  if (h === 2) return 'q-bronze';
+  return 'q-grey';
+}
+
 function mainCardHtml(r) {
   const cmap = (state.data && state.data._catColor) || {};
-  const tags = (r.categories || []).map(code =>
+  const catTags = (r.categories || []).map(code =>
     `<span class="cat-tag" style="background:${cmap[code] || '#888'}">${code}</span>`).join('');
   const pinned = state.pinned.has(r.ticker);
+
+  // 可交易性：進場(無價→觀察) / 目標 / RR
   const entry = r.entry_price != null ? _cardNum(r.entry_price)
-    : (r.buy_point != null ? _cardNum(r.buy_point) : '--');
-  return `<div class="stk-card main-card" data-ticker="${r.ticker}">
+    : (r.buy_point != null ? _cardNum(r.buy_point) : '觀察');
+  const rr = r.rr;
+  const rrCls = rr == null ? '' : (rr >= 2 ? 'rr-good' : (rr >= 1 ? 'rr-mid' : 'rr-low'));
+
+  // 旗標：地雷(紅) + 進場型態(綠)
+  const flags = [];
+  if (r.mainup_entry === '⚠過高勿追') flags.push(['⚠過高勿追', 'f-red']);
+  else if (r.mainup_entry) flags.push([r.mainup_entry, 'f-good']);
+  if (r.dist_signal && /盤頭|出貨/.test(r.dist_signal)) flags.push(['⚠' + r.dist_signal, 'f-red']);
+  if (r.overhead && /壓力|套牢|重/.test(r.overhead)) flags.push(['⚠上方套牢', 'f-warn']);
+  const flagHtml = flags.map(([t, c]) => `<span class="tag ${c}">${t}</span>`).join('');
+
+  const hot = (r.max_group_z != null && r.max_group_z >= 1)
+    ? '<span class="sc-hot">🔥族群</span>' : '';
+
+  return `<div class="stk-card main-card ${_hitTier(r.hits)}" data-ticker="${r.ticker}">
     <div class="sc-head">
       <span class="sc-id"><b>${r.ticker}</b> ${r.name || ''}</span>
-      <span class="sc-pin ${pinned ? 'on' : ''}" data-pin="${r.ticker}">${pinned ? '★' : '☆'}</span>
+      <span class="sc-head-r">${hot}<span class="sc-pin ${pinned ? 'on' : ''}" data-pin="${r.ticker}">${pinned ? '★' : '☆'}</span></span>
     </div>
-    <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span></div>
-    <div class="sc-grid">
-      <div class="sc-cell"><span class="k">分數</span><span class="v">${r.score != null ? Math.round(r.score) : '--'}</span></div>
-      <div class="sc-cell"><span class="k">命中</span><span class="v">${r.hits || 0}</span></div>
-      <div class="sc-cell"><span class="k">RS</span><span class="v">${_cardNum(r.rs, 0)}</span></div>
-      <div class="sc-cell"><span class="k">進場</span><span class="v">${entry}</span></div>
+    <div class="sc-quality">
+      <span class="q-hit">命中×${r.hits || 0}</span>
+      <span class="q-score">分 ${r.score != null ? Math.round(r.score) : '--'}</span>
+      <span class="q-rs">RS ${_cardNum(r.rs, 0)}</span>
+    </div>
+    <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span><span class="sc-vol">量 ${_cardNum(r.vol_ratio, 1)}x</span></div>
+    <div class="sc-trade">
+      <span><i>進場</i>${entry}</span>
+      <span><i>目標</i>${_cardNum(r.target)}</span>
+      <span><i>RR</i><b class="${rrCls}">${rr == null ? '--' : Number(rr).toFixed(2)}</b></span>
     </div>
     <div class="sc-tags">
       ${r.industry ? `<span class="tag">${r.industry}</span>` : ''}
-      ${r.mainup_entry ? `<span class="tag tag-good">${r.mainup_entry}</span>` : ''}
-      ${tags}
+      ${flagHtml}
+      ${catTags}
     </div>
   </div>`;
 }
@@ -2678,15 +2718,20 @@ function refreshMainView() {
   syncViewToggle('main-viewtoggle', view);
   const cardsEl = document.getElementById('main-cards');
   const tableEl = document.getElementById('main-table');
+  const sortEl = document.getElementById('main-card-sort');
   if (view !== 'card') {
     if (cardsEl) { cardsEl.style.display = 'none'; cardsEl.innerHTML = ''; }
+    if (sortEl) sortEl.style.display = 'none';
     if (tableEl) tableEl.style.display = '';
     return;
   }
   if (tableEl) tableEl.style.display = 'none';
   if (cardsEl) cardsEl.style.display = '';
+  if (sortEl) sortEl.style.display = '';
   const CAP = 200;
   const active = state.table.getData('active');
+  const sortKey = (sortEl && sortEl.value) || 'hits';
+  active.sort(MAIN_CARD_SORT[sortKey] || MAIN_CARD_SORT.hits);
   const shown = active.slice(0, CAP);
   let html = shown.map(mainCardHtml).join('');
   if (active.length > CAP)

@@ -280,10 +280,11 @@ input:focus, select:focus { outline: 2px solid #00d4aa; outline-offset: -1px; }
 
 /* 分類 chip 分區塊（突破生命週期：醞釀/突破/續攻/籌碼/觀察） */
 #cat-checkboxes {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   align-items: start; gap: 10px 16px;
   flex: 1 1 100%; width: 100%;
 }
+.cat-group-hint { display: block; margin-left: 0; }
 .cat-group { }
 .cat-group-head {
   font-size: 12px; font-weight: 700; color: #cfd3e0;

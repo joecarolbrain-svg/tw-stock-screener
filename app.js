@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260620g';
+const APP_VERSION = '20260620h';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -429,6 +429,8 @@ function renderDimensionOptions() {
 
   const q = state.dimSearch.toLowerCase();
   const opts = d.options.filter(o => !q || o.name.toLowerCase().includes(q));
+
+  // 隱藏 select 仍同步(相容既有清除/組合邏輯)
   opts.forEach(o => {
     const el = document.createElement('option');
     el.value = o.name;
@@ -436,9 +438,52 @@ function renderDimensionOptions() {
     el.selected = state.dimSelected.has(o.name);
     sel.appendChild(el);
   });
+
+  // 聚合今日均漲(從個股 chg_pct)→ 卡片顯示熱度
+  const field = DIM_FIELD[state.dim];
+  const agg = {};
+  (state.data.rows || []).forEach(r => {
+    const chg = Number(r.chg_pct);
+    if (isNaN(chg)) return;
+    (r[field] || []).forEach(v => {
+      const a = agg[v] || (agg[v] = { sum: 0, n: 0 });
+      a.sum += chg; a.n++;
+    });
+  });
+
+  // 卡片：依命中家數排序，顯示 名稱/家數/今日均漲/🔥
+  const cardsEl = document.getElementById('dim-cards');
+  if (cardsEl) {
+    const sorted = opts.slice().sort((a, b) => (b.count || 0) - (a.count || 0));
+    cardsEl.innerHTML = sorted.map(o => {
+      const a = agg[o.name];
+      const avg = a && a.n ? a.sum / a.n : null;
+      const chgCls = avg == null ? '' : (avg > 0 ? 'pos' : (avg < 0 ? 'neg' : ''));
+      const chgTxt = avg == null ? '' : `${avg > 0 ? '+' : ''}${avg.toFixed(1)}%`;
+      const hot = (avg != null && avg >= 1.5) ? ' 🔥' : '';
+      const on = state.dimSelected.has(o.name) ? ' checked' : '';
+      return `<button type="button" class="dim-chip${on}" data-name="${o.name}">
+        <span class="dim-name">${o.name}${hot}</span>
+        <span class="dim-cnt">${o.count}</span>
+        <span class="dim-chg ${chgCls}">${chgTxt}</span>
+      </button>`;
+    }).join('') || '<span class="muted" style="padding:6px">無符合項目</span>';
+    cardsEl.querySelectorAll('.dim-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const name = btn.dataset.name;
+        if (state.dimSelected.has(name)) state.dimSelected.delete(name);
+        else state.dimSelected.add(name);
+        btn.classList.toggle('checked');
+        const opt = [...sel.options].find(o => o.value === name);
+        if (opt) opt.selected = state.dimSelected.has(name);
+        applyFilters();
+      });
+    });
+  }
+
   const total = d.options.length;
   const shown = opts.length;
-  src.textContent = `來源: ${d.source || '—'}｜${shown}/${total} 項`;
+  src.textContent = `來源: ${d.source || '—'}｜${shown}/${total} 項｜點卡片=篩選(可複選)`;
 }
 
 // ── 5. 建表（Tabulator） ────────────────────────────
@@ -706,6 +751,7 @@ function removeFilter(key) {
     case 'dim':
       state.dimSelected.clear();
       [...document.getElementById('dim-select').options].forEach(o => o.selected = false);
+      if (state.data) renderDimensionOptions();
       break;
     case 'search':
       state.search = ''; document.getElementById('search-input').value = '';

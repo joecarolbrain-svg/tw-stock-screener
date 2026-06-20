@@ -16,7 +16,7 @@
   <!-- lightweight-charts（K 線彈窗用） -->
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260620g" />
+  <link rel="stylesheet" href="style.css?v=20260620h" />
 </head>
 <body>
   <header class="topbar">
@@ -157,8 +157,9 @@
           <label><input type="radio" name="dim" value="sector" /> 類股</label>
           <label><input type="radio" name="dim" value="concept" /> 題材</label>
         </div>
-        <input type="text" id="dim-search" placeholder="搜尋選項..." class="dim-search-input" />
-        <select id="dim-select" multiple size="6"></select>
+        <input type="text" id="dim-search" placeholder="搜尋產業/類股/題材..." class="dim-search-input" />
+        <select id="dim-select" multiple size="6" style="display:none"></select>
+        <div id="dim-cards" class="dim-cards"></div>
         <span class="muted" id="dim-source"></span>
       </div>
     </div>
@@ -670,7 +671,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260620g"></script>
+  <script src="app.js?v=20260620h"></script>
   <script src="calc.js?v=20260609"></script>
   <script src="advice.js?v=20260609"></script>
 </body>

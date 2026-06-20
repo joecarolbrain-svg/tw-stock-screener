@@ -5,6 +5,13 @@
 
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
+// 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
+const APP_VERSION = '20260620e';
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('app-version');
+  if (el) el.textContent = APP_VERSION;
+});
+
 // ── 日期 & gzip JSON 載入 ────────────────────────────
 // currentDate: 'YYYYMMDD'。null 時等同 index.json.latest_date
 let currentDate = null;

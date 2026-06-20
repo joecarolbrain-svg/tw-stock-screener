@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- 讓瀏覽器每次重新驗證 HTML，避免載到舊版(GitHub Pages HTML 預設快取) -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>右側突破篩選器 — 雲端看板</title>
 
   <!-- Tabulator -->
@@ -12,7 +16,7 @@
   <!-- lightweight-charts（K 線彈窗用） -->
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260620d" />
+  <link rel="stylesheet" href="style.css?v=20260620e" />
 </head>
 <body>
   <header class="topbar">
@@ -607,6 +611,7 @@
   <footer>
     <span class="muted">資料來源：本地 Dash 篩選 / Schema v<span id="schema-version">--</span></span>
     <span class="muted">點代號 → 站內 K 線（含均線 / 法人 / 融資券）</span>
+    <span class="muted">介面版本 <b id="app-version">--</b></span>
   </footer>
 
   <!-- ── 站內 K 線彈窗 ───────────────────────────────────── -->
@@ -644,7 +649,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260620d"></script>
+  <script src="app.js?v=20260620e"></script>
   <script src="calc.js?v=20260609"></script>
   <script src="advice.js?v=20260609"></script>
 </body>

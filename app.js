@@ -90,7 +90,6 @@ async function onDateChange(ev) {
     renderDimensionOptions();
     buildTable(data);
     renderFocusStrip(data);
-    renderIslandStrip(data);
     loadResonanceData();
     applyFilters();
   } catch (err) {
@@ -147,6 +146,8 @@ const state = {
   mainupSignals: new Set(['s1', 's2', 's3', 's4', 's5', 'c1', 'c2', 'c3', 'mainup_ma60']),
   mainupEntry: '',        // 進場型態篩選（空=不限）；任何模式皆生效
   mainupExclDist: false,  // 排除出貨警訊；任何模式皆生效
+  // 島狀反轉：off|top|bottom|any（後端已判定缺口孤立，前端只篩 island_top/island_bottom 是否有值）
+  islandMode: 'off',
 };
 
 // 代號→產業 對照表（供 hanku/wave3 等資料無產業欄的分頁，借主表 row 的 industry）
@@ -229,36 +230,6 @@ function renderFocusStrip(data) {
   el.querySelectorAll('.fs-card').forEach((card, i) => {
     const r = top[i];
     card.addEventListener('click', () => openKlineModal(r.ticker, r.name, r.market));
-  });
-}
-
-// 🏝️ 今日島狀反轉（頂部=出場/做空、底部=進場/做多；缺口被前後夾住孤立才算）
-function renderIslandStrip(data) {
-  const el = document.getElementById('island-strip');
-  if (!el) return;
-  const rows = data.rows || [];
-  const tops = rows.filter(r => r.island_top);
-  const bottoms = rows.filter(r => r.island_bottom);
-  if (!tops.length && !bottoms.length) { el.hidden = true; el.innerHTML = ''; return; }
-  el.hidden = false;
-  const card = (r, kind) => {
-    const isTop = kind === 'top';
-    const gapTxt = isTop ? r.island_top : r.island_bottom;
-    return `<button type="button" class="fs-card ${isTop ? 'neg' : 'pos'}" data-ticker="${r.ticker}">
-      <div class="fs-row"><span class="fs-rank">${isTop ? '⬇ 頂部' : '⬆ 底部'}</span><span class="fs-hits">${isTop ? '出場/做空' : '進場/做多'}</span></div>
-      <div class="fs-id"><span class="fs-code">${r.ticker}</span> <span class="fs-name">${r.name || ''}</span></div>
-      <div class="fs-meta">${gapTxt}　${r.industry || ''}</div>
-    </button>`;
-  };
-  el.innerHTML =
-    `<div class="fs-head">🏝️ 今日島狀反轉 <span class="fs-sub">缺口前後夾住孤立才算，頂部=出場訊號／底部=進場訊號</span></div>` +
-    `<div class="fs-cards">` +
-    tops.map(r => card(r, 'top')).join('') +
-    bottoms.map(r => card(r, 'bottom')).join('') +
-    `</div>`;
-  el.querySelectorAll('.fs-card').forEach(c => {
-    const r = rows.find(x => String(x.ticker) === c.dataset.ticker);
-    if (r) c.addEventListener('click', () => openKlineModal(r.ticker, r.name, r.market));
   });
 }
 
@@ -695,6 +666,11 @@ function applyFilters() {
     if (state.mainupEntry && row.mainup_entry !== state.mainupEntry) return false;
     if (state.mainupExclDist && row.mainup_dist === 1) return false;
 
+    // 島狀反轉：top=頂部(出場/做空)｜bottom=底部(進場/做多)｜any=任一
+    if (state.islandMode === 'top' && !row.island_top) return false;
+    if (state.islandMode === 'bottom' && !row.island_bottom) return false;
+    if (state.islandMode === 'any' && !row.island_top && !row.island_bottom) return false;
+
     return true;
   });
 
@@ -717,6 +693,7 @@ function applyFilters() {
 // ── 6b. 已選條件 chip 列 / 分組徽章 / 收合 ───────────────
 const DIM_LABEL = { industry: '產業', sector: '類股', concept: '題材' };
 const MAINUP_MODE_LABEL = { sig: '自訂', A: '穩健A', B: '獵飆B' };
+const ISLAND_MODE_LABEL = { top: '頂部', bottom: '底部', any: '任一' };
 
 function renderActiveFilters() {
   const bar = document.getElementById('active-filters');
@@ -731,6 +708,7 @@ function renderActiveFilters() {
   }
   if (state.mainupEntry) add('mainupEntry', `進場:${state.mainupEntry}`);
   if (state.mainupExclDist) add('mainupExcl', '排除出貨');
+  if (state.islandMode !== 'off') add('island', `島狀:${ISLAND_MODE_LABEL[state.islandMode]}`);
   if (state.dimSelected.size) add('dim', `${DIM_LABEL[state.dim]}:${state.dimSelected.size}`);
   if (state.search) add('search', `搜尋:${state.search}`);
   if (state.scoreMin > 0) add('scoreMin', `分數≥${state.scoreMin}`);
@@ -757,6 +735,7 @@ function updateGroupCounts() {
   set('fgc-cat', state.selectedCats.size);
   set('fgc-mainup', (state.mainupMode !== 'off' ? 1 : 0) +
                     (state.mainupEntry ? 1 : 0) + (state.mainupExclDist ? 1 : 0));
+  set('fgc-island', state.islandMode !== 'off' ? 1 : 0);
   set('fgc-dim', state.dimSelected.size);
   set('fgc-thresh', (state.scoreMin > 0 ? 1 : 0) + (state.rsMin > 0 ? 1 : 0) +
                     (state.distRiskMax != null ? 1 : 0) + (state.groupZMin != null ? 1 : 0));
@@ -778,6 +757,10 @@ function removeFilter(key) {
       break;
     case 'mainupExcl':
       state.mainupExclDist = false; { const e = document.getElementById('mainup-excl-dist'); if (e) e.checked = false; }
+      break;
+    case 'island':
+      state.islandMode = 'off';
+      { const r = document.querySelector('input[name="island-mode"][value="off"]'); if (r) r.checked = true; }
       break;
     case 'dim':
       state.dimSelected.clear();
@@ -856,6 +839,11 @@ function bindControls() {
   if (muEntry) muEntry.addEventListener('change', e => { state.mainupEntry = e.target.value; applyFilters(); });
   const muExcl = document.getElementById('mainup-excl-dist');
   if (muExcl) muExcl.addEventListener('change', e => { state.mainupExclDist = e.target.checked; applyFilters(); });
+
+  // 島狀反轉模式 radio
+  document.querySelectorAll('input[name="island-mode"]').forEach(r => {
+    r.addEventListener('change', e => { state.islandMode = e.target.value; applyFilters(); });
+  });
 
   document.querySelectorAll('input[name="dim"]').forEach(r => {
     r.addEventListener('change', e => {
@@ -950,6 +938,7 @@ function clearAllFilters() {
   state.mainupSignals = new Set(['s1', 's2', 's3', 's4', 's5', 'c1', 'c2', 'c3', 'mainup_ma60']);
   state.mainupEntry = '';
   state.mainupExclDist = false;
+  state.islandMode = 'off';
 
   document.querySelectorAll('.cat-chip input').forEach(cb => { cb.checked = false; cb.parentElement.classList.remove('checked'); });
   document.querySelector('input[name="mode"][value="OR"]').checked = true;
@@ -959,6 +948,7 @@ function clearAllFilters() {
   const muSig = document.getElementById('mainup-signals'); if (muSig) muSig.hidden = true;
   const muE = document.getElementById('mainup-entry'); if (muE) muE.value = '';
   const muD = document.getElementById('mainup-excl-dist'); if (muD) muD.checked = false;
+  const islOff = document.querySelector('input[name="island-mode"][value="off"]'); if (islOff) islOff.checked = true;
   document.querySelector('input[name="dim"][value="industry"]').checked = true;
   document.getElementById('dim-search').value = '';
   renderDimensionOptions();
@@ -2226,7 +2216,6 @@ function renderMarket(d) {
     renderDimensionOptions();
     buildTable(data);
     renderFocusStrip(data);
-    renderIslandStrip(data);
     loadResonanceData();
     bindControls();
     bindGroupToggles();

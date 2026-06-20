@@ -280,8 +280,9 @@ input:focus, select:focus { outline: 2px solid #00d4aa; outline-offset: -1px; }
 
 /* 分類 chip 分區塊（突破生命週期：醞釀/突破/續攻/籌碼/觀察） */
 #cat-checkboxes {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   align-items: start; gap: 10px 16px;
+  flex: 1 1 100%; width: 100%;
 }
 .cat-group { }
 .cat-group-head {
@@ -835,7 +836,9 @@ footer {
 .mu-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding-left: 7px; }
 .mu-flow label { background: rgba(255,179,71,0.10); border: 1px solid #4a3a22; border-radius: 8px; padding: 2px 9px; }
 .mu-flow label:hover { border-color: #ffb347; }
+.mu-flow .mu-step { background: rgba(255,179,71,0.10); border: 1px solid #4a3a22; border-radius: 8px; padding: 2px 9px; color: #cfd3e0; }
 .mu-arrow { color: #ffb347; font-weight: 700; }
+.island-mode label { color: #5ad1ff; }
 .mainup-extra { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0; align-items: center; }
 .mainup-extra label { font-size: 12px; color: #ffd9a8; display: inline-flex; align-items: center; gap: 4px; }
 .mainup-extra select { font-size: 12px; }

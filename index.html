@@ -49,7 +49,6 @@
   <section class="tab-panel active" data-panel="dashboard">
 
   <div id="focus-strip" class="focus-strip" hidden></div>
-  <div id="island-strip" class="focus-strip" hidden></div>
 
   <section class="filters">
     <!-- 已選條件 chip 列 -->
@@ -73,6 +72,7 @@
       </select>
       <button class="fg-toggle" data-group="cat">分類<span class="fg-count" id="fgc-cat"></span></button>
       <button class="fg-toggle" data-group="mainup">主升<span class="fg-count" id="fgc-mainup"></span></button>
+      <button class="fg-toggle" data-group="island">島狀<span class="fg-count" id="fgc-island"></span></button>
       <button class="fg-toggle" data-group="dim">維度<span class="fg-count" id="fgc-dim"></span></button>
       <button class="fg-toggle" data-group="thresh">門檻<span class="fg-count" id="fgc-thresh"></span></button>
       <span class="filler"></span>
@@ -148,6 +148,27 @@
         <label><input type="checkbox" id="mainup-excl-dist" /> 排除出貨警訊</label>
       </div>
       <span class="muted" style="font-size:11px">自訂模式：勾選旗標全中才留（S1×S4/C1 互斥，建議取消）；進場型態/排除出貨任何模式皆生效</span>
+    </div>
+
+    <!-- 島狀反轉 -->
+    <div class="fg-body" data-group="island" hidden>
+      <div class="mode-toggle island-mode">
+        <label><input type="radio" name="island-mode" value="off" checked /> 關</label>
+        <label><input type="radio" name="island-mode" value="top" /> 頂部(出場/做空)</label>
+        <label><input type="radio" name="island-mode" value="bottom" /> 底部(進場/做多)</label>
+        <label><input type="radio" name="island-mode" value="any" /> 任一</label>
+      </div>
+      <div class="mu-block">
+        <div class="mu-head">🏝️ 島狀反轉 3 條件 <span class="mu-hint">缺口前後夾住孤立才算（自動判定，非勾選）</span></div>
+        <div class="mu-flow">
+          <span class="mu-step">①跳空缺口</span>
+          <span class="mu-arrow">→</span>
+          <span class="mu-step">②孤立島(1~5天)</span>
+          <span class="mu-arrow">→</span>
+          <span class="mu-step">③反向跳空缺口</span>
+        </div>
+      </div>
+      <span class="muted" style="font-size:11px">頂部＝先向上跳空再向下跳空回補(島懸在上方)；底部＝先向下跳空再向上跳空回補(島懸在下方)</span>
     </div>
 
     <!-- 維度 -->

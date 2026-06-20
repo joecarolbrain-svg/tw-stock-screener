@@ -12,7 +12,7 @@
   <!-- lightweight-charts（K 線彈窗用） -->
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260620c" />
+  <link rel="stylesheet" href="style.css?v=20260620d" />
 </head>
 <body>
   <header class="topbar">
@@ -59,6 +59,7 @@
       </div>
       <select id="main-card-sort" class="inline-select" title="卡片排序">
         <option value="hits">↕ 命中數→分數</option>
+        <option value="reso">↕ 共振數</option>
         <option value="score">↕ 分數</option>
         <option value="rs">↕ RS</option>
         <option value="chg_pct">↕ 漲幅</option>
@@ -79,6 +80,9 @@
       <button id="btn-only-pinned" class="btn btn-ghost" disabled>★ 只看勾選</button>
       <button id="btn-clear-pinned" class="btn btn-ghost btn-danger" disabled>清空</button>
       <span id="pin-summary" class="muted"></span>
+      <label class="check-toggle" title="只看同時被 ≥2 策略看好的股（突破命中＋Hanku＋第三浪）">
+        <input type="checkbox" id="only-resonance" /> ⚡ 只看共振
+      </label>
       <label class="check-toggle" title="只顯示族群最高 z ≥ 1 的個股（族群在熱區）">
         <input type="checkbox" id="only-hot-group" /> 🌊 族群z≥1
       </label>
@@ -640,7 +644,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260620c"></script>
+  <script src="app.js?v=20260620d"></script>
   <script src="calc.js?v=20260609"></script>
   <script src="advice.js?v=20260609"></script>
 </body>

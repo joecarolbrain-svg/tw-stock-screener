@@ -83,6 +83,7 @@ async function onDateChange(ev) {
     renderDimensionOptions();
     buildTable(data);
     renderFocusStrip(data);
+    loadResonanceData();
     applyFilters();
   } catch (err) {
     console.error(err);
@@ -131,6 +132,8 @@ const state = {
   onlyPinned: false,
   // 只顯示族群 z≥1
   onlyHotGroup: false,
+  // 只看跨策略共振（≥2 策略）
+  onlyResonance: false,
   // 主升策略：off|sig|A|B；sig 模式用 mainupSignals 勾選的旗標(5訊號+3條件+季線突破)
   mainupMode: 'off',
   mainupSignals: new Set(['s1', 's2', 's3', 's4', 's5', 'c1', 'c2', 'c3', 'mainup_ma60']),
@@ -155,6 +158,40 @@ function populateIndustrySelect(selectEl, rows) {
     inds.map(i => `<option value="${i}">${i}</option>`).join('');
   if (prev && (prev === 'all' || inds.includes(prev))) selectEl.value = prev;
 }
+
+// ── 跨策略共振：把 Hanku / 第三浪 的 actionable 清單併進每日看板 ──
+//   resonance.hanku/​wave3 = { 代號: 狀態 }；共振數 = 突破(命中≥1)+Hanku+三浪 命中幾個
+const resonance = { hanku: {}, wave3: {} };
+
+function _resoDate(kind) {
+  const ds = indexMeta?.dates || [];
+  return (ds.find(e => e.date === currentDate && (e.has || []).includes(kind))
+       || ds.find(e => (e.has || []).includes(kind)) || {}).date;
+}
+
+async function loadResonanceData() {
+  resonance.hanku = {}; resonance.wave3 = {};
+  const grab = async (kind, store) => {
+    try {
+      const d = _resoDate(kind);
+      if (!d) return;
+      const j = await fetchJsonGz(`data/daily/${d}/${kind}.json.gz`);
+      (j.rows || []).forEach(r => { if (r.ticker) store[r.ticker] = r.state || ''; });
+    } catch (e) { /* 缺資料不影響主表 */ }
+  };
+  await Promise.all([grab('hanku', resonance.hanku), grab('wave3', resonance.wave3)]);
+  // 資料到位後重跑篩選（共振篩選/排序/徽章才正確）
+  if (state.table) applyFilters();
+}
+
+function _resoCount(r) {
+  let n = 0;
+  if ((r.hits || 0) >= 1) n++;
+  if (resonance.hanku[r.ticker]) n++;
+  if (resonance.wave3[r.ticker]) n++;
+  return n;
+}
+function _stripLeadEmoji(s) { return String(s || '').replace(/^[^一-龥A-Za-z0-9]+/, ''); }
 
 // 🔥 今日突破焦點 Top3（借鏡 aistockmap「今日焦點」榜）
 //   排序：命中數(跨策略共振) → 分數；點卡片開站內 K 線。
@@ -485,6 +522,8 @@ function applyFilters() {
   state.table.setFilter((row) => {
     // 只看勾選
     if (state.onlyPinned && !state.pinned.has(row.ticker)) return false;
+    // 只看共振（同時被 ≥2 策略 actionable：突破/Hanku/三浪）
+    if (state.onlyResonance && _resoCount(row) < 2) return false;
     // 只顯示族群 z≥1
     if (state.onlyHotGroup && (row.max_group_z == null || row.max_group_z < 1)) return false;
     // 分類（AND/OR）
@@ -579,6 +618,7 @@ function renderActiveFilters() {
   if (state.rsMin > 0) add('rsMin', `RS≥${state.rsMin}`);
   if (state.distRiskMax != null) add('distRiskMax', `出貨風險≤${state.distRiskMax}`);
   if (state.groupZMin != null) add('groupZMin', `族群z≥${state.groupZMin}`);
+  if (state.onlyResonance) add('onlyResonance', '⚡只看共振');
   if (state.onlyHotGroup) add('onlyHotGroup', '族群z≥1');
   if (state.onlyPinned) add('onlyPinned', '只看勾選');
 
@@ -631,6 +671,7 @@ function removeFilter(key) {
     case 'rsMin': state.rsMin = 0; document.getElementById('rs-min').value = 0; break;
     case 'distRiskMax': state.distRiskMax = null; document.getElementById('dist-risk-max').value = ''; break;
     case 'groupZMin': state.groupZMin = null; document.getElementById('group-z-min').value = ''; break;
+    case 'onlyResonance': state.onlyResonance = false; document.getElementById('only-resonance').checked = false; break;
     case 'onlyHotGroup': state.onlyHotGroup = false; document.getElementById('only-hot-group').checked = false; break;
     case 'onlyPinned': {
       state.onlyPinned = false;
@@ -738,6 +779,14 @@ function bindControls() {
   if (hotChk) {
     hotChk.addEventListener('change', e => {
       state.onlyHotGroup = e.target.checked;
+      applyFilters();
+    });
+  }
+
+  const resoChk = document.getElementById('only-resonance');
+  if (resoChk) {
+    resoChk.addEventListener('change', e => {
+      state.onlyResonance = e.target.checked;
       applyFilters();
     });
   }
@@ -2057,6 +2106,7 @@ function renderMarket(d) {
     renderDimensionOptions();
     buildTable(data);
     renderFocusStrip(data);
+    loadResonanceData();
     bindControls();
     bindGroupToggles();
     bindTabs();
@@ -2655,6 +2705,7 @@ const MAIN_CARD_SORT = {
   chg_pct:     (a, b) => (b.chg_pct ?? -1e9) - (a.chg_pct ?? -1e9),
   rr:          (a, b) => (b.rr ?? -1e9) - (a.rr ?? -1e9),
   max_group_z: (a, b) => (b.max_group_z ?? -1e9) - (a.max_group_z ?? -1e9) || (b.score || 0) - (a.score || 0),
+  reso:        (a, b) => _resoCount(b) - _resoCount(a) || (b.hits || 0) - (a.hits || 0) || (b.score || 0) - (a.score || 0),
 };
 
 function _hitTier(h) {
@@ -2688,10 +2739,20 @@ function mainCardHtml(r) {
   const hot = (r.max_group_z != null && r.max_group_z >= 1)
     ? '<span class="sc-hot">🔥族群</span>' : '';
 
-  return `<div class="stk-card main-card ${_hitTier(r.hits)}" data-ticker="${r.ticker}">
+  // 跨策略共振徽章
+  const hk = resonance.hanku[r.ticker];
+  const wv = resonance.wave3[r.ticker];
+  const resoN = _resoCount(r);
+  const resoBadges =
+    (hk ? `<span class="reso-badge reso-hk">🌀${_stripLeadEmoji(hk)}</span>` : '') +
+    (wv ? `<span class="reso-badge reso-wv">🌊${_stripLeadEmoji(wv)}</span>` : '');
+  const resoRow = resoBadges ? `<div class="sc-reso">${resoBadges}</div>` : '';
+  const zap = resoN >= 2 ? '<span class="sc-zap" title="多策略共振">⚡共振</span>' : '';
+
+  return `<div class="stk-card main-card ${_hitTier(r.hits)}${resoN >= 2 ? ' is-reso' : ''}" data-ticker="${r.ticker}">
     <div class="sc-head">
       <span class="sc-id"><b>${r.ticker}</b> ${r.name || ''}</span>
-      <span class="sc-head-r">${hot}<span class="sc-pin ${pinned ? 'on' : ''}" data-pin="${r.ticker}">${pinned ? '★' : '☆'}</span></span>
+      <span class="sc-head-r">${zap}${hot}<span class="sc-pin ${pinned ? 'on' : ''}" data-pin="${r.ticker}">${pinned ? '★' : '☆'}</span></span>
     </div>
     <div class="sc-quality">
       <span class="q-hit">命中×${r.hits || 0}</span>
@@ -2704,6 +2765,7 @@ function mainCardHtml(r) {
       <span><i>目標</i>${_cardNum(r.target)}</span>
       <span><i>RR</i><b class="${rrCls}">${rr == null ? '--' : Number(rr).toFixed(2)}</b></span>
     </div>
+    ${resoRow}
     <div class="sc-tags">
       ${r.industry ? `<span class="tag">${r.industry}</span>` : ''}
       ${flagHtml}

@@ -404,6 +404,14 @@ input:focus, select:focus { outline: 2px solid #00d4aa; outline-offset: -1px; }
 .sc-tags .f-warn { color: #ffb74d; background: rgba(255,157,0,0.12); }
 .sc-tags .f-good { color: #22c55e; background: rgba(34,197,94,0.14); }
 
+/* 跨策略共振 */
+.main-card.is-reso { box-shadow: 0 0 0 1px rgba(0,212,170,0.35) inset; }
+.sc-zap { font-size: 11px; color: #00e6c3; background: rgba(0,212,170,0.16); border-radius: 8px; padding: 1px 6px; white-space: nowrap; font-weight: 700; }
+.sc-reso { display: flex; flex-wrap: wrap; gap: 4px; }
+.reso-badge { font-size: 11px; border-radius: 8px; padding: 1px 8px; white-space: nowrap; }
+.reso-badge.reso-hk { color: #c4b5fd; background: rgba(139,92,246,0.16); }
+.reso-badge.reso-wv { color: #7dd3fc; background: rgba(56,189,248,0.16); }
+
 /* ── 每日看板主表「去擠」：加大行高 + 字級 + 隔行層次 ── */
 #main-table .tabulator-row { min-height: 34px; }
 #main-table .tabulator-row .tabulator-cell { padding-top: 7px; padding-bottom: 7px; font-size: 12.5px; }

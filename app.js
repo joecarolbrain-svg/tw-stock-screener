@@ -90,6 +90,7 @@ async function onDateChange(ev) {
     renderDimensionOptions();
     buildTable(data);
     renderFocusStrip(data);
+    renderIslandStrip(data);
     loadResonanceData();
     applyFilters();
   } catch (err) {
@@ -228,6 +229,36 @@ function renderFocusStrip(data) {
   el.querySelectorAll('.fs-card').forEach((card, i) => {
     const r = top[i];
     card.addEventListener('click', () => openKlineModal(r.ticker, r.name, r.market));
+  });
+}
+
+// 🏝️ 今日島狀反轉（頂部=出場/做空、底部=進場/做多；缺口被前後夾住孤立才算）
+function renderIslandStrip(data) {
+  const el = document.getElementById('island-strip');
+  if (!el) return;
+  const rows = data.rows || [];
+  const tops = rows.filter(r => r.island_top);
+  const bottoms = rows.filter(r => r.island_bottom);
+  if (!tops.length && !bottoms.length) { el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  const card = (r, kind) => {
+    const isTop = kind === 'top';
+    const gapTxt = isTop ? r.island_top : r.island_bottom;
+    return `<button type="button" class="fs-card ${isTop ? 'neg' : 'pos'}" data-ticker="${r.ticker}">
+      <div class="fs-row"><span class="fs-rank">${isTop ? '⬇ 頂部' : '⬆ 底部'}</span><span class="fs-hits">${isTop ? '出場/做空' : '進場/做多'}</span></div>
+      <div class="fs-id"><span class="fs-code">${r.ticker}</span> <span class="fs-name">${r.name || ''}</span></div>
+      <div class="fs-meta">${gapTxt}　${r.industry || ''}</div>
+    </button>`;
+  };
+  el.innerHTML =
+    `<div class="fs-head">🏝️ 今日島狀反轉 <span class="fs-sub">缺口前後夾住孤立才算，頂部=出場訊號／底部=進場訊號</span></div>` +
+    `<div class="fs-cards">` +
+    tops.map(r => card(r, 'top')).join('') +
+    bottoms.map(r => card(r, 'bottom')).join('') +
+    `</div>`;
+  el.querySelectorAll('.fs-card').forEach(c => {
+    const r = rows.find(x => String(x.ticker) === c.dataset.ticker);
+    if (r) c.addEventListener('click', () => openKlineModal(r.ticker, r.name, r.market));
   });
 }
 
@@ -2195,6 +2226,7 @@ function renderMarket(d) {
     renderDimensionOptions();
     buildTable(data);
     renderFocusStrip(data);
+    renderIslandStrip(data);
     loadResonanceData();
     bindControls();
     bindGroupToggles();

@@ -734,8 +734,8 @@ function updateGroupCounts() {
   const set = (id, n) => { const e = document.getElementById(id); if (e) e.textContent = n ? ` ${n}` : ''; };
   set('fgc-cat', state.selectedCats.size);
   set('fgc-mainup', (state.mainupMode !== 'off' ? 1 : 0) +
-                    (state.mainupEntry ? 1 : 0) + (state.mainupExclDist ? 1 : 0));
-  set('fgc-island', state.islandMode !== 'off' ? 1 : 0);
+                    (state.mainupEntry ? 1 : 0) + (state.mainupExclDist ? 1 : 0) +
+                    (state.islandMode !== 'off' ? 1 : 0));
   set('fgc-dim', state.dimSelected.size);
   set('fgc-thresh', (state.scoreMin > 0 ? 1 : 0) + (state.rsMin > 0 ? 1 : 0) +
                     (state.distRiskMax != null ? 1 : 0) + (state.groupZMin != null ? 1 : 0));

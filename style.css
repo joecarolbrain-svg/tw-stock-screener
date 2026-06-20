@@ -239,7 +239,7 @@ html { overflow-x: hidden; }
 .filter-group { display: flex; flex-direction: column; gap: 4px; min-width: 160px; }
 .filter-group.small { min-width: 90px; max-width: 120px; }
 .filter-group-categories { flex: 1; min-width: 100%; }
-.filter-group-dimension { min-width: 280px; }
+.filter-group-dimension { min-width: 280px; flex: 1 1 100%; width: 100%; }
 
 .dim-radio {
   display: flex;
@@ -249,7 +249,7 @@ html { overflow-x: hidden; }
   margin-bottom: 4px;
 }
 .dim-radio input { margin-right: 3px; }
-.dim-search-input { margin-bottom: 4px; font-size: 12px; }
+.dim-search-input { margin-bottom: 4px; font-size: 12px; width: 100%; max-width: 360px; box-sizing: border-box; }
 #dim-select { font-size: 12px; min-height: 110px; }
 #dim-source { font-size: 10px; color: #666; }
 

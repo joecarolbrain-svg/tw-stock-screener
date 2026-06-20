@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260620f';
+const APP_VERSION = '20260620g';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -2680,13 +2680,23 @@ function _chgSpan(v) {
   return `<span class="sc-chg ${cls}">${isNaN(v) ? '--' : (v > 0 ? '+' : '') + v.toFixed(2) + '%'}</span>`;
 }
 
+// Hanku 排序器
+const HANKU_SORT = {
+  fresh:     (a, b) => String(b.entry_date || '').localeCompare(String(a.entry_date || '')) || (b.ret_pct ?? -1e9) - (a.ret_pct ?? -1e9),
+  gap_asc:   (a, b) => (a.gap ?? 1e9) - (b.gap ?? 1e9),
+  ret:       (a, b) => (b.ret_pct ?? -1e9) - (a.ret_pct ?? -1e9),
+  chg:       (a, b) => (b.chg_pct ?? -1e9) - (a.chg_pct ?? -1e9),
+  dist9_asc: (a, b) => (a.dist_w9 ?? 1e9) - (b.dist_w9 ?? 1e9),
+};
+
 function hankuCardHtml(r) {
   const warns = [];
   if (r.warn47) warns.push('⚠️破47');
   if (r.w4_down) warns.push('⚠️4T下彎');
+  const fresh = r.entry_date && hankuState.data && r.entry_date === hankuState.data.trading_date;
   return `<button type="button" class="stk-card" data-ticker="${r.ticker}">
     <div class="sc-head">
-      <span class="sc-id"><b>${r.ticker}</b> ${r.name || ''}</span>
+      <span class="sc-id"><b>${r.ticker}</b> ${r.name || ''}${fresh ? ' <span class="sc-new">🆕剛進場</span>' : ''}</span>
       <span class="sc-state">${r.state || ''}</span>
     </div>
     <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span></div>
@@ -2928,6 +2938,8 @@ function renderHanku() {
   if (indSel !== 'all') rows = rows.filter(r => r._ind === indSel);
   if (q) rows = rows.filter(r =>
     (r.ticker || '').toLowerCase().includes(q) || (r.name || '').toLowerCase().includes(q));
+  const sortKey = (document.getElementById('hanku-sort') || {}).value || 'fresh';
+  rows.sort(HANKU_SORT[sortKey] || HANKU_SORT.fresh);
 
   const sm = hankuState.data.states || [];
   document.getElementById('hanku-summary').innerHTML =
@@ -2955,13 +2967,12 @@ function renderHanku() {
       height: 'calc(100vh - 320px)',
       columns: HANKU_COLS,
       placeholder: '無符合條件的個股',
-      initialSort: [{ column: 'ret_pct', dir: 'desc' }],
     });
   }
 }
 
 function initHankuControls() {
-  ['hanku-state', 'hanku-industry', 'hanku-search'].forEach(id => {
+  ['hanku-state', 'hanku-industry', 'hanku-sort', 'hanku-search'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const ev = el.tagName === 'SELECT' ? 'change' : 'input';

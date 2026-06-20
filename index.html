@@ -16,7 +16,7 @@
   <!-- lightweight-charts（K 線彈窗用） -->
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260620f" />
+  <link rel="stylesheet" href="style.css?v=20260620g" />
 </head>
 <body>
   <header class="topbar">
@@ -234,6 +234,16 @@
           <label class="filter-label">產業</label>
           <select id="hanku-industry" class="inline-select">
             <option value="all">全部產業</option>
+          </select>
+        </div>
+        <div class="filter-group small" style="max-width:180px">
+          <label class="filter-label">排序</label>
+          <select id="hanku-sort" class="inline-select">
+            <option value="fresh">進場日新→舊(剛進場優先)</option>
+            <option value="gap_asc">發散% 小→大(剛發散)</option>
+            <option value="ret">報酬% 高→低</option>
+            <option value="chg">當日% 高→低</option>
+            <option value="dist9_asc">距9週% 小→大(近停損)</option>
           </select>
         </div>
         <div class="view-toggle" id="hanku-viewtoggle">
@@ -660,7 +670,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260620f"></script>
+  <script src="app.js?v=20260620g"></script>
   <script src="calc.js?v=20260609"></script>
   <script src="advice.js?v=20260609"></script>
 </body>

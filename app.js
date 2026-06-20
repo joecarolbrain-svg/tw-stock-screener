@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260620e';
+const APP_VERSION = '20260620f';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -350,32 +350,68 @@ function renderMeta(d) {
   badge.className = `badge regime-${r.color || 'unknown'}`;
 }
 
-// ── 3. 渲染分類 chips ───────────────────────────────
+// ── 3. 渲染分類 chips（依「突破生命週期」分 5 區塊） ──
+//   參考 aistockmap 結構頁：分層+分區標題，而非平鋪一整排。
+const CAT_GROUPS = [
+  { title: '🌀 醞釀蓄勢', hint: '還沒突破、潛伏蓄力', codes: ['A_VCP', 'A_Coil', 'N_NearHigh', 'R_Neckline'] },
+  { title: '🚀 突破發動', hint: '剛突破、發動點',   codes: ['B_Day0', 'B_Recent', 'R_Breakout'] },
+  { title: '⚡ 續攻動能', hint: '突破後沿均線走',   codes: ['S_MA3Rider', 'S_MA5Rider'] },
+  { title: '💰 籌碼/族群', hint: '主力/族群撐腰',   codes: ['M_Accumulate', 'GroupResonance'] },
+  { title: '👁 觀察/風險', hint: '謹慎、別追',       codes: ['P_Watch', 'P_PunishExit', 'P_PostExit'] },
+];
+
+function _makeCatChip(c) {
+  const chip = document.createElement('label');
+  chip.className = 'cat-chip';
+  chip.style.color = c.color;
+  chip.style.setProperty('--cat', c.color);
+  chip.dataset.code = c.code;
+  if (state.selectedCats.has(c.code)) chip.classList.add('checked');
+  chip.innerHTML = `
+    <input type="checkbox" value="${c.code}"${state.selectedCats.has(c.code) ? ' checked' : ''} />
+    <span class="dot" style="background:${c.color}"></span>
+    <span class="label">${c.label}</span>
+    <span class="count">${c.count}</span>
+  `;
+  const cb = chip.querySelector('input');
+  cb.addEventListener('change', () => {
+    chip.classList.toggle('checked', cb.checked);
+    if (cb.checked) state.selectedCats.add(c.code);
+    else state.selectedCats.delete(c.code);
+    applyFilters();
+  });
+  return chip;
+}
+
 function renderCategoryChips(cats) {
   const container = document.getElementById('cat-checkboxes');
   container.innerHTML = '';
-  cats.forEach(c => {
-    if (c.count === 0) return; // 無命中就不顯示
-    const chip = document.createElement('label');
-    chip.className = 'cat-chip';
-    chip.style.color = c.color;
-    chip.style.setProperty('--cat', c.color);
-    chip.dataset.code = c.code;
-    chip.innerHTML = `
-      <input type="checkbox" value="${c.code}" />
-      <span class="dot" style="background:${c.color}"></span>
-      <span class="label">${c.label}</span>
-      <span class="count">${c.count}</span>
-    `;
-    const cb = chip.querySelector('input');
-    cb.addEventListener('change', () => {
-      chip.classList.toggle('checked', cb.checked);
-      if (cb.checked) state.selectedCats.add(c.code);
-      else state.selectedCats.delete(c.code);
-      applyFilters();
-    });
-    container.appendChild(chip);
+  const byCode = {};
+  cats.forEach(c => { byCode[c.code] = c; });
+  const placed = new Set();
+
+  const renderGroup = (title, hint, items) => {
+    const shown = items.filter(c => c && c.count > 0);   // 無命中不顯示
+    if (!shown.length) return;
+    const g = document.createElement('div');
+    g.className = 'cat-group';
+    const head = document.createElement('div');
+    head.className = 'cat-group-head';
+    head.innerHTML = `${title}<span class="cat-group-hint">${hint}</span>`;
+    const chips = document.createElement('div');
+    chips.className = 'cat-group-chips';
+    shown.forEach(c => chips.appendChild(_makeCatChip(c)));
+    g.appendChild(head); g.appendChild(chips);
+    container.appendChild(g);
+  };
+
+  CAT_GROUPS.forEach(grp => {
+    grp.codes.forEach(code => placed.add(code));
+    renderGroup(grp.title, grp.hint, grp.codes.map(code => byCode[code]));
   });
+  // 未歸類的新代碼 → 其他
+  const others = cats.filter(c => !placed.has(c.code));
+  if (others.length) renderGroup('🏷 其他', '', others);
 }
 
 // ── 4. 渲染維度選項（三維度切換 + 搜尋） ─────────────

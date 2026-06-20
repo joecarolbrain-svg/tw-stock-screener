@@ -16,7 +16,7 @@
   <!-- lightweight-charts（K 線彈窗用） -->
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260620e" />
+  <link rel="stylesheet" href="style.css?v=20260620f" />
 </head>
 <body>
   <header class="topbar">
@@ -111,18 +111,29 @@
         <label><input type="radio" name="mainup-mode" value="B" /> 獵飆B</label>
       </div>
       <div id="mainup-signals" class="mainup-sigs" hidden>
-        <span class="mu-sub">5訊號</span>
-        <label><input type="checkbox" name="mainup-sig" value="s1" checked /> S1長底</label>
-        <label><input type="checkbox" name="mainup-sig" value="s2" checked /> S2爆量</label>
-        <label><input type="checkbox" name="mainup-sig" value="s3" checked /> S3多排</label>
-        <label><input type="checkbox" name="mainup-sig" value="s4" checked /> S4突破</label>
-        <label><input type="checkbox" name="mainup-sig" value="s5" checked /> S5題材</label>
-        <span class="mu-sub">3條件</span>
-        <label><input type="checkbox" name="mainup-sig" value="c1" checked /> C1多頭</label>
-        <label><input type="checkbox" name="mainup-sig" value="c2" checked /> C2黃金交叉</label>
-        <label><input type="checkbox" name="mainup-sig" value="c3" checked /> C3進場點</label>
-        <span class="mu-sub">setup</span>
-        <label><input type="checkbox" name="mainup-sig" value="mainup_ma60" checked /> 季線突破</label>
+        <div class="mu-block">
+          <div class="mu-head">🚀 飆股 5 訊號 <span class="mu-hint">成形流程（勾選＝必須全中）</span></div>
+          <div class="mu-flow">
+            <label title="打底夠久、籌碼沉澱"><input type="checkbox" name="mainup-sig" value="s1" checked /> ①長底</label>
+            <span class="mu-arrow">→</span>
+            <label title="帶量啟動、主力進場"><input type="checkbox" name="mainup-sig" value="s2" checked /> ②爆量</label>
+            <span class="mu-arrow">→</span>
+            <label title="均線多頭排列"><input type="checkbox" name="mainup-sig" value="s3" checked /> ③多排</label>
+            <span class="mu-arrow">→</span>
+            <label title="突破頸線／前高"><input type="checkbox" name="mainup-sig" value="s4" checked /> ④突破</label>
+            <span class="mu-arrow">→</span>
+            <label title="題材／族群推動"><input type="checkbox" name="mainup-sig" value="s5" checked /> ⑤題材</label>
+          </div>
+        </div>
+        <div class="mu-block">
+          <div class="mu-head">✅ 進場 3 條件 <span class="mu-hint">進場前確認</span></div>
+          <div class="mu-flow">
+            <label title="大格局站多方"><input type="checkbox" name="mainup-sig" value="c1" checked /> 多頭格局</label>
+            <label title="短均線黃金交叉"><input type="checkbox" name="mainup-sig" value="c2" checked /> 黃金交叉</label>
+            <label title="出現具體進場點"><input type="checkbox" name="mainup-sig" value="c3" checked /> 進場點</label>
+            <label title="站上季線 MA60"><input type="checkbox" name="mainup-sig" value="mainup_ma60" checked /> 季線突破</label>
+          </div>
+        </div>
       </div>
       <div class="mainup-extra">
         <label>進場型態
@@ -649,7 +660,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260620e"></script>
+  <script src="app.js?v=20260620f"></script>
   <script src="calc.js?v=20260609"></script>
   <script src="advice.js?v=20260609"></script>
 </body>

@@ -278,6 +278,16 @@ input:focus, select:focus { outline: 2px solid #00d4aa; outline-offset: -1px; }
   gap: 6px;
 }
 
+/* 分類 chip 分區塊（突破生命週期：醞釀/突破/續攻/籌碼/觀察） */
+#cat-checkboxes { display: flex; flex-direction: column; gap: 10px; }
+.cat-group { }
+.cat-group-head {
+  font-size: 12px; font-weight: 700; color: #cfd3e0;
+  margin-bottom: 5px; border-left: 3px solid #00d4aa; padding-left: 7px;
+}
+.cat-group-hint { font-weight: 400; color: #888; font-size: 11px; margin-left: 7px; }
+.cat-group-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
 .cat-chip {
   display: inline-flex;
   align-items: center;
@@ -792,9 +802,17 @@ footer {
 
 /* 主升策略篩選 */
 .filter-group-mainup .mainup-mode label { color: #ffb347; }
-.mainup-sigs { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0; }
-.mainup-sigs label { font-size: 12px; color: #ffd9a8; display: inline-flex; align-items: center; gap: 3px; }
+.mainup-sigs { display: flex; flex-direction: column; gap: 8px; margin: 4px 0; }
+.mainup-sigs label { font-size: 12px; color: #ffd9a8; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; }
 .mainup-sigs .mu-sub { font-size: 11px; color: #888; margin-left: 6px; }
+/* 5訊號3條件 框架面板 */
+.mu-block { }
+.mu-head { font-size: 12px; font-weight: 700; color: #ffcf99; margin-bottom: 4px; border-left: 3px solid #ffb347; padding-left: 7px; }
+.mu-head .mu-hint { font-weight: 400; color: #888; font-size: 11px; margin-left: 7px; }
+.mu-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding-left: 7px; }
+.mu-flow label { background: rgba(255,179,71,0.10); border: 1px solid #4a3a22; border-radius: 8px; padding: 2px 9px; }
+.mu-flow label:hover { border-color: #ffb347; }
+.mu-arrow { color: #ffb347; font-weight: 700; }
 .mainup-extra { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0; align-items: center; }
 .mainup-extra label { font-size: 12px; color: #ffd9a8; display: inline-flex; align-items: center; gap: 4px; }
 .mainup-extra select { font-size: 12px; }

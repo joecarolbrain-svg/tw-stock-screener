@@ -1,8 +1,30 @@
 {
   "schema_version": "2.0",
-  "generated_at": "2026-06-27T00:01:25+08:00",
-  "latest_date": "20260626",
+  "generated_at": "2026-06-27T00:29:25+08:00",
+  "latest_date": "20260627",
   "dates": [
+    {
+      "date": "20260627",
+      "has": [
+        "industry_flow",
+        "industry_flow_1",
+        "industry_flow_10",
+        "industry_flow_3",
+        "industry_flow_40",
+        "industry_flow_5",
+        "industry_flow_60",
+        "industry_ranking",
+        "latest",
+        "sector_flow",
+        "theme_flow",
+        "theme_flow_1",
+        "theme_flow_10",
+        "theme_flow_3",
+        "theme_flow_40",
+        "theme_flow_5",
+        "theme_flow_60"
+      ]
+    },
     {
       "date": "20260626",
       "has": [

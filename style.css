@@ -125,55 +125,6 @@ html { overflow-x: hidden; }
 .legend-item { color: #888; }
 .legend-item b { color: #bbb; font-weight: 600; margin-right: 2px; }
 
-/* ── Market（大盤狀態）── */
-.market-content { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
-.market-stale {
-  background: rgba(255,157,0,0.12); border: 1px solid #ff9d00; color: #ffcf80;
-  border-radius: 8px; padding: 10px 14px; font-size: 13px; font-weight: 600; line-height: 1.5;
-}
-.market-row { display: grid; gap: 12px; }
-.market-row-2 { grid-template-columns: 5fr 7fr; }
-.market-row-5 { grid-template-columns: repeat(5, 1fr); }
-.market-card {
-  background: #131326;
-  border: 1px solid #2a2a3e;
-  border-radius: 6px;
-  padding: 14px 16px;
-}
-.market-summary .state-big {
-  font-size: 32px; font-weight: 700; line-height: 1.2;
-}
-.market-summary .state-score {
-  color: #e0e0e0; font-size: 16px; margin-top: 2px;
-}
-.market-summary .state-meta {
-  color: #666; font-size: 11px; margin-top: 10px;
-}
-.market-commentary { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; font-size: 13px; }
-.market-commentary .lvl-bull { color: #00ff9d; }
-.market-commentary .lvl-bear { color: #ef5350; }
-.market-commentary .lvl-warn { color: #ff9d00; }
-.market-commentary .lvl-info { color: #7ec0ff; }
-
-.dim-card .dim-title { color: #888; font-size: 11px; }
-.dim-card .dim-val { font-size: 18px; font-weight: 700; margin-top: 2px; }
-.dim-card .dim-sub { color: #888; font-size: 11px; margin-top: 2px; }
-
-.market-table { width: 100%; font-size: 12px; border-collapse: collapse; }
-.market-table th, .market-table td {
-  padding: 6px 10px; border-bottom: 1px solid #2a2a3e;
-}
-.market-table th { color: #00d4aa; background: #15152b; text-align: left; font-weight: 600; }
-.market-table td.r { text-align: right; }
-
-.market-signals ul { padding-left: 20px; margin: 6px 0 0; }
-.market-signals li { margin-bottom: 4px; font-size: 13px; }
-
-@media (max-width: 1000px) {
-  .market-row-2 { grid-template-columns: 1fr; }
-  .market-row-5 { grid-template-columns: repeat(2, 1fr); }
-}
-
 /* ── Sub-tabs（題材分頁內的概念/類股切換）── */
 .subtab-row { display: flex; gap: 6px; }
 .subtab-btn {
@@ -868,40 +819,3 @@ footer {
   display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-start; }
 .fg-body[data-group="mainup"] { flex-direction: column; gap: 6px; }
 
-/* ── 權證自選清單 ── */
-.ww-card {
-  background: #0d0d1a;
-  border: 1px solid #2a2a3e;
-  border-radius: 6px;
-  margin-bottom: 8px;
-  padding: 10px 14px;
-}
-.ww-card-missing { opacity: 0.6; }
-.ww-card-head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.ww-code { font-size: 15px; font-weight: 700; color: #00d4aa; }
-.ww-name { font-size: 14px; color: #e0e0e0; }
-.ww-price { font-size: 14px; font-weight: 700; color: #ffb347; margin-left: 6px; }
-.ww-best {
-  margin-top: 6px;
-  font-size: 13px;
-  color: #ccc;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-.ww-strat-lbl {
-  background: #1e2a40;
-  color: #6ea8ff;
-  border-radius: 3px;
-  padding: 1px 6px;
-  font-size: 11px;
-}
-.ww-check { color: #e0e0e0; }
-.ww-attrs { color: #aaa; font-size: 12px; }
-.ww-attrs b { color: #fff; }

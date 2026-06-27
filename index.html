@@ -40,8 +40,6 @@
     <button class="tab-btn" data-tab="hanku">🌀 Hanku波段</button>
     <button class="tab-btn" data-tab="wave3">🌊 第三浪</button>
     <button class="tab-btn" data-tab="sector-flow">🌊 族群資金流向</button>
-    <button class="tab-btn" data-tab="market">🏦 大盤狀態</button>
-    <button class="tab-btn" data-tab="warrant">🎯 權證精選</button>
     <button class="tab-btn" data-tab="cb">💎 可轉債監控</button>
     <button class="tab-btn" data-tab="calc">🧮 期貨計算機</button>
   </nav>
@@ -487,101 +485,6 @@
         <div class="panel-title" id="theme-history-title">20 日 z-score 歷史（點題材查看）</div>
         <div id="theme-history-table"></div>
       </div>
-    </div>
-  </section>
-
-  <section class="tab-panel" data-panel="market">
-    <div id="market-content" class="market-content">
-      <div class="muted" style="padding:20px">載入中...</div>
-    </div>
-  </section>
-
-  <section class="tab-panel" data-panel="warrant">
-    <!-- 子分頁切換 -->
-    <div class="subtab-row">
-      <button class="subtab-btn warrant-subtab-btn active" data-wsub="query">🔍 單股查詢</button>
-      <button class="subtab-btn warrant-subtab-btn" data-wsub="watch">⭐ 自選清單</button>
-    </div>
-
-    <!-- 單股查詢（原有功能） -->
-    <div id="warrant-query-panel">
-      <div class="filters">
-        <div class="filter-row">
-          <div class="filter-group small">
-            <label class="filter-label">股號</label>
-            <input type="text" id="warrant-stock" placeholder="例如 2330" value="2330" style="width:120px" />
-          </div>
-          <div class="filter-group small">
-            <label class="filter-label">策略</label>
-            <select id="warrant-strategy" class="inline-select">
-              <option value="短進短出">短進短出</option>
-              <option value="短打" selected>短打</option>
-              <option value="波段">波段</option>
-              <option value="流動性">流動性</option>
-              <option value="IV低估">IV低估</option>
-              <option value="全部">全部（含認售，依成交額排序）</option>
-            </select>
-          </div>
-          <div class="filter-group small">
-            <label class="filter-label">顯示</label>
-            <select id="warrant-limit" class="inline-select">
-              <option value="10" selected>10 檔</option>
-              <option value="20">20 檔</option>
-              <option value="30">30 檔</option>
-              <option value="0">全部</option>
-            </select>
-          </div>
-          <button id="warrant-query-btn" class="btn">🔍 查詢</button>
-          <span class="filler"></span>
-          <span class="muted" id="warrant-meta">--</span>
-        </div>
-        <div class="filter-row" style="align-items:center;flex-wrap:wrap;gap:6px">
-          <label class="filter-label" style="margin:0 6px 0 0">券商：</label>
-          <button class="btn btn-ghost" id="warrant-issuer-all" type="button">主力</button>
-          <button class="btn btn-ghost" id="warrant-issuer-clear" type="button">全選</button>
-          <button class="btn btn-ghost btn-danger" id="warrant-issuer-none" type="button">清空</button>
-          <div id="warrant-issuer-checks" style="display:flex;flex-wrap:wrap;gap:4px 10px;margin-left:6px"></div>
-        </div>
-        <div class="filter-row legend-row">
-          <span class="legend-label">說明：</span>
-          <span class="legend-item">5 策略中「短進短出/短打/波段」沿用實戰參數（價內外+有效槓桿+IV）</span>
-          <span class="legend-item"><b>流動性</b> log(成交量+成交額) z 分數</span>
-          <span class="legend-item"><b>IV低估</b> IV − HV 越負越好</span>
-        </div>
-      </div>
-      <main>
-        <div id="warrant-summary" style="padding:8px 12px;color:#e0e0e0"></div>
-        <div id="warrant-table"></div>
-      </main>
-    </div>
-
-    <!-- 自選清單（新增） -->
-    <div id="warrant-watch-panel" style="display:none">
-      <div class="filters">
-        <div class="filter-row">
-          <input type="text" id="ww-input" placeholder="輸入股號，例如 2330" style="width:160px" />
-          <button id="ww-add-btn" class="btn">＋ 加入</button>
-          <div class="filter-group small" style="margin-left:16px">
-            <label class="filter-label">策略</label>
-            <select id="ww-strategy" class="inline-select">
-              <option value="短進短出">短進短出</option>
-              <option value="短打" selected>短打</option>
-              <option value="波段">波段</option>
-              <option value="流動性">流動性</option>
-              <option value="IV低估">IV低估</option>
-            </select>
-          </div>
-          <span class="filler"></span>
-          <button id="ww-clear-btn" class="btn btn-ghost btn-danger">清空清單</button>
-        </div>
-        <div class="filter-row legend-row">
-          <span class="legend-item">清單儲存在瀏覽器，重新整理不消失</span>
-          <span class="legend-item">點「🔍 詳查」切換到單股查詢看完整排名</span>
-        </div>
-      </div>
-      <main>
-        <div id="warrant-watch-cards" style="padding:8px 12px"></div>
-      </main>
     </div>
   </section>
 

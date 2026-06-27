@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "generated_at": "2026-06-27T00:29:25+08:00",
+  "generated_at": "2026-06-27T11:25:20+08:00",
   "latest_date": "20260627",
   "dates": [
     {
@@ -29,6 +29,7 @@
       "date": "20260626",
       "has": [
         "cb",
+        "hanku",
         "industry_flow",
         "industry_flow_1",
         "industry_flow_10",
@@ -38,6 +39,7 @@
         "industry_flow_60",
         "industry_ranking",
         "latest",
+        "market",
         "sector_flow",
         "theme_flow",
         "theme_flow_1",

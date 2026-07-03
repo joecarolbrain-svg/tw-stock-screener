@@ -1,10 +1,30 @@
+/* ── 設計 token（贏窟深色終端風） ─────────────────── */
+:root {
+  --bg:        #0d0d1a;   /* 頁面底 */
+  --panel:     #131326;   /* 卡片/面板底 */
+  --panel-2:   #15152b;   /* 頂欄/表頭底 */
+  --panel-3:   #1a1a2e;   /* 卡片浮層 */
+  --border:    #2a2a3e;
+  --border-hi: #3a4a7a;
+  --text:      #e0e0e0;
+  --text-dim:  #9aa0b0;
+  --text-mut:  #888;
+  --accent:    #00d4aa;   /* 品牌青綠 */
+  --accent-bg: rgba(0, 212, 170, 0.12);
+  --up:        #ef5350;   /* 台股紅漲 */
+  --down:      #26a69a;   /* 台股綠跌 */
+  --warn:      #f5b942;
+  --danger:    #ff5252;
+  --mono: "Roboto Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
 /* ── 全域 ─────────────────────────────────────────── */
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  background: #0d0d1a;
-  color: #e0e0e0;
+  background: var(--bg);
+  color: var(--text);
   font-family: -apple-system, "Segoe UI", "Noto Sans TC", Roboto, sans-serif;
   font-size: 13px;
   overflow-x: hidden;
@@ -26,10 +46,16 @@ html { overflow-x: hidden; }
   gap: 10px;
 }
 
-.brand { display: flex; align-items: baseline; gap: 8px; }
-.logo { font-size: 22px; }
-.title { font-size: 18px; font-weight: 700; color: #00d4aa; }
-.subtitle { font-size: 12px; color: #888; }
+.brand { display: flex; align-items: center; gap: 9px; }
+.logo-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 8px;
+  background: linear-gradient(135deg, #00d4aa 0%, #009dff 100%);
+  color: #06121a; font-size: 17px; font-weight: 900; line-height: 1;
+  box-shadow: 0 2px 10px rgba(0, 212, 170, 0.35);
+}
+.title { font-size: 19px; font-weight: 800; color: var(--accent); letter-spacing: 2px; }
+.subtitle { font-size: 12px; color: var(--text-mut); letter-spacing: 1px; }
 
 .meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
@@ -807,6 +833,7 @@ footer {
 .afchip .afx:hover { background: #33507a; color: #fff; }
 
 .group-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; }
+.group-bar-2nd { padding-top: 0; border-top: 1px dashed var(--border); margin-top: 2px; padding-top: 8px; }
 .group-bar .search-box { width: 200px; padding: 5px 8px; background: #0d0d1a;
   border: 1px solid #2a2a3e; border-radius: 6px; color: #e0e0e0; font-size: 13px; }
 .fg-toggle { background: #14142a; border: 1px solid #2a2a3e; color: #cfd3e0;
@@ -818,4 +845,53 @@ footer {
 .fg-body { padding: 10px 14px; background: #0d0d1a; border-bottom: 1px solid #2a2a3e;
   display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-start; }
 .fg-body[data-group="mainup"] { flex-direction: column; gap: 6px; }
+
+/* ── 🏛 今日市場快照（dashboard 頂部帶狀區） ─────────── */
+.mkt-snapshot { padding: 12px 20px 0; }
+.ms-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+.ms-tile {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 12px 9px; display: flex; flex-direction: column; gap: 3px;
+  min-width: 0;
+}
+.ms-tile .ms-k { font-size: 11px; color: var(--text-mut); letter-spacing: 0.5px; white-space: nowrap; }
+.ms-tile .ms-v {
+  font-family: var(--mono); font-size: 20px; font-weight: 700; line-height: 1.15;
+  color: var(--text); white-space: nowrap;
+}
+.ms-tile .ms-v small { font-size: 11px; font-weight: 400; color: var(--text-mut); margin-left: 3px; }
+.ms-tile .ms-sub { font-size: 11px; color: var(--text-mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-v.pos, .ms-sub .pos { color: var(--up); }
+.ms-v.neg, .ms-sub .neg { color: var(--down); }
+.ms-v.warn { color: var(--warn); }
+.ms-v.accent { color: var(--accent); }
+
+/* 大盤籌碼狀態 tile：整塊染色 */
+.ms-tile.ms-state-bull { border-color: rgba(239, 83, 80, 0.5); background: rgba(239, 83, 80, 0.08); }
+.ms-tile.ms-state-bear { border-color: rgba(38, 166, 154, 0.5); background: rgba(38, 166, 154, 0.08); }
+.ms-tile.ms-state-bull .ms-v { color: var(--up); }
+.ms-tile.ms-state-bear .ms-v { color: var(--down); }
+
+/* 漲跌家數比例條 */
+.ms-bar { display: flex; height: 4px; border-radius: 2px; overflow: hidden; background: #23233a; margin-top: 3px; }
+.ms-bar .up   { background: var(--up); }
+.ms-bar .down { background: var(--down); }
+
+/* 快照下方：市場評論一行 ticker */
+.ms-notes { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 2px 0; }
+.ms-note { font-size: 12px; line-height: 1.5; color: var(--text-dim); }
+.ms-note.bull { color: #ff8a80; }
+.ms-note.bear { color: #4dd0c4; }
+.ms-note.warn { color: var(--warn); }
+.ms-note.info { color: #7ec0ff; }
+
+@media (max-width: 800px) {
+  .mkt-snapshot { padding: 10px 10px 0; }
+  .ms-tiles { grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); }
+  .ms-tile .ms-v { font-size: 17px; }
+}
 

@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260620i';
+const APP_VERSION = '20260703a';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -90,7 +90,8 @@ async function onDateChange(ev) {
     renderDimensionOptions();
     buildTable(data);
     renderFocusStrip(data);
-    loadResonanceData();
+    loadResonanceData().then(updateSnapshotReso);
+    loadMarketSnapshot();
     applyFilters();
   } catch (err) {
     console.error(err);
@@ -323,6 +324,109 @@ const rankState = {
 // ── 1. 載入 JSON ────────────────────────────────────
 async function loadData() {
   return await fetchJsonGz(dailyPath('latest'));
+}
+
+// ── 1.5 今日市場快照（大盤籌碼 market.json + 漲跌家數 + 共振數） ──
+function _msFmtZ(z) {
+  if (z == null || isNaN(z)) return '--';
+  return (z >= 0 ? '+' : '') + Number(z).toFixed(1);
+}
+function _msZCls(z) {
+  if (z == null || isNaN(z)) return '';
+  return z > 0 ? 'pos' : (z < 0 ? 'neg' : '');
+}
+
+async function loadMarketSnapshot() {
+  const el = document.getElementById('mkt-snapshot');
+  if (!el) return;
+  // 該日是否有 market.json（index.json 的 has 清單）
+  let mkt = null;
+  const entry = (indexMeta?.dates || []).find(e => e.date === currentDate);
+  if (entry && (entry.has || []).includes('market')) {
+    try { mkt = await fetchJsonGz(dailyPath('market')); }
+    catch (e) { console.warn('market.json 載入失敗', e); }
+  }
+  renderSnapshot(state.data, mkt);
+}
+
+function renderSnapshot(d, mkt) {
+  const el = document.getElementById('mkt-snapshot');
+  if (!el || !d) return;
+  const tiles = [];
+
+  // ① 大盤籌碼狀態（market.json chip_score）
+  const cs = mkt?.chip_score;
+  if (cs?.available) {
+    const score = cs.composite_score;
+    const bull = score != null && score > 0;
+    tiles.push(`<div class="ms-tile ${score != null ? (bull ? 'ms-state-bull' : 'ms-state-bear') : ''}">
+      <span class="ms-k">🏛 大盤籌碼</span>
+      <span class="ms-v">${cs.state || '--'}<small>${score != null ? (score >= 0 ? '+' : '') + Number(score).toFixed(1) : ''}</small></span>
+      <span class="ms-sub">現貨 ${cs.equity_date || '--'}｜期貨 ${cs.futures_date || '--'}</span>
+    </div>`);
+  }
+
+  // ② 漲跌家數（latest.json breadth，舊資料日可能沒有）
+  const br = d.breadth;
+  if (br && br.total) {
+    const upPct = (br.up / br.total * 100).toFixed(0);
+    tiles.push(`<div class="ms-tile">
+      <span class="ms-k">📶 漲跌家數</span>
+      <span class="ms-v"><span class="pos">${br.up}</span><small>／</small><span class="neg">${br.down}</span></span>
+      <div class="ms-bar"><span class="up" style="flex:${br.up}"></span><span class="down" style="flex:${br.down}"></span></div>
+      <span class="ms-sub">上漲 ${upPct}%（共 ${br.total} 檔）</span>
+    </div>`);
+  }
+
+  // ③④⑤ 法人 z 分數
+  if (cs?.available) {
+    tiles.push(`<div class="ms-tile">
+      <span class="ms-k">🌏 外資現貨 z</span>
+      <span class="ms-v ${_msZCls(cs.fo_z)}">${_msFmtZ(cs.fo_z)}</span>
+      <span class="ms-sub">${cs.fo_value != null ? Number(cs.fo_value).toLocaleString() + ' 百萬' : ''}</span>
+    </div>`);
+    tiles.push(`<div class="ms-tile">
+      <span class="ms-k">🏦 投信現貨 z</span>
+      <span class="ms-v ${_msZCls(cs.ic_z)}">${_msFmtZ(cs.ic_z)}</span>
+      <span class="ms-sub">${cs.ic_value != null ? Number(cs.ic_value).toLocaleString() + ' 百萬' : ''}</span>
+    </div>`);
+    tiles.push(`<div class="ms-tile">
+      <span class="ms-k">📜 外資期貨 z</span>
+      <span class="ms-v ${_msZCls(cs.fu_z)}">${_msFmtZ(cs.fu_z)}</span>
+      <span class="ms-sub">${cs.fu_value != null ? '淨OI ' + Number(cs.fu_value).toLocaleString() + ' 口' : ''}</span>
+    </div>`);
+    if (cs.pcr != null) {
+      const pcrCls = (cs.pcr > 1.3 || cs.pcr < 0.7) ? 'warn' : '';
+      tiles.push(`<div class="ms-tile">
+        <span class="ms-k">⚖️ PCR</span>
+        <span class="ms-v ${pcrCls}">${Number(cs.pcr).toFixed(2)}</span>
+        <span class="ms-sub">${cs.pcr > 1.3 ? '偏空保護濃' : cs.pcr < 0.7 ? '過度樂觀' : '中性'}</span>
+      </div>`);
+    }
+  }
+
+  // ⑥ 共振檔數（等 loadResonanceData 完成後由 updateSnapshotReso 填值）
+  tiles.push(`<div class="ms-tile">
+    <span class="ms-k">⚡ 多策略共振</span>
+    <span class="ms-v accent" id="ms-reso-v">--</span>
+    <span class="ms-sub">突破＋Hanku＋三浪命中 ≥2</span>
+  </div>`);
+
+  // 評論列（market.json commentary + signals，最多 4 則）
+  const notes = [...(mkt?.commentary || []), ...(mkt?.signals || [])].slice(0, 4)
+    .map(n => `<span class="ms-note ${n.level || ''}">${n.text}</span>`).join('');
+
+  el.innerHTML = `<div class="ms-tiles">${tiles.join('')}</div>` +
+                 (notes ? `<div class="ms-notes">${notes}</div>` : '');
+  el.hidden = false;
+  updateSnapshotReso();
+}
+
+function updateSnapshotReso() {
+  const v = document.getElementById('ms-reso-v');
+  if (!v || !state.data) return;
+  const n = (state.data.rows || []).filter(r => _resoCount(r) >= 2).length;
+  v.textContent = `${n} 檔`;
 }
 
 // ── 2. 初始化 Header / Meta ─────────────────────────
@@ -1090,6 +1194,20 @@ function renderWatchlist() {
           if (v >= 3) return `<span class="hits-strong">×${v}</span>`;
           if (v >= 2) return `<span class="hits-mid">×${v}</span>`;
           return `<span>${v}</span>`;
+        },
+      },
+      {
+        title: '⚡共振', field: '_reso', widthGrow: 0.9, headerSort: false,
+        formatter: (cell) => {
+          const r = cell.getRow().getData();
+          const hk = resonance.hanku[r.ticker];
+          const wv = resonance.wave3[r.ticker];
+          const n = _resoCount(r);
+          const badges =
+            (n >= 2 ? '<span class="sc-zap">⚡' + n + '</span> ' : '') +
+            (hk ? '<span class="reso-badge reso-hk">🌀波段</span>' : '') +
+            (wv ? '<span class="reso-badge reso-wv">🌊三浪</span>' : '');
+          return badges || '<span class="muted">—</span>';
         },
       },
       {
@@ -2039,7 +2157,8 @@ function renderThemeHistory() {
     renderDimensionOptions();
     buildTable(data);
     renderFocusStrip(data);
-    loadResonanceData();
+    loadResonanceData().then(updateSnapshotReso);
+    loadMarketSnapshot();
     bindControls();
     bindGroupToggles();
     bindTabs();

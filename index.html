@@ -7,7 +7,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <title>右側突破篩選器 — 雲端看板</title>
+  <title>贏窟｜台股多策略看盤</title>
 
   <!-- Tabulator -->
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
@@ -16,14 +16,14 @@
   <!-- lightweight-charts（K 線彈窗用） -->
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260620i" />
+  <link rel="stylesheet" href="style.css?v=20260703a" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
-      <span class="logo">📈</span>
-      <span class="title">右側突破篩選器</span>
-      <span class="subtitle">雲端看板</span>
+      <span class="logo-mark">贏</span>
+      <span class="title">贏窟</span>
+      <span class="subtitle">篩選 × 波段 × 籌碼</span>
     </div>
     <div class="meta">
       <select id="date-picker" class="date-picker" title="切換交易日"></select>
@@ -39,12 +39,14 @@
     <button class="tab-btn" data-tab="watchlist">⭐ 自選股</button>
     <button class="tab-btn" data-tab="hanku">🌀 Hanku波段</button>
     <button class="tab-btn" data-tab="wave3">🌊 第三浪</button>
-    <button class="tab-btn" data-tab="sector-flow">🌊 族群資金流向</button>
+    <button class="tab-btn" data-tab="sector-flow">💸 族群資金流向</button>
     <button class="tab-btn" data-tab="cb">💎 可轉債監控</button>
     <button class="tab-btn" data-tab="calc">🧮 期貨計算機</button>
   </nav>
 
   <section class="tab-panel active" data-panel="dashboard">
+
+  <div id="mkt-snapshot" class="mkt-snapshot" hidden></div>
 
   <div id="focus-strip" class="focus-strip" hidden></div>
 
@@ -53,6 +55,7 @@
     <div id="active-filters" class="active-filters"></div>
 
     <!-- 工具列：搜尋 + 分組收合 toggle + 動作 -->
+    <!-- 第一層：常用（搜尋/檢視/排序/快速開關） -->
     <div class="filter-row group-bar">
       <input type="text" id="search-input" class="search-box" placeholder="🔍 代號/名稱（例 2330）" />
       <div class="view-toggle" id="main-viewtoggle">
@@ -68,12 +71,23 @@
         <option value="rr">↕ RR賺賠比</option>
         <option value="max_group_z">↕ 族群z</option>
       </select>
+      <label class="check-toggle" title="只看同時被 ≥2 策略看好的股（突破命中＋Hanku＋第三浪）">
+        <input type="checkbox" id="only-resonance" /> ⚡ 只看共振
+      </label>
+      <label class="check-toggle" title="只顯示族群最高 z ≥ 1 的個股（族群在熱區）">
+        <input type="checkbox" id="only-hot-group" /> 🌊 族群z≥1
+      </label>
+      <span class="filler"></span>
+      <span id="filter-summary" class="muted"></span>
+    </div>
+    <!-- 第二層：進階條件與管理 -->
+    <div class="filter-row group-bar group-bar-2nd">
       <button class="fg-toggle" data-group="cat">分類<span class="fg-count" id="fgc-cat"></span></button>
       <button class="fg-toggle" data-group="mainup">主升<span class="fg-count" id="fgc-mainup"></span></button>
       <button class="fg-toggle" data-group="dim">維度<span class="fg-count" id="fgc-dim"></span></button>
       <button class="fg-toggle" data-group="thresh">門檻<span class="fg-count" id="fgc-thresh"></span></button>
-      <span class="filler"></span>
       <button id="btn-clear" class="btn btn-ghost">清除全部</button>
+      <span class="filler"></span>
       <button id="btn-save-preset" class="btn btn-ghost">💾 組合</button>
       <select id="preset-select" class="preset-select">
         <option value="">-- 載入 --</option>
@@ -82,13 +96,6 @@
       <button id="btn-only-pinned" class="btn btn-ghost" disabled>★ 只看勾選</button>
       <button id="btn-clear-pinned" class="btn btn-ghost btn-danger" disabled>清空</button>
       <span id="pin-summary" class="muted"></span>
-      <label class="check-toggle" title="只看同時被 ≥2 策略看好的股（突破命中＋Hanku＋第三浪）">
-        <input type="checkbox" id="only-resonance" /> ⚡ 只看共振
-      </label>
-      <label class="check-toggle" title="只顯示族群最高 z ≥ 1 的個股（族群在熱區）">
-        <input type="checkbox" id="only-hot-group" /> 🌊 族群z≥1
-      </label>
-      <span id="filter-summary" class="muted"></span>
     </div>
 
     <!-- 分類 -->
@@ -551,7 +558,7 @@
   </section>
 
   <footer>
-    <span class="muted">資料來源：本地 Dash 篩選 / Schema v<span id="schema-version">--</span></span>
+    <span class="muted">贏窟 · 資料來源：本地 Dash 篩選 / Schema v<span id="schema-version">--</span></span>
     <span class="muted">點代號 → 站內 K 線（含均線 / 法人 / 融資券）</span>
     <span class="muted">介面版本 <b id="app-version">--</b></span>
   </footer>
@@ -591,7 +598,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260620i"></script>
+  <script src="app.js?v=20260703a"></script>
   <script src="calc.js?v=20260609"></script>
   <script src="advice.js?v=20260609"></script>
 </body>

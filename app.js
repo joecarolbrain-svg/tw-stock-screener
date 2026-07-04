@@ -2797,6 +2797,8 @@ const SECTORFLOW_COLS = [
   { title: '檔數', field: 'n', width: 62, hozAlign: 'right', sorter: 'number' },
   { title: '黑馬', field: 'hm', width: 74, hozAlign: 'center' },
 ];
+// 個股自身動能（非族群內排名比較）：accel=近5日/日均−近20日/日均，momentum 沿用族群同一套詞彙
+const MOMENTUM_ICON = { '主力': '🟢', '輪動': '🟡', '觀望': '⚪', '退潮': '🔴' };
 const SECTORFLOW_STOCK_COLS = [
   { title: '代號', field: 'code', width: 80, frozen: true,
     formatter: (c) => `<a class="ticker-link" href="#" data-kline-ticker="${c.getValue()}">${c.getValue()}</a>`,
@@ -2805,6 +2807,10 @@ const SECTORFLOW_STOCK_COLS = [
   { title: '收盤', field: 'close', width: 80, hozAlign: 'right', sorter: 'number', formatter: _sfNum(2) },
   { title: '漲跌%', field: 'pct_change', width: 80, hozAlign: 'right', sorter: 'number', formatter: _sfNum(2) },
   { title: '近5日淨買(億)', field: 'net5_yi', width: 120, hozAlign: 'right', sorter: 'number', formatter: _sfYi },
+  { title: '動能', field: 'momentum', width: 84, hozAlign: 'center',
+    headerTooltip: '個股自身趨勢（近5日/日均買超 vs 近20日/日均），非族群內排名比較，不受同儕強弱影響',
+    formatter: (c) => { const v = c.getValue(); return v ? `${MOMENTUM_ICON[v] || ''}${v}` : '<span class="muted">--</span>'; } },
+  { title: '加速度', field: 'accel', width: 84, hozAlign: 'right', sorter: 'number', formatter: _sfNum(2) },
   { title: 'RFI', field: 'rfi', width: 80, hozAlign: 'right', sorter: 'number', formatter: _sfNum(3) },
   { title: '位置', field: 'position', width: 72, hozAlign: 'right', sorter: 'number', formatter: _sfNum(0) },
 ];

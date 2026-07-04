@@ -146,6 +146,7 @@
   .stock-name{font-size:14px;color:#aaa;flex:1;}
   .stock-chg{font-size:13px;font-weight:600;min-width:52px;text-align:right;}
   .stock-flow{font-size:12px;min-width:60px;text-align:right;color:#888;}
+  .stock-accel{font-size:12px;min-width:18px;text-align:center;cursor:help;}
 
   .loading{text-align:center;padding:60px;color:#555;font-size:14px;}
   .error{text-align:center;padding:60px;color:#D85A30;font-size:14px;}
@@ -829,13 +830,24 @@ function openPanel(s) {
     <span class="stock-name" style="font-size:10px;color:#555;">名稱（★領頭）</span>
     <span class="stock-chg" style="font-size:10px;color:#555;font-weight:400;">當日漲跌</span>
     <span class="stock-flow" style="font-size:10px;color:#555;">當日買超</span>
+    <span class="stock-accel" style="font-size:10px;color:#555;" title="個股自身資金動能（近5日 vs 近20日買超節奏，非同儕排名比較）">動能</span>
   </div>`;
+  // 個股自身動能徽章（非族群內排名比較，同儕變弱不會讓這裡誤判往前）：算法與族群 accelLabel 一致
+  function stockMomentumBadge(sd) {
+    if (sd == null || sd.accel == null) return '';
+    const a = sd.accel;
+    const icon  = a > 0.5 ? '🚀' : a > 0 ? '🟢' : a > -0.5 ? '🟡' : '🔴';
+    const label = a > 0.5 ? '強勢加速' : a > 0 ? '緩步加速' : a > -0.5 ? '略為放緩' : '明顯退潮';
+    return `<span class="stock-accel" title="資金加速度 ${a >= 0 ? '+' : ''}${a.toFixed(2)} 億/天（${label}，近5日/日均 − 近20日/日均，非同儕排名比較）">${icon}</span>`;
+  }
+
   list.innerHTML = headerHtml + stockList.map(code => {
     const sd = stockData[code];
     const name = (sd && sd.name) || STOCK_NAMES[code] || '';
     let chgHtml = '<span class="stock-chg" style="color:#444;">—</span>';
     let flowHtml = '<span class="stock-flow">—</span>';
     let star = '';
+    let accelBadge = '';
     if (sd) {
       const chgColor = sd.chg_1d >= 0 ? '#1D9E75' : '#D85A30';
       const chgSign = sd.chg_1d >= 0 ? '+' : '';
@@ -845,12 +857,14 @@ function openPanel(s) {
       flowHtml = `<span class="stock-flow" style="color:${flowColor}">${flowSign}${sd.net_1d_yi.toFixed(2)}億</span>`;
       if (sd.pos != null && sd.pos >= 70 && (sd.net_5d_yi || 0) > 0)
         star = '<span title="高位階領頭股（pos≥70 且近5日法人淨買）" style="color:#E4B125;margin-right:3px;">★</span>';
+      accelBadge = stockMomentumBadge(sd);
     }
     return `<div class="stock-row">
       <span class="stock-code">${code}</span>
       <span class="stock-name">${star}${name}</span>
       ${chgHtml}
       ${flowHtml}
+      ${accelBadge}
     </div>`;
   }).join('');
 

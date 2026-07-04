@@ -67,6 +67,8 @@
         <option value="chg_pct">↕ 漲幅</option>
         <option value="rr">↕ RR賺賠比</option>
         <option value="max_group_z">↕ 族群z</option>
+        <option value="foreign">↕ 外資連買</option>
+        <option value="trust">↕ 投信連買</option>
       </select>
       <label class="check-toggle" title="只看同時被 ≥2 策略看好的股（突破命中＋Hanku＋第三浪）">
         <input type="checkbox" id="only-resonance" /> ⚡ 只看共振
@@ -153,6 +155,18 @@
           <label><input type="radio" name="island-mode" value="any" /> 任一</label>
         </div>
         <span class="muted" style="font-size:11px">頂部＝先向上跳空再向下跳空回補(島懸在上方)；底部＝先向下跳空再向上跳空回補(島懸在下方)</span>
+      </div>
+      <div class="mu-block">
+        <div class="mu-head">📐 型態訊號 <span class="mu-hint">勾選任一即入選（群內 OR）；回測依據見精粹</span></div>
+        <div class="mu-flow" style="flex-wrap:wrap">
+          <label title="向上缺口且3日內未被收盤回補＝支撐有效(fwd20 +3.5~+7.2%)"><input type="checkbox" name="pattern-sig" value="gap_hold" /> ✅缺口未補</label>
+          <label title="缺口3日內被收盤封掉＝轉弱(fwd20 −3.4~−8.6%)，用於避開或反向"><input type="checkbox" name="pattern-sig" value="gap_fill" /> ⛔缺口被補</label>
+          <label title="N字底突破上頸線(帶量紅K確認)或回後買點"><input type="checkbox" name="pattern-sig" value="nbase_break" /> 🔥N字突破/回後</label>
+          <label title="N字第二腳成形、等突破上頸線"><input type="checkbox" name="pattern-sig" value="nbase_lock" /> N字鎖股</label>
+          <label title="黃金分割扣板機(只發0.236極強/0.382首選)"><input type="checkbox" name="pattern-sig" value="fib_buy" /> 🔥黃金買點</label>
+          <label title="圓弧底剛突破頸線或回後買點"><input type="checkbox" name="pattern-sig" value="round_buy" /> 🔥圓弧突破/回後</label>
+          <label title="圓弧底右弧收復碗深50%+、等帶量過頸線"><input type="checkbox" name="pattern-sig" value="round_lock" /> 圓弧鎖股</label>
+        </div>
       </div>
       <div class="mainup-extra">
         <label>進場型態
@@ -577,7 +591,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260704c"></script>
+  <script src="app.js?v=20260704d"></script>
   <script src="calc.js?v=20260704a"></script>
 </body>
 </html>

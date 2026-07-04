@@ -149,6 +149,19 @@ const state = {
   mainupExclDist: false,  // 排除出貨警訊；任何模式皆生效
   // 島狀反轉：off|top|bottom|any（後端已判定缺口孤立，前端只篩 island_top/island_bottom 是否有值）
   islandMode: 'off',
+  // 型態訊號（ep10缺口/ep11 N字/ep14圓弧/ep15黃金分割 新欄；勾選任一即入選=群內 OR）
+  patternSignals: new Set(),
+};
+
+// 型態訊號 勾選值 → row 判定（欄位下次 export 才有值，缺值一律不中）
+const PATTERN_SIG_TEST = {
+  gap_hold:    (row) => /✅/.test(row.gap_state || ''),
+  gap_fill:    (row) => /⛔/.test(row.gap_state || ''),
+  nbase_break: (row) => /🔥|回後/.test(row.nbase_state || ''),
+  nbase_lock:  (row) => /鎖股/.test(row.nbase_state || ''),
+  fib_buy:     (row) => /黃金買點/.test(row.fib_state || ''),
+  round_buy:   (row) => /剛突破|回後買點/.test(row.rounding_state || ''),
+  round_lock:  (row) => /鎖股/.test(row.rounding_state || ''),
 };
 
 // 代號→產業 對照表（供 hanku/wave3 等資料無產業欄的分頁，借主表 row 的 industry）
@@ -405,7 +418,22 @@ function renderSnapshot(d, mkt) {
     }
   }
 
-  // ⑥ 共振檔數（等 loadResonanceData 完成後由 updateSnapshotReso 填值）
+  // ⑥ 法人連買廣度（export_market 的 inst_breadth；連買/連賣 ≥3 天家數）
+  const ib = mkt?.inst_breadth;
+  if (ib && ib.universe) {
+    tiles.push(`<div class="ms-tile">
+      <span class="ms-k">🌏 外資連買廣度</span>
+      <span class="ms-v"><span class="pos">${ib.foreign_buy3}</span><small>／</small><span class="neg">${ib.foreign_sell3}</span></span>
+      <span class="ms-sub">連買≥3天／連賣≥3天（共 ${ib.universe} 檔）</span>
+    </div>`);
+    tiles.push(`<div class="ms-tile">
+      <span class="ms-k">🏦 投信連買廣度</span>
+      <span class="ms-v"><span class="pos">${ib.trust_buy3}</span><small>／</small><span class="neg">${ib.trust_sell3}</span></span>
+      <span class="ms-sub">連買≥3天／連賣≥3天（共 ${ib.universe} 檔）</span>
+    </div>`);
+  }
+
+  // ⑦ 共振檔數（等 loadResonanceData 完成後由 updateSnapshotReso 填值）
   tiles.push(`<div class="ms-tile">
     <span class="ms-k">⚡ 多策略共振</span>
     <span class="ms-v accent" id="ms-reso-v">--</span>
@@ -760,6 +788,16 @@ function applyFilters() {
     if (state.islandMode === 'bottom' && !row.island_bottom) return false;
     if (state.islandMode === 'any' && !row.island_top && !row.island_bottom) return false;
 
+    // 型態訊號（勾選任一即入選）
+    if (state.patternSignals.size > 0) {
+      let any = false;
+      for (const k of state.patternSignals) {
+        const f = PATTERN_SIG_TEST[k];
+        if (f && f(row)) { any = true; break; }
+      }
+      if (!any) return false;
+    }
+
     return true;
   });
 
@@ -798,6 +836,7 @@ function renderActiveFilters() {
   if (state.mainupEntry) add('mainupEntry', `進場:${state.mainupEntry}`);
   if (state.mainupExclDist) add('mainupExcl', '排除出貨');
   if (state.islandMode !== 'off') add('island', `島狀:${ISLAND_MODE_LABEL[state.islandMode]}`);
+  if (state.patternSignals.size) add('pattern', `型態:${state.patternSignals.size}訊號`);
   if (state.dimSelected.size) add('dim', `${DIM_LABEL[state.dim]}:${state.dimSelected.size}`);
   if (state.search) add('search', `搜尋:${state.search}`);
   if (state.scoreMin > 0) add('scoreMin', `分數≥${state.scoreMin}`);
@@ -824,7 +863,8 @@ function updateGroupCounts() {
   set('fgc-cat', state.selectedCats.size);
   set('fgc-mainup', (state.mainupMode !== 'off' ? 1 : 0) +
                     (state.mainupEntry ? 1 : 0) + (state.mainupExclDist ? 1 : 0) +
-                    (state.islandMode !== 'off' ? 1 : 0));
+                    (state.islandMode !== 'off' ? 1 : 0) +
+                    (state.patternSignals.size ? 1 : 0));
   set('fgc-dim', state.dimSelected.size);
   set('fgc-thresh', (state.scoreMin > 0 ? 1 : 0) + (state.rsMin > 0 ? 1 : 0) +
                     (state.distRiskMax != null ? 1 : 0) + (state.groupZMin != null ? 1 : 0));
@@ -850,6 +890,10 @@ function removeFilter(key) {
     case 'island':
       state.islandMode = 'off';
       { const r = document.querySelector('input[name="island-mode"][value="off"]'); if (r) r.checked = true; }
+      break;
+    case 'pattern':
+      state.patternSignals.clear();
+      document.querySelectorAll('input[name="pattern-sig"]').forEach(cb => { cb.checked = false; });
       break;
     case 'dim':
       state.dimSelected.clear();
@@ -932,6 +976,15 @@ function bindControls() {
   // 島狀反轉模式 radio
   document.querySelectorAll('input[name="island-mode"]').forEach(r => {
     r.addEventListener('change', e => { state.islandMode = e.target.value; applyFilters(); });
+  });
+
+  // 型態訊號 checkbox（缺口/N字/黃金分割/圓弧）
+  document.querySelectorAll('input[name="pattern-sig"]').forEach(cb => {
+    cb.addEventListener('change', e => {
+      if (e.target.checked) state.patternSignals.add(e.target.value);
+      else state.patternSignals.delete(e.target.value);
+      applyFilters();
+    });
   });
 
   document.querySelectorAll('input[name="dim"]').forEach(r => {
@@ -1028,6 +1081,8 @@ function clearAllFilters() {
   state.mainupEntry = '';
   state.mainupExclDist = false;
   state.islandMode = 'off';
+  state.patternSignals.clear();
+  document.querySelectorAll('input[name="pattern-sig"]').forEach(cb => { cb.checked = false; });
 
   document.querySelectorAll('.cat-chip input').forEach(cb => { cb.checked = false; cb.parentElement.classList.remove('checked'); });
   document.querySelector('input[name="mode"][value="OR"]').checked = true;
@@ -2428,6 +2483,8 @@ const MAIN_CARD_SORT = {
   rr:          (a, b) => (b.rr ?? -1e9) - (a.rr ?? -1e9),
   max_group_z: (a, b) => (b.max_group_z ?? -1e9) - (a.max_group_z ?? -1e9) || (b.score || 0) - (a.score || 0),
   reso:        (a, b) => _resoCount(b) - _resoCount(a) || (b.hits || 0) - (a.hits || 0) || (b.score || 0) - (a.score || 0),
+  foreign:     (a, b) => (b.foreign_streak ?? -1e9) - (a.foreign_streak ?? -1e9),
+  trust:       (a, b) => (b.trust_streak ?? -1e9) - (a.trust_streak ?? -1e9),
 };
 
 function _hitTier(h) {
@@ -2461,6 +2518,14 @@ function mainCardHtml(r) {
   const hot = (r.max_group_z != null && r.max_group_z >= 1)
     ? '<span class="sc-hot">🔥族群</span>' : '';
 
+  // 法人連買/連賣 ≥3 天才顯示（雜訊過濾）
+  const instBits = [];
+  if (r.foreign_streak >= 3) instBits.push(`<span class="tag tag-good">外資連買${r.foreign_streak}日</span>`);
+  else if (r.foreign_streak <= -3) instBits.push(`<span class="tag tag-warn">外資連賣${-r.foreign_streak}日</span>`);
+  if (r.trust_streak >= 3) instBits.push(`<span class="tag tag-good">投信連買${r.trust_streak}日</span>`);
+  else if (r.trust_streak <= -3) instBits.push(`<span class="tag tag-warn">投信連賣${-r.trust_streak}日</span>`);
+  const instHtml = instBits.join('');
+
   // 跨策略共振徽章
   const hk = resonance.hanku[r.ticker];
   const wv = resonance.wave3[r.ticker];
@@ -2491,6 +2556,7 @@ function mainCardHtml(r) {
     <div class="sc-tags">
       ${r.industry ? `<span class="tag">${r.industry}</span>` : ''}
       ${flagHtml}
+      ${instHtml}
       ${catTags}
     </div>
   </div>`;

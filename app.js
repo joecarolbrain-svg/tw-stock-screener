@@ -2989,6 +2989,9 @@ function renderStockSummary(ticker, name, market, row) {
   if (svHas(rSt)) sig.push(`圓弧底 <b style="color:${/剛突破|回後買點/.test(rSt) ? '#22c55e' : /已達標/.test(rSt) ? '#f5b942' : '#8fa3b8'}">${svEsc(rSt)}</b>`);
   if (svHas(fSt)) sig.push(`黃金分割 <b style="color:${/買點/.test(fSt) ? '#22c55e' : /失效|過深/.test(fSt) ? '#ff5252' : '#8fa3b8'}">${svEsc(fSt)}</b>` +
     (svNum(G('fib_retrace')) != null ? `<span class="sv-mut">（回檔${G('fib_retrace')}）</span>` : ''));
+  const gSt = G('gap_state'), nSt = G('nbase_state');
+  if (svHas(gSt)) sig.push(`缺口 <b style="color:${/⛔/.test(gSt) ? '#ff5252' : /✅/.test(gSt) ? '#22c55e' : '#8fa3b8'}">${svEsc(gSt)}</b>`);
+  if (svHas(nSt)) sig.push(`N字底 <b style="color:${/🔥|回後/.test(nSt) ? '#22c55e' : /已達標/.test(nSt) ? '#f5b942' : '#8fa3b8'}">${svEsc(nSt)}</b>`);
 
   // ④ 題材 / 族群
   const th = [];
@@ -3007,6 +3010,9 @@ function renderStockSummary(ticker, name, market, row) {
   if (svNum(G('target')) != null) px.push(`目標 <b style="color:#ffd54f">${G('target')}</b>`);
   if (svNum(G('rounding_target')) != null)
     px.push(`圓弧測幅 <b style="color:#ffd54f">${G('rounding_target')}</b><span class="sv-mut">（120根內達標≈66%）</span>`);
+  if (svNum(G('nbase_target')) != null)
+    px.push(`N字測幅 <b style="color:#ffd54f">${G('nbase_target')}</b><span class="sv-mut">（停損守第二腳低，勿守突破K低）</span>`);
+  if (svNum(G('gap_support')) != null) px.push(`缺口支撐 <b>${G('gap_support')}</b>`);
   const rrV = svNum(G('rr_ratio')) != null ? svNum(G('rr_ratio')) : svNum(G('rr'));
   if (rrV != null) px.push(`R:R <b style="color:${rrV >= 2 ? '#22c55e' : rrV >= 1 ? '#f5b942' : '#888'}">${rrV.toFixed(2)}</b>`);
   const pxNote = svHas(G('entry_method')) ? `<div class="sv-mut" style="margin-top:3px">${svEsc(G('entry_method'))}</div>` : '';

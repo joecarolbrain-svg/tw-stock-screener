@@ -104,7 +104,6 @@ async function onDateChange(ev) {
   else if (activeTab === 'flow') loadIndustryFlow();
   else if (activeTab === 'concept') loadThemeFlow();
   else if (activeTab === 'hanku') loadHanku();
-  else if (activeTab === 'wave3') loadWave3();
 }
 
 // 市場別 -> TradingView 交易所代碼
@@ -166,7 +165,7 @@ const PATTERN_SIG_TEST = {
   sr_break:    (row) => /⛔/.test(row.sr_state || ''),
 };
 
-// 代號→產業 對照表（供 hanku/wave3 等資料無產業欄的分頁，借主表 row 的 industry）
+// 代號→產業 對照表（供 hanku 等資料無產業欄的分頁，借主表 row 的 industry）
 let tickerIndustry = {};
 function buildTickerIndustry(data) {
   tickerIndustry = {};
@@ -184,9 +183,9 @@ function populateIndustrySelect(selectEl, rows) {
   if (prev && (prev === 'all' || inds.includes(prev))) selectEl.value = prev;
 }
 
-// ── 跨策略共振：把 Hanku / 第三浪 的 actionable 清單併進每日看板 ──
-//   resonance.hanku/​wave3 = { 代號: 狀態 }；共振數 = 突破(命中≥1)+Hanku+三浪 命中幾個
-const resonance = { hanku: {}, wave3: {} };
+// ── 跨策略共振：把 Hanku 的 actionable 清單併進每日看板 ──
+//   resonance.hanku = { 代號: 狀態 }；共振數 = 突破(命中≥1)+Hanku 命中幾個
+const resonance = { hanku: {} };
 
 function _resoDate(kind) {
   const ds = indexMeta?.dates || [];
@@ -195,7 +194,7 @@ function _resoDate(kind) {
 }
 
 async function loadResonanceData() {
-  resonance.hanku = {}; resonance.wave3 = {};
+  resonance.hanku = {};
   const grab = async (kind, store) => {
     try {
       const d = _resoDate(kind);
@@ -204,7 +203,7 @@ async function loadResonanceData() {
       (j.rows || []).forEach(r => { if (r.ticker) store[r.ticker] = r.state || ''; });
     } catch (e) { /* 缺資料不影響主表 */ }
   };
-  await Promise.all([grab('hanku', resonance.hanku), grab('wave3', resonance.wave3)]);
+  await grab('hanku', resonance.hanku);
   // 資料到位後重跑篩選（共振篩選/排序/徽章才正確）
   if (state.table) applyFilters();
 }
@@ -213,7 +212,6 @@ function _resoCount(r) {
   let n = 0;
   if ((r.hits || 0) >= 1) n++;
   if (resonance.hanku[r.ticker]) n++;
-  if (resonance.wave3[r.ticker]) n++;
   return n;
 }
 function _stripLeadEmoji(s) { return String(s || '').replace(/^[^一-龥A-Za-z0-9]+/, ''); }
@@ -442,7 +440,7 @@ function renderSnapshot(d, mkt) {
   tiles.push(`<div class="ms-tile">
     <span class="ms-k">⚡ 多策略共振</span>
     <span class="ms-v accent" id="ms-reso-v">--</span>
-    <span class="ms-sub">突破＋Hanku＋三浪命中 ≥2</span>
+    <span class="ms-sub">突破＋Hanku命中 ≥2</span>
   </div>`);
 
   // 評論列（market.json commentary + signals，最多 4 則）
@@ -734,7 +732,7 @@ function applyFilters() {
   state.table.setFilter((row) => {
     // 只看勾選
     if (state.onlyPinned && !state.pinned.has(row.ticker)) return false;
-    // 只看共振（同時被 ≥2 策略 actionable：突破/Hanku/三浪）
+    // 只看共振（同時被 ≥2 策略 actionable：突破/Hanku）
     if (state.onlyResonance && _resoCount(row) < 2) return false;
     // 只顯示族群 z≥1
     if (state.onlyHotGroup && (row.max_group_z == null || row.max_group_z < 1)) return false;
@@ -1261,12 +1259,10 @@ function renderWatchlist() {
         formatter: (cell) => {
           const r = cell.getRow().getData();
           const hk = resonance.hanku[r.ticker];
-          const wv = resonance.wave3[r.ticker];
           const n = _resoCount(r);
           const badges =
             (n >= 2 ? '<span class="sc-zap">⚡' + n + '</span> ' : '') +
-            (hk ? '<span class="reso-badge reso-hk">🌀波段</span>' : '') +
-            (wv ? '<span class="reso-badge reso-wv">🌊三浪</span>' : '');
+            (hk ? '<span class="reso-badge reso-hk">🌀波段</span>' : '');
           return badges || '<span class="muted">—</span>';
         },
       },
@@ -1347,9 +1343,6 @@ function bindTabs() {
       }
       if (tab === 'hanku') {
         loadHanku();
-      }
-      if (tab === 'wave3') {
-        loadWave3();
       }
       if (tab === 'sector-flow') {
         // 泡泡圖＝獨立頁 sector.html，首次切入才設 src（lazy，避免未看就抓資料）
@@ -2448,7 +2441,7 @@ function _hkPct(prec) {
   };
 }
 
-// ── 卡片檢視（Hanku / 第三浪 共用） ──────────────────
+// ── 卡片檢視（各分頁共用） ──────────────────
 function getTabView(key, fallback = 'card') {
   const s = localStorage.getItem('tabView_' + key);
   return (s === 'card' || s === 'table') ? s : fallback;
@@ -2479,19 +2472,30 @@ const HANKU_SORT = {
   dist9_asc: (a, b) => (a.dist_w9 ?? 1e9) - (b.dist_w9 ?? 1e9),
 };
 
+// 進場天數(交易日) → 新鮮度徽章：0天今日／1-3天綠／4-10天藍(仍在new_win觀察窗)；>10天狀態已轉「守4週持有」不特別標
+function _hankuFreshBadge(days) {
+  if (days == null) return '';
+  if (days === 0) return '<span class="sc-new">🆕今日進場</span>';
+  if (days <= 3) return `<span class="sc-new">🟢${days}天前進場</span>`;
+  if (days <= 10) return `<span class="sc-new sc-new-mid">🔵${days}天前進場</span>`;
+  return '';
+}
+
 function hankuCardHtml(r) {
   const warns = [];
   if (r.warn47) warns.push('⚠️破47');
   if (r.w4_down) warns.push('⚠️4T下彎');
-  const fresh = r.entry_date && hankuState.data && r.entry_date === hankuState.data.trading_date;
+  const days = r.entry_days;
+  const freshBadge = _hankuFreshBadge(days);
+  const dayNote = days != null ? `<small class="sc-days">·${days}日前</small>` : '';
   return `<button type="button" class="stk-card" data-ticker="${r.ticker}">
     <div class="sc-head">
-      <span class="sc-id"><b>${r.ticker}</b> ${r.name || ''}${fresh ? ' <span class="sc-new">🆕剛進場</span>' : ''}</span>
+      <span class="sc-id"><b>${r.ticker}</b> ${r.name || ''}${freshBadge ? ' ' + freshBadge : ''}</span>
       <span class="sc-state">${r.state || ''}</span>
     </div>
     <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span></div>
     <div class="sc-grid">
-      <div class="sc-cell"><span class="k">進場</span><span class="v">${_cardNum(r.entry_px)} <small>${r.entry_date ? r.entry_date.slice(5) : ''}</small></span></div>
+      <div class="sc-cell"><span class="k">進場</span><span class="v">${_cardNum(r.entry_px)} <small>${r.entry_date ? r.entry_date.slice(5) : ''}</small>${dayNote}</span></div>
       <div class="sc-cell"><span class="k">報酬</span>${_cardPct(r.ret_pct)}</div>
       <div class="sc-cell"><span class="k">週9停損</span><span class="v">${_cardNum(r.w9_stop)}</span></div>
       <div class="sc-cell"><span class="k">距9週</span>${_cardPct(r.dist_w9)}</div>
@@ -2500,30 +2504,6 @@ function hankuCardHtml(r) {
       ${r._ind ? `<span class="tag">${r._ind}</span>` : ''}
       <span class="tag">發散 ${_cardNum(r.gap)}</span>
       ${warns.map(w => `<span class="tag tag-warn">${w}</span>`).join('')}
-    </div>
-  </button>`;
-}
-
-function wave3CardHtml(r) {
-  const rr = r.rr;
-  const rrCls = rr >= 2 ? 'tag-good' : (rr >= 1 ? 'tag-warn' : '');
-  return `<button type="button" class="stk-card" data-ticker="${r.ticker}">
-    <div class="sc-head">
-      <span class="sc-id"><b>${r.ticker}</b> ${r.name || ''}</span>
-      <span class="sc-state">${r.state || ''}</span>
-    </div>
-    <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span></div>
-    <div class="sc-grid">
-      <div class="sc-cell"><span class="k">觸發(過1浪高)</span><span class="v">${_cardNum(r.trigger)}</span></div>
-      <div class="sc-cell"><span class="k">距觸發</span>${_cardPct(r.dist_trig)}</div>
-      <div class="sc-cell"><span class="k">停損(2浪低)</span><span class="v">${_cardNum(r.stop)}</span></div>
-      <div class="sc-cell"><span class="k">目標(Fib)</span><span class="v">${_cardNum(r.target)}</span></div>
-    </div>
-    <div class="sc-tags">
-      ${r._ind ? `<span class="tag">${r._ind}</span>` : ''}
-      <span class="tag ${rrCls}">R:R ${rr == null ? '--' : Number(rr).toFixed(2)}</span>
-      <span class="tag">報酬 ${r.ret_pct == null ? '--' : (r.ret_pct > 0 ? '+' : '') + Number(r.ret_pct).toFixed(1) + '%'}</span>
-      ${r.bull == null ? '' : `<span class="tag">${r.bull ? '大盤多✓' : '大盤空'}</span>`}
     </div>
   </button>`;
 }
@@ -2594,11 +2574,9 @@ function mainCardHtml(r) {
 
   // 跨策略共振徽章
   const hk = resonance.hanku[r.ticker];
-  const wv = resonance.wave3[r.ticker];
   const resoN = _resoCount(r);
   const resoBadges =
-    (hk ? `<span class="reso-badge reso-hk">🌀${_stripLeadEmoji(hk)}</span>` : '') +
-    (wv ? `<span class="reso-badge reso-wv">🌊${_stripLeadEmoji(wv)}</span>` : '');
+    (hk ? `<span class="reso-badge reso-hk">🌀${_stripLeadEmoji(hk)}</span>` : '');
   const resoRow = resoBadges ? `<div class="sc-reso">${resoBadges}</div>` : '';
   const zap = resoN >= 2 ? '<span class="sc-zap" title="多策略共振">⚡共振</span>' : '';
 
@@ -2685,6 +2663,7 @@ const HANKU_COLS = [
   { title: '現價', field: 'close', width: 76, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
   { title: '報酬%', field: 'ret_pct', width: 80, hozAlign: 'right', sorter: 'number', formatter: _hkPct(1) },
   { title: '進場日', field: 'entry_date', width: 104 },
+  { title: '進場天數', field: 'entry_days', width: 80, hozAlign: 'right', sorter: 'number' },
   { title: '進場價', field: 'entry_px', width: 78, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
   { title: '發散%', field: 'gap', width: 74, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
   { title: '週9停損', field: 'w9_stop', width: 84, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
@@ -2787,130 +2766,6 @@ function initHankuControls() {
   }));
 }
 document.addEventListener('DOMContentLoaded', initHankuControls);
-
-// ═════════════════════════════════════════════════════════
-//  🌊 艾略特第三浪（過1浪高+滾量 進場）分頁
-//  讀 data/daily/{date}/wave3.json.gz → 狀態清單 + 建議價位 + 點代號開 K 線
-// ═════════════════════════════════════════════════════════
-const wave3State = { loaded: false, loadedDate: null, data: null, table: null, view: null };
-
-const WAVE3_COLS = [
-  { title: '代號', field: 'ticker', width: 80, frozen: true,
-    formatter: (cell) => `<a class="ticker-link" href="#" data-kline-ticker="${cell.getValue()}">${cell.getValue()}</a>`,
-    cellClick: (e, cell) => {
-      e.preventDefault();
-      const r = cell.getRow().getData();
-      openKlineModal(cell.getValue(), r.name, r.market);
-    } },
-  { title: '名稱', field: 'name', width: 100, frozen: true },
-  { title: '產業', field: '_ind', width: 110 },
-  { title: '狀態', field: 'state', width: 150 },
-  { title: '當日%', field: 'chg_pct', width: 78, hozAlign: 'right', sorter: 'number', formatter: _hkPct(2) },
-  { title: '現價', field: 'close', width: 76, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
-  { title: '觸發(過1浪高)', field: 'trigger', width: 110, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
-  { title: '距觸發%', field: 'dist_trig', width: 84, hozAlign: 'right', sorter: 'number', formatter: _hkPct(1) },
-  { title: '停損(2浪低)', field: 'stop', width: 100, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
-  { title: '目標(Fib)', field: 'target', width: 92, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
-  { title: 'R:R', field: 'rr', width: 64, hozAlign: 'right', sorter: 'number',
-    formatter: (c) => { const v = c.getValue(); if (v == null) return ''; const col = v >= 2 ? '#22c55e' : (v >= 1 ? '#f5b942' : '#888'); return `<span style="color:${col}">${Number(v).toFixed(2)}</span>`; } },
-  { title: '報酬%', field: 'ret_pct', width: 78, hozAlign: 'right', sorter: 'number', formatter: _hkPct(1) },
-  { title: '1浪幅', field: 'w1', width: 72, hozAlign: 'right', sorter: 'number', formatter: _hkNum(2) },
-  { title: '2浪回檔', field: 'retr', width: 78, hozAlign: 'right', sorter: 'number',
-    formatter: (c) => { const v = c.getValue(); return v == null ? '' : (v * 100).toFixed(0) + '%'; } },
-  { title: '大盤', field: 'bull', width: 56, hozAlign: 'center',
-    formatter: (c) => { const v = c.getValue(); return v == null ? '' : (v ? '多✓' : '空'); } },
-];
-
-async function loadWave3() {
-  if (wave3State.loaded && wave3State.loadedDate === currentDate) { renderWave3(); return; }
-  const metaEl = document.getElementById('wave3-meta');
-  const sumEl = document.getElementById('wave3-summary');
-  const entry = (indexMeta?.dates || []).find(
-    e => e.date === currentDate && (e.has || []).includes('wave3'));
-  let wvDate = currentDate;
-  if (!entry) {
-    const fb = (indexMeta?.dates || []).find(e => (e.has || []).includes('wave3'));
-    if (!fb) {
-      metaEl.textContent = '無 第三浪 資料';
-      sumEl.innerHTML = '<div style="padding:20px;color:#aaa">該日期未提供第三浪資料。請跑 export_wave3_to_json.py。</div>';
-      document.getElementById('wave3-table').innerHTML = '';
-      return;
-    }
-    wvDate = fb.date;
-  }
-  metaEl.textContent = `載入中... (${wvDate})`;
-  try {
-    wave3State.data = await fetchJsonGz(`data/daily/${wvDate}/wave3.json.gz`);
-    wave3State.loaded = true;
-    wave3State.loadedDate = currentDate;
-    (wave3State.data.rows || []).forEach(r => { r._ind = tickerIndustry[r.ticker] || ''; });
-    populateIndustrySelect(document.getElementById('wave3-industry'), wave3State.data.rows);
-    const d = wave3State.data;
-    metaEl.textContent = `資料日 ${d.trading_date}　|　${d.rows.length} 檔　|　更新 ${(d.generated_at || '').slice(11, 16)}`;
-    renderWave3();
-  } catch (err) {
-    metaEl.textContent = `載入失敗：${err.message}`;
-  }
-}
-
-function renderWave3() {
-  if (!wave3State.data) return;
-  const stSel = document.getElementById('wave3-state').value;
-  const indSel = (document.getElementById('wave3-industry') || {}).value || 'all';
-  const q = String(document.getElementById('wave3-search').value || '').trim().toLowerCase();
-
-  let rows = wave3State.data.rows.slice();
-  if (stSel !== 'all') rows = rows.filter(r => r.state === stSel);
-  if (indSel !== 'all') rows = rows.filter(r => r._ind === indSel);
-  if (q) rows = rows.filter(r =>
-    (r.ticker || '').toLowerCase().includes(q) || (r.name || '').toLowerCase().includes(q));
-
-  const sm = wave3State.data.states || [];
-  document.getElementById('wave3-summary').innerHTML =
-    `<span style="font-size:15px;font-weight:600">狀態分布：</span>` +
-    sm.map(s => `<span style="margin-left:10px">${s.code} <b>${s.count}</b></span>`).join('') +
-    `<span style="margin-left:14px;color:#888">顯示 ${rows.length} 檔</span>` +
-    (wave3State.data.note ? `<div style="margin-top:4px;color:#888;font-size:11px">${wave3State.data.note}</div>` : '');
-
-  const view = wave3State.view || (wave3State.view = getTabView('wave3'));
-  syncViewToggle('wave3-viewtoggle', view);
-  const cardsEl = document.getElementById('wave3-cards');
-  const tableEl = document.getElementById('wave3-table');
-  if (view === 'card') {
-    if (wave3State.table) { wave3State.table.destroy(); wave3State.table = null; }
-    if (tableEl) tableEl.style.display = 'none';
-    if (cardsEl) cardsEl.style.display = '';
-    renderStockCards('wave3-cards', rows, wave3CardHtml);
-  } else {
-    if (cardsEl) { cardsEl.style.display = 'none'; cardsEl.innerHTML = ''; }
-    if (tableEl) tableEl.style.display = '';
-    if (wave3State.table) wave3State.table.destroy();
-    wave3State.table = new Tabulator('#wave3-table', {
-      data: rows,
-      layout: 'fitDataTable',
-      height: 'calc(100vh - 320px)',
-      columns: WAVE3_COLS,
-      placeholder: '無符合條件的個股',
-      initialSort: [{ column: 'rr', dir: 'desc' }],
-    });
-  }
-}
-
-function initWave3Controls() {
-  ['wave3-state', 'wave3-industry', 'wave3-search'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const ev = el.tagName === 'SELECT' ? 'change' : 'input';
-    el.addEventListener(ev, () => { if (wave3State.loaded) renderWave3(); });
-  });
-  const vt = document.getElementById('wave3-viewtoggle');
-  if (vt) vt.querySelectorAll('.vt-btn').forEach(b => b.addEventListener('click', () => {
-    wave3State.view = b.dataset.view;
-    setTabView('wave3', b.dataset.view);
-    if (wave3State.loaded) renderWave3();
-  }));
-}
-document.addEventListener('DOMContentLoaded', initWave3Controls);
 
 // ═════════════════════════════════════════════════════════
 //  族群資金流向（sector-flow）— 三大法人合計淨買超+加速度四象限

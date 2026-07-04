@@ -35,7 +35,6 @@
     <button class="tab-btn active" data-tab="dashboard">📊 每日看板</button>
     <button class="tab-btn" data-tab="watchlist">⭐ 自選股</button>
     <button class="tab-btn" data-tab="hanku">🌀 Hanku波段</button>
-    <button class="tab-btn" data-tab="wave3">🌊 第三浪</button>
     <button class="tab-btn" data-tab="sector-flow">💸 族群資金流向</button>
     <button class="tab-btn" data-tab="cb">💎 可轉債監控</button>
     <button class="tab-btn" data-tab="signal-report">📋 訊號成績單</button>
@@ -71,7 +70,7 @@
         <option value="foreign">↕ 外資連買</option>
         <option value="trust">↕ 投信連買</option>
       </select>
-      <label class="check-toggle" title="只看同時被 ≥2 策略看好的股（突破命中＋Hanku＋第三浪）">
+      <label class="check-toggle" title="只看同時被 ≥2 策略看好的股（突破命中＋Hanku）">
         <input type="checkbox" id="only-resonance" /> ⚡ 只看共振
       </label>
       <label class="check-toggle" title="只顯示族群最高 z ≥ 1 的個股（族群在熱區）">
@@ -302,52 +301,6 @@
       <div id="hanku-summary" style="padding:8px 12px;color:#e0e0e0"></div>
       <div id="hanku-cards" class="card-grid"></div>
       <div id="hanku-table"></div>
-    </main>
-  </section>
-
-  <section class="tab-panel" data-panel="wave3">
-    <div class="filters">
-      <div class="filter-row">
-        <div class="filter-group small">
-          <label class="filter-label">狀態</label>
-          <select id="wave3-state" class="inline-select">
-            <option value="all">全部</option>
-            <option value="🟡待突破1浪高" selected>🟡 待突破1浪高</option>
-            <option value="🟢第三浪起">🟢 第三浪起</option>
-            <option value="🔵第三浪續抱">🔵 第三浪續抱</option>
-            <option value="🎯近Fib目標(可分批)">🎯 近Fib目標</option>
-            <option value="⚠️轉弱(疑4浪)">⚠️ 轉弱(疑4浪)</option>
-          </select>
-        </div>
-        <div class="filter-group small">
-          <label class="filter-label">代號/名稱</label>
-          <input type="text" id="wave3-search" placeholder="例如 2330 或 台積" style="width:160px" />
-        </div>
-        <div class="filter-group small" style="max-width:200px">
-          <label class="filter-label">產業</label>
-          <select id="wave3-industry" class="inline-select">
-            <option value="all">全部產業</option>
-          </select>
-        </div>
-        <div class="view-toggle" id="wave3-viewtoggle">
-          <button type="button" class="vt-btn active" data-view="card">▦ 卡片</button>
-          <button type="button" class="vt-btn" data-view="table">≣ 表格</button>
-        </div>
-        <span class="filler"></span>
-        <span class="muted" id="wave3-meta">--</span>
-      </div>
-      <div class="filter-row legend-row">
-        <span class="legend-label">說明：</span>
-        <span class="legend-item">艾略特<b>第三浪</b>：合法1-2後<b>帶量過第1浪高</b>進場、<b>2浪低</b>停損、<b>Fib1.618</b>目標</span>
-        <span class="legend-item">全市場回測(本設定 pct0.13+均量≥500)：每筆<b>+6.8%</b>、勝率39%(全市場平均僅+3.8%)</span>
-        <span class="legend-item">⚠️ <b>中位數為負、靠肥尾大贏</b>：別只挑1-2檔，需廣take+讓贏家抱到目標；不含下市股仍有殘留偏誤</span>
-        <span class="legend-item">點代號 → K線（含1-2-3標籤＋三價位）</span>
-      </div>
-    </div>
-    <main>
-      <div id="wave3-summary" style="padding:8px 12px;color:#e0e0e0"></div>
-      <div id="wave3-cards" class="card-grid"></div>
-      <div id="wave3-table"></div>
     </main>
   </section>
 

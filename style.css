@@ -356,7 +356,7 @@ input:focus, select:focus { outline: 2px solid #00d4aa; outline-offset: -1px; }
 .vt-btn:hover { color: #e0e0e0; }
 .vt-btn.active { background: rgba(0,212,170,0.15); color: #00d4aa; font-weight: 600; }
 
-/* ── 個股卡片（Hanku / 第三浪 卡片檢視） ──────────────── */
+/* ── 個股卡片（各分頁卡片檢視共用） ──────────────── */
 .card-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px; padding: 12px;
@@ -373,6 +373,8 @@ input:focus, select:focus { outline: 2px solid #00d4aa; outline-offset: -1px; }
 .sc-id b { color: #cfe1ff; font-weight: 700; margin-right: 4px; }
 .sc-state { font-size: 12px; color: #cdd3e0; white-space: nowrap; }
 .sc-new { font-size: 10px; color: #0d0d1a; background: #00e6c3; border-radius: 7px; padding: 0 6px; font-weight: 700; }
+.sc-new-mid { background: #64b5f6; }
+.sc-days { color: #f5b942; margin-left: 3px; }
 .sc-price { display: flex; align-items: baseline; gap: 10px; }
 .sc-chg { font-size: 20px; font-weight: 700; }
 .sc-chg.pos { color: #ef5350; } .sc-chg.neg { color: #26a69a; }
@@ -422,7 +424,6 @@ input:focus, select:focus { outline: 2px solid #00d4aa; outline-offset: -1px; }
 .sc-reso { display: flex; flex-wrap: wrap; gap: 4px; }
 .reso-badge { font-size: 11px; border-radius: 8px; padding: 1px 8px; white-space: nowrap; }
 .reso-badge.reso-hk { color: #c4b5fd; background: rgba(139,92,246,0.16); }
-.reso-badge.reso-wv { color: #7dd3fc; background: rgba(56,189,248,0.16); }
 
 /* ── 每日看板主表「去擠」：加大行高 + 字級 + 隔行層次 ── */
 #main-table .tabulator-row { min-height: 34px; }

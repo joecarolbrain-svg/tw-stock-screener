@@ -162,6 +162,8 @@ const PATTERN_SIG_TEST = {
   fib_buy:     (row) => /黃金買點/.test(row.fib_state || ''),
   round_buy:   (row) => /剛突破|回後買點/.test(row.rounding_state || ''),
   round_lock:  (row) => /鎖股/.test(row.rounding_state || ''),
+  sr_clear:    (row) => /✅/.test(row.sr_overhead || ''),
+  sr_break:    (row) => /⛔/.test(row.sr_state || ''),
 };
 
 // 代號→產業 對照表（供 hanku/wave3 等資料無產業欄的分頁，借主表 row 的 industry）
@@ -3122,6 +3124,9 @@ function renderStockSummary(ticker, name, market, row) {
   const gSt = G('gap_state'), nSt = G('nbase_state');
   if (svHas(gSt)) sig.push(`缺口 <b style="color:${/⛔/.test(gSt) ? '#ff5252' : /✅/.test(gSt) ? '#22c55e' : '#8fa3b8'}">${svEsc(gSt)}</b>`);
   if (svHas(nSt)) sig.push(`N字底 <b style="color:${/🔥|回後/.test(nSt) ? '#22c55e' : /已達標/.test(nSt) ? '#f5b942' : '#8fa3b8'}">${svEsc(nSt)}</b>`);
+  const sSt = G('sr_state'), oSt = G('sr_overhead');
+  if (svHas(oSt)) sig.push(`上檔 <b style="color:${/✅/.test(oSt) ? '#22c55e' : /⚠/.test(oSt) ? '#f5b942' : '#8fa3b8'}">${svEsc(oSt)}</b>`);
+  if (svHas(sSt)) sig.push(`支撐 <b style="color:${/⛔/.test(sSt) ? '#ff5252' : /撐住/.test(sSt) ? '#22c55e' : '#8fa3b8'}">${svEsc(sSt)}</b>`);
 
   // ④ 題材 / 族群
   const th = [];
@@ -3143,6 +3148,9 @@ function renderStockSummary(ticker, name, market, row) {
   if (svNum(G('nbase_target')) != null)
     px.push(`N字測幅 <b style="color:#ffd54f">${G('nbase_target')}</b><span class="sv-mut">（停損守第二腳低，勿守突破K低）</span>`);
   if (svNum(G('gap_support')) != null) px.push(`缺口支撐 <b>${G('gap_support')}</b>`);
+  if (svNum(G('sr_support')) != null)
+    px.push(`支撐位 <b>${G('sr_support')}</b>` +
+      ((svNum(G('sr_confluence')) || 0) > 1 ? `<span class="sv-mut">（疊撐${G('sr_confluence')}層）</span>` : ''));
   const rrV = svNum(G('rr_ratio')) != null ? svNum(G('rr_ratio')) : svNum(G('rr'));
   if (rrV != null) px.push(`R:R <b style="color:${rrV >= 2 ? '#22c55e' : rrV >= 1 ? '#f5b942' : '#888'}">${rrV.toFixed(2)}</b>`);
   const pxNote = svHas(G('entry_method')) ? `<div class="sv-mut" style="margin-top:3px">${svEsc(G('entry_method'))}</div>` : '';

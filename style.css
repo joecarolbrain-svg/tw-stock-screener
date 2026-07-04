@@ -666,12 +666,7 @@ footer {
   line-height: 1; padding: 2px 6px; border-radius: 4px;
 }
 .kline-x:hover { background: #2a2a3e; color: #fff; }
-.kline-legend { padding: 6px 14px; font-size: 11px; color: #9a9aa8; border-bottom: 1px solid #23232f; }
 .kline-body { padding: 8px 10px 12px; overflow-y: auto; }
-.kc-chart { width: 100%; }
-.kc-price { height: 360px; }
-.kc-sub { height: 120px; margin-top: 4px; border-top: 1px dashed #2a2a3e; }
-.kline-status { padding: 6px 4px 0; font-size: 11px; }
 
 /* ── 個股摘要卡（薄卡片） ───────────────────────────── */
 .kline-tv-btn {
@@ -700,55 +695,6 @@ footer {
 .sv-c b { color: #eef1f5; }
 .sv-foot { padding: 10px 4px 6px; font-size: 11px; color: #6a6a7a; border-top: 1px solid #20203a; margin-top: 2px; }
 .sv-none { padding: 24px 10px; font-size: 14px; color: #9a9aa8; text-align: center; line-height: 2; }
-
-/* ── K 線彈窗 subtab ─────────────────────────────────── */
-.kl-subtabs { display: flex; gap: 6px; padding: 8px 14px 0; }
-.kl-subtab-btn {
-  background: #1d1d33; border: 1px solid #2a2a3e; color: #aaa;
-  padding: 6px 16px; border-radius: 6px 6px 0 0; cursor: pointer;
-  font-size: 12px; font-weight: 600; font-family: inherit;
-}
-.kl-subtab-btn:hover { color: #e0e0e0; }
-.kl-subtab-btn.active { background: #00d4aa; color: #000; border-color: #00d4aa; }
-
-/* ── 進出場建議：K 線上方摘要條 ─────────────────────── */
-.kl-advice-bar {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-  padding: 8px 12px; margin: 0 0 6px; background: #131326;
-  border: 1px solid #2a2a3e; border-radius: 8px; font-size: 13px;
-}
-.adv-bar-seg { display: inline-flex; align-items: center; gap: 6px; }
-.adv-bar-lbl { color: #888; font-size: 12px; }
-.adv-bar-div { color: #3a3a52; }
-.adv-bar-hint { margin-left: auto; font-size: 11px; color: #666; }
-
-/* 號誌色（進場=綠、警示=琥珀、出場/危險=紅、無=灰） */
-.adv-go   { color: #22c55e; }
-.adv-warn { color: #f5b942; }
-.adv-stop { color: #ff5252; }
-.adv-off  { color: #9a9aa8; }
-
-/* ── 進出場建議：完整兩張卡 ─────────────────────────── */
-.adv-wrap { max-width: 620px; margin: 0 auto; padding: 8px 4px 36px; }
-.adv-title { font-size: 18px; font-weight: 700; color: #eef1f5; margin-bottom: 12px; }
-.adv-title .adv-mut { font-size: 12px; font-weight: 400; color: #00d4aa; letter-spacing: 1px; }
-.adv-note-warn { margin: -4px 0 12px; padding: 8px 10px; background: #2a1416; border-radius: 6px; font-size: 12px; color: #ffb4b4; line-height: 1.5; }
-.adv-card { background: #131326; border: 1px solid #2a2a3e; border-radius: 10px; padding: 10px 12px 4px; margin-bottom: 12px; }
-.adv-card-t { font-size: 13px; font-weight: 700; color: #00d4aa; margin-bottom: 4px; padding: 2px 2px 8px; border-bottom: 1px solid #20203a; }
-.adv-row { display: flex; gap: 10px; padding: 11px 6px; border-top: 1px solid #20203a; border-left: 3px solid transparent; }
-.adv-row:first-of-type { border-top: none; }
-.adv-row.go   { border-left-color: #22c55e; }
-.adv-row.warn { border-left-color: #f5b942; }
-.adv-row.stop { border-left-color: #ff5252; background: #1f1214; }
-.adv-row.note { border-left-color: #7ec0ff; }
-.adv-row.off  { border-left-color: #33334a; }
-.adv-ic { flex: none; font-size: 16px; line-height: 1.4; }
-.adv-main { flex: 1; min-width: 0; }
-.adv-head { font-size: 14px; font-weight: 600; color: #eef1f5; line-height: 1.4; }
-.adv-row.off .adv-head { color: #9a9aa8; font-weight: 500; }
-.adv-desc { font-size: 12.5px; color: #c7c7d6; line-height: 1.55; margin-top: 3px; }
-.adv-sub  { font-size: 11.5px; color: #888; line-height: 1.5; margin-top: 4px; }
-.adv-foot { margin-top: 12px; font-size: 11px; color: #666; line-height: 1.5; text-align: center; }
 
 /* ── 期貨建倉計算機 ─────────────────────────────────── */
 .qef { max-width: 560px; margin: 0 auto; padding: 8px 4px 40px; }

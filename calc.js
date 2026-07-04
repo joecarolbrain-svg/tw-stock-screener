@@ -1,6 +1,6 @@
 /* ============================================================
    期貨建倉計算機 — ATR 驅動「間距加碼 + 回落減倉」
-   - 純 vanilla，掛兩個入口：① 頂部新分頁 ② K 線彈窗 subtab
+   - 純 vanilla，掛在頂部「🧮 期貨計算機」分頁（獨立於個股彈窗）
    - 市場數據自動（現價/近期高/週支撐/ATR，讀 klineState.cache）
    - 你的部位手動（口數/均價/現金）
    - 依 [[futures_qef_position_tool]] 策略；工具給線、人決定
@@ -336,45 +336,8 @@
     else root.innerHTML = `<div class="qef-empty" style="padding:30px">輸入股票代號（例如 2327）→ 自動帶現價/近期高/週支撐/ATR,算出今日加碼/減倉三條線。</div>`;
   }
 
-  // 從 K 線彈窗「送到計算機分頁」
-  function sendToTab(ticker, name, data) {
-    const btn = document.querySelector(`.tab-btn[data-tab="calc"]`);
-    if (btn) btn.click();
-    const inp = document.getElementById('calc-ticker-input');
-    if (inp) inp.value = ticker;
-    if (data) klineState.cache[ticker] = data;
-    loadTabTicker(ticker);
-  }
-
-  // ── 入口 ② K 線彈窗 subtab ──────────────────────────
-  const mdlCtx = { prefix: 'qm', container: null, ticker: '', name: '', data: null };
-
-  function onKline(ticker, name, data) {
-    mdlCtx.ticker = ticker; mdlCtx.name = name; mdlCtx.data = data;
-    mdlCtx.container = document.getElementById('kc-build');
-    // 只有「建倉」subtab 正在顯示時才渲染（省效能）；切過去時也會補渲染
-    const buildTab = document.querySelector('.kl-subtab-btn[data-kltab="build"]');
-    if (buildTab && buildTab.classList.contains('active')) renderPanel(mdlCtx);
-  }
-
-  function initModalSubtabs() {
-    const PANES = { kline: 'kc-klinewrap', build: 'kc-build', advice: 'kc-advice' };
-    document.querySelectorAll('.kl-subtab-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const tab = btn.dataset.kltab;
-        document.querySelectorAll('.kl-subtab-btn').forEach(b => b.classList.toggle('active', b === btn));
-        Object.keys(PANES).forEach(k => {
-          const el = document.getElementById(PANES[k]);
-          if (el) el.style.display = (k === tab) ? '' : 'none';
-        });
-        if (tab === 'build') { mdlCtx.container = document.getElementById('kc-build'); renderPanel(mdlCtx); }
-        if (tab === 'advice' && window.AdvicePanel) window.AdvicePanel.renderFull();
-      });
-    });
-  }
-
   // ── 全域曝露 ────────────────────────────────────────
-  window.QEFCalc = { onKline, sendToTab, initTab, initModalSubtabs };
+  window.QEFCalc = { initTab };
 
-  document.addEventListener('DOMContentLoaded', () => { initTab(); initModalSubtabs(); });
+  document.addEventListener('DOMContentLoaded', () => { initTab(); });
 })();

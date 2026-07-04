@@ -293,6 +293,9 @@ const cbState = {
   loadedDate: null,
 };
 
+// 訊號成績單分頁（非日期化：web/data/signal_report.json.gz，回看近N日）
+const signalReportState = { loaded: false, data: null };
+
 // 題材資金流向分頁狀態
 const themeState = {
   data: null,
@@ -1363,6 +1366,9 @@ function bindTabs() {
       if (tab === 'cb') {
         loadCB();
       }
+      if (tab === 'signal-report') {
+        loadSignalReport();
+      }
       // Resize tables after switch
       setTimeout(() => {
         if (state.table) state.table.redraw();
@@ -2352,6 +2358,64 @@ function renderCB() {
     columns: CB_COLS,
     placeholder: '無符合條件的 CB',
   });
+}
+
+// ── 訊號成績單：回看N日各分類 1/5/20 日 forward return ──────
+async function loadSignalReport() {
+  if (signalReportState.loaded) { renderSignalReport(); return; }
+  const metaEl = document.getElementById('sr-meta');
+  metaEl.textContent = '載入中...';
+  try {
+    signalReportState.data = await fetchJsonGz('data/signal_report.json.gz');
+    signalReportState.loaded = true;
+    renderSignalReport();
+  } catch (err) {
+    metaEl.textContent = `載入失敗：${err.message}（尚未產生 signal_report.json.gz？）`;
+  }
+}
+
+function _srCell(h) {
+  if (!h || !h.n) return `<td class="sr-td sr-empty">—</td>`;
+  const avgCls = h.avg > 0 ? 'num-pos' : (h.avg < 0 ? 'num-neg' : '');
+  const hitCls = h.hit_rate >= 50 ? 'num-pos' : 'num-neg';
+  return `<td class="sr-td">
+    <div class="sr-avg ${avgCls}">${h.avg > 0 ? '+' : ''}${h.avg}%</div>
+    <div class="sr-sub">中位 ${h.median > 0 ? '+' : ''}${h.median}%　勝率 <span class="${hitCls}">${h.hit_rate}%</span></div>
+    <div class="sr-n">n=${h.n.toLocaleString()}</div>
+  </td>`;
+}
+
+function renderSignalReport() {
+  const d = signalReportState.data;
+  const metaEl = document.getElementById('sr-meta');
+  const bodyEl = document.getElementById('sr-body');
+  if (!d) return;
+  metaEl.textContent =
+    `回看 ${d.window_days} 個交易日（${fmtDate8(d.window_from)} ~ ${fmtDate8(d.window_to)}）　|　` +
+    `更新 ${d.generated_at.slice(0, 16).replace('T', ' ')}　|　` +
+    `各分類「入選當天 → 隔N日」forward return 統計，樣本＝該分類在回看期間每次入選事件`;
+
+  if (!d.categories.length) {
+    bodyEl.innerHTML = '<div class="muted" style="padding:20px">尚無足夠資料。</div>';
+    return;
+  }
+
+  const rows = d.categories.map(c => `
+    <tr>
+      <td class="sr-cat"><span class="cat-tag" style="background:${c.color}">${c.code}</span>${c.label}</td>
+      ${_srCell(c.horizons['1'])}
+      ${_srCell(c.horizons['5'])}
+      ${_srCell(c.horizons['20'])}
+    </tr>`).join('');
+
+  bodyEl.innerHTML = `
+    <table class="sr-table">
+      <thead><tr>
+        <th>分類</th><th>隔日 (1日)</th><th>隔週 (5日)</th><th>隔月 (20日)</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="sr-foot muted">僅供策略事後檢核，非投資建議；樣本數 n 越小越不穩定，20日欄位受限於資料窗口通常樣本最少。</div>`;
 }
 
 function initCBControls() {

@@ -869,3 +869,21 @@ footer {
   .ms-tile .ms-v { font-size: 17px; }
 }
 
+/* ── 訊號成績單 ─────────────────────────────────────── */
+.sr-table { width: 100%; border-collapse: collapse; margin: 0 12px; }
+.sr-table th {
+  text-align: left; font-size: 12px; color: #888; font-weight: 600;
+  padding: 8px 10px; border-bottom: 1px solid #2a2a3e;
+}
+.sr-table td.sr-cat {
+  padding: 10px; font-size: 13px; color: #e0e0e0; white-space: nowrap;
+  border-bottom: 1px solid #20203a;
+}
+.sr-table td.sr-cat .cat-tag { margin-right: 8px; }
+.sr-td { padding: 8px 14px; text-align: center; border-bottom: 1px solid #20203a; min-width: 130px; }
+.sr-td.sr-empty { color: #555; }
+.sr-avg { font-size: 16px; font-weight: 700; }
+.sr-sub { font-size: 11px; color: #999; margin-top: 2px; }
+.sr-n { font-size: 10.5px; color: #666; margin-top: 1px; }
+.sr-foot { padding: 12px; font-size: 11px; line-height: 1.5; }
+

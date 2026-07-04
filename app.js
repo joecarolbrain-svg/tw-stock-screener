@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260703a';
+const APP_VERSION = '20260704a';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -3119,24 +3119,160 @@ function klBuild(d) {
     (warn.length ? `　（${warn.join('、')}）` : '');
 }
 
+// ── 個股摘要卡（取代舊 K線/進出場/建倉 三分頁）─────────────
+// 資料：主篩選表 row（訊號/題材/價位）＋ kline payload（法人連買、融資，非同步補上）
+const svEsc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const svHas = (v) => v != null && String(v).trim() !== '' && String(v).trim() !== '—' && String(v) !== 'None';
+const svNum = (v) => { const n = parseFloat(v); return isFinite(n) ? n : null; };
+const svTruthy = (v) => v === 1 || v === true || v === '1' || v === 1.0;
+
+// 尾端 None 跳過後：連續同向天數 + 近5個有效日合計；回傳 {streak, sum5, asofIdx} 或 null
+function svInstStreak(arr) {
+  if (!arr || !arr.length) return null;
+  let i = arr.length - 1;
+  while (i >= 0 && (arr[i] == null || !isFinite(arr[i]))) i--;
+  if (i < 0) return null;
+  const asofIdx = i;
+  const sign = arr[i] > 0 ? 1 : arr[i] < 0 ? -1 : 0;
+  let streak = 0;
+  for (let j = i; j >= 0; j--) {
+    const v = arr[j];
+    if (v == null || !isFinite(v)) break;
+    if ((v > 0 ? 1 : v < 0 ? -1 : 0) !== sign || sign === 0) break;
+    streak++;
+  }
+  let sum5 = 0, k = 0;
+  for (let j = i; j >= 0 && k < 5; j--) {
+    const v = arr[j];
+    if (v == null || !isFinite(v)) continue;
+    sum5 += v; k++;
+  }
+  return { streak, sign, sum5, asofIdx };
+}
+function svInstBit(label, r) {
+  if (!r || r.sign === 0) return null;
+  const verb = r.sign > 0 ? '連買' : '連賣';
+  const col = r.sign > 0 ? '#ef5350' : '#26a69a';
+  return `${label}<b style="color:${col}">${verb}${r.streak}日</b>` +
+    `（5日${r.sum5 > 0 ? '+' : ''}${Math.round(r.sum5).toLocaleString()}張）`;
+}
+
+function svRow(icon, title, html) {
+  if (!html) return '';
+  return `<div class="sv-row"><span class="sv-ic">${icon}</span>
+    <div class="sv-main"><div class="sv-t">${title}</div><div class="sv-c">${html}</div></div></div>`;
+}
+
+function renderStockSummary(ticker, name, market, row) {
+  const el = document.getElementById('kc-summary');
+  if (!el) return;
+  if (!row) {
+    el.innerHTML = `<div class="sv-none">此標的不在今日篩選結果中（自選/其他分頁點入）。` +
+      `<br>直接開 <a href="${tvUrl(ticker, market)}" target="_blank" class="kline-tv">TradingView ↗</a> 看圖。</div>`;
+    return;
+  }
+  const G = (k) => row[k];
+
+  // ① 價格 + 結論
+  const chg = svNum(G('chg_pct'));
+  const chgCol = chg == null ? '#888' : chg >= 0 ? '#ef5350' : '#26a69a';
+  const priceRow = `<div class="sv-price">收盤 <b>${svHas(G('close')) ? G('close') : '--'}</b>` +
+    (chg != null ? `　<b style="color:${chgCol}">${chg > 0 ? '+' : ''}${chg}%</b>` : '') +
+    (svHas(G('streak_note')) ? `　<span class="sv-mut">${svEsc(G('streak_note'))}</span>` : '') + `</div>` +
+    (svHas(G('verdict')) ? `<div class="sv-verdict">${svEsc(G('verdict'))}</div>` : '');
+
+  // ② 入選分類 badge（用主表 categories 的 label/color）
+  const catMeta = {};
+  ((state.data && state.data.categories) || []).forEach(c => { catMeta[c.code] = c; });
+  const badges = (G('categories') || []).map(code => {
+    const m = catMeta[code] || {};
+    return `<span class="sv-badge" style="border-color:${m.color || '#555'}">${svEsc(m.label || code)}</span>`;
+  }).join('');
+  const scoreBits = [];
+  if (svNum(G('score')) != null) scoreBits.push(`分數 <b>${Math.round(svNum(G('score')))}</b>`);
+  if (svNum(G('hits')) != null) scoreBits.push(`命中 ${G('hits')} 類`);
+  const catHtml = (badges || scoreBits.length)
+    ? `${badges}${scoreBits.length ? `<span class="sv-mut" style="margin-left:8px">${scoreBits.join('　')}</span>` : ''}` : '';
+
+  // ③ 訊號明細（為什麼被篩出來）
+  const S = [['s1', 'S1長底'], ['s2', 'S2爆量'], ['s3', 'S3多排'], ['s4', 'S4突破'], ['s5', 'S5題材']];
+  const C = [['c1', 'C1多頭'], ['c2', 'C2黃金交叉'], ['c3', 'C3進場點']];
+  const sLit = S.filter(([k]) => svTruthy(G(k))).map(([, n]) => n);
+  const cLit = C.filter(([k]) => svTruthy(G(k))).map(([, n]) => n);
+  const sig = [];
+  if (svHas(G('mainup_tag'))) sig.push(`<b style="color:#ffd54f">${svEsc(G('mainup_tag'))}</b>`);
+  if (svHas(G('mainup_entry'))) sig.push(`<b style="color:#22c55e">${svEsc(G('mainup_entry'))}</b>`);
+  if (svNum(G('mainup_n')) != null) sig.push(`飆股5訊號 ${G('mainup_n')}/5${sLit.length ? '（' + sLit.join('、') + '）' : ''}`);
+  if (svNum(G('win_n')) != null) sig.push(`高勝率 ${G('win_n')}/3${cLit.length ? '（' + cLit.join('、') + '）' : ''}`);
+  if (svTruthy(G('weekly_lit'))) sig.push('週線亮燈');
+  if (svHas(G('reaction_bar_type'))) sig.push(`反應K：${svEsc(G('reaction_bar_type'))}`);
+  if (svHas(G('strength'))) sig.push(svEsc(G('strength')));
+  if (svHas(G('bb_squeeze')) && G('bb_squeeze') !== '') sig.push(`BB壓縮 ${svEsc(G('bb_squeeze'))}`);
+  if (svHas(G('overhead'))) sig.push(svEsc(G('overhead')));
+  if (svTruthy(G('mainup_dist')) || (svNum(G('dist_risk')) || 0) > 0)
+    sig.push(`<b style="color:#ff5252">⚠出貨警訊${svHas(G('dist_signal')) ? '：' + svEsc(G('dist_signal')) : ''}</b>`);
+
+  // ④ 題材 / 族群
+  const th = [];
+  if (svHas(G('industry'))) th.push(`${svEsc(G('industry'))}${svHas(G('sub_industry')) ? ' › ' + svEsc(G('sub_industry')) : ''}`);
+  if (svHas(G('hot_sector'))) th.push(`🔥 ${svEsc(G('hot_sector'))}`);
+  if (svHas(G('hot_concept'))) th.push(`💡 ${svEsc(G('hot_concept'))}`);
+  const dConcept = (G('d_concept') || []).filter(x => svHas(x));
+  if (dConcept.length) th.push(`題材：${dConcept.map(svEsc).join('、')}`);
+
+  // ⑤ 關鍵價位（帶去 TradingView 畫線用）
+  const px = [];
+  if (svHas(G('buy_point'))) px.push(`買點 <b style="color:#22c55e">${svEsc(G('buy_point'))}</b>`);
+  if (svNum(G('defense')) != null) px.push(`防守 <b>${G('defense')}</b>`);
+  if (svNum(G('stop_loss')) != null) px.push(`停損 <b style="color:#ff5252">${G('stop_loss')}</b>` +
+    (svNum(G('stop_loss_pct')) != null ? `（−${G('stop_loss_pct')}%）` : ''));
+  if (svNum(G('target')) != null) px.push(`目標 <b style="color:#ffd54f">${G('target')}</b>`);
+  const rrV = svNum(G('rr_ratio')) != null ? svNum(G('rr_ratio')) : svNum(G('rr'));
+  if (rrV != null) px.push(`R:R <b style="color:${rrV >= 2 ? '#22c55e' : rrV >= 1 ? '#f5b942' : '#888'}">${rrV.toFixed(2)}</b>`);
+  const pxNote = svHas(G('entry_method')) ? `<div class="sv-mut" style="margin-top:3px">${svEsc(G('entry_method'))}</div>` : '';
+
+  el.innerHTML = `<div class="sv-wrap">
+    ${priceRow}
+    ${catHtml ? `<div class="sv-cats">${catHtml}</div>` : ''}
+    ${svRow('📌', '訊號', sig.join('　·　'))}
+    ${svRow('🏭', '題材族群', th.join('　｜　'))}
+    ${svRow('💰', '籌碼', `<span id="sv-chip">載入中…</span>`)}
+    ${svRow('📐', '關鍵價位', px.length ? px.join('　｜　') + pxNote : '')}
+    <div class="sv-foot">訊號為策略輔助、非投資建議 — 進出場請至 TradingView 自行判斷。</div>
+  </div>`;
+}
+
+// 籌碼區塊：kline payload 載完後補上
+function patchChipBlock(d) {
+  const el = document.getElementById('sv-chip');
+  if (!el) return;
+  if (!d || !d.has_inst) { el.textContent = '無法人資料'; return; }
+  const f = svInstStreak(d.inst_foreign), t = svInstStreak(d.inst_trust);
+  const bits = [svInstBit('外資', f), svInstBit('投信', t)].filter(Boolean);
+  // 融資5日增減
+  const mb = (d.margin_bal || []).filter(v => v != null && isFinite(v));
+  if (d.has_margin && mb.length >= 6) {
+    const diff = mb[mb.length - 1] - mb[mb.length - 6];
+    bits.push(`融資5日${diff > 0 ? '+' : ''}${Math.round(diff).toLocaleString()}張`);
+  }
+  // 法人資料落後標註
+  let lag = '';
+  if (f && d.dates && f.asofIdx < d.dates.length - 1)
+    lag = `<span class="sv-mut">（法人至 ${svEsc(d.dates[f.asofIdx])}）</span>`;
+  el.innerHTML = bits.length ? bits.join('　｜　') + '　' + lag : '外資/投信近日無明顯方向 ' + lag;
+}
+
 async function openKlineModal(ticker, name, market) {
   const modal = document.getElementById('kline-modal');
   modal.hidden = false;
   document.getElementById('kline-title').textContent = `${ticker}　${name || ''}`;
   document.getElementById('kline-tv').href = tvUrl(ticker, market);
-  document.getElementById('kline-status').textContent = '載入中...';
-  document.getElementById('kline-legend').innerHTML = '';
-  // 每次開新代號回到 K 線 subtab
-  document.querySelectorAll('.kl-subtab-btn').forEach(b => b.classList.toggle('active', b.dataset.kltab === 'kline'));
-  const klw = document.getElementById('kc-klinewrap'); if (klw) klw.style.display = '';
-  const kcb = document.getElementById('kc-build'); if (kcb) kcb.style.display = 'none';
-  const kca = document.getElementById('kc-advice'); if (kca) kca.style.display = 'none';
-  klDestroy();
 
-  // 從主篩選資料查回這一列（不論從哪個表點開都用主表的權威訊號列）
-  const advRow = (state.data && state.data.rows)
+  // 主表權威列（不論從哪個表點開）
+  const row = (state.data && state.data.rows)
     ? state.data.rows.find(r => String(r.ticker) === String(ticker)) || null : null;
-  klineState.row = advRow;   // 供 klBuild 畫主升進場/停損/目標價位線（切換勾選重建圖也在）
+  renderStockSummary(ticker, name, market, row);
 
   try {
     let d = klineState.cache[ticker];
@@ -3144,22 +3280,15 @@ async function openKlineModal(ticker, name, market) {
       d = await fetchJsonGz(`data/kline/${ticker}.json.gz`);
       klineState.cache[ticker] = d;
     }
-    klineState.current = d;
-    klBuild(d);
-    if (window.QEFCalc) window.QEFCalc.onKline(ticker, name, d);
-    if (window.AdvicePanel) { window.AdvicePanel.onKline(ticker, name, d, advRow); window.AdvicePanel.renderBar(); }
+    patchChipBlock(d);
   } catch (err) {
-    console.error(err);
-    document.getElementById('kline-status').textContent =
-      `載入 ${ticker} K 線失敗：${err.message}`;
+    const el = document.getElementById('sv-chip');
+    if (el) el.textContent = '籌碼資料載入失敗';
   }
 }
 
 function closeKlineModal() {
   document.getElementById('kline-modal').hidden = true;
-  klDestroy();
-  klineState.current = null;
-  klineState.row = null;
 }
 
 function initKlineModal() {
@@ -3168,12 +3297,6 @@ function initKlineModal() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !document.getElementById('kline-modal').hidden)
       closeKlineModal();
-  });
-  ['kl-ma', 'kl-hanku', 'kl-inst', 'kl-margin'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('change', () => {
-      if (klineState.current) klBuild(klineState.current);
-    });
   });
 }
 document.addEventListener('DOMContentLoaded', initKlineModal);

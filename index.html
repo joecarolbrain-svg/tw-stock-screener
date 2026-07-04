@@ -559,7 +559,7 @@
 
   <footer>
     <span class="muted">贏窟 · 資料來源：本地 Dash 篩選 / Schema v<span id="schema-version">--</span></span>
-    <span class="muted">點代號 → 站內 K 線（含均線 / 法人 / 融資券）</span>
+    <span class="muted">點代號 → 個股摘要卡 → TradingView</span>
     <span class="muted">介面版本 <b id="app-version">--</b></span>
   </footer>
 
@@ -570,36 +570,16 @@
       <div class="kline-head">
         <span class="kline-title" id="kline-title">--</span>
         <div class="kline-toggles">
-          <label><input type="checkbox" id="kl-ma" checked> 均線</label>
-          <label><input type="checkbox" id="kl-hanku" checked> 波段4/9</label>
-          <label><input type="checkbox" id="kl-inst" checked> 法人</label>
-          <label><input type="checkbox" id="kl-margin" checked> 融資券</label>
-          <a id="kline-tv" href="#" target="_blank" class="kline-tv" title="在 TradingView 開啟">TradingView ↗</a>
+          <a id="kline-tv" href="#" target="_blank" class="kline-tv kline-tv-btn" title="在 TradingView 開啟">📈 TradingView ↗</a>
           <button class="kline-x" data-kline-close title="關閉 (Esc)">✕</button>
         </div>
       </div>
-      <div class="kline-legend" id="kline-legend"></div>
-      <div class="kl-subtabs">
-        <button class="kl-subtab-btn active" data-kltab="kline">K 線</button>
-        <button class="kl-subtab-btn" data-kltab="advice">📍 進出場</button>
-        <button class="kl-subtab-btn" data-kltab="build">🧮 建倉</button>
-      </div>
       <div class="kline-body">
-        <div id="kc-klinewrap">
-          <div id="kline-advice-bar" class="kl-advice-bar" style="display:none"></div>
-          <div id="kc-price" class="kc-chart kc-price"></div>
-          <div id="kc-inst"  class="kc-chart kc-sub"></div>
-          <div id="kc-margin" class="kc-chart kc-sub"></div>
-          <div id="kline-status" class="kline-status muted"></div>
-        </div>
-        <div id="kc-advice" style="display:none"></div>
-        <div id="kc-build" style="display:none"></div>
+        <div id="kc-summary" class="kc-summary"></div>
       </div>
     </div>
   </div>
 
-  <script src="app.js?v=20260703a"></script>
-  <script src="calc.js?v=20260609"></script>
-  <script src="advice.js?v=20260609"></script>
+  <script src="app.js?v=20260704a"></script>
 </body>
 </html>

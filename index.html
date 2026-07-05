@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260705d" />
+  <link rel="stylesheet" href="style.css?v=20260705e" />
 </head>
 <body>
   <header class="topbar">
@@ -519,6 +519,12 @@
 
   <section class="tab-panel" data-panel="disposition">
     <div class="filters">
+      <div class="filter-row">
+        <div class="disp-search-wrap">
+          <input type="text" id="disp-search-input" class="search-box" placeholder="🔍 搜尋任意股票代號/名稱（含健康股）" autocomplete="off" />
+          <div id="disp-search-results" class="disp-search-results" hidden></div>
+        </div>
+      </div>
       <div class="filter-row legend-row">
         <span class="legend-label">說明：</span>
         <span class="legend-item">⚠️ 14款依證交所/櫃買中心官方規則計算，券商/投資人集中度、TDR、當日沖銷等無資料來源的款固定顯示「？無法判定」</span>
@@ -577,7 +583,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260705d"></script>
+  <script src="app.js?v=20260705e"></script>
   <script src="calc.js?v=20260704a"></script>
 </body>
 </html>

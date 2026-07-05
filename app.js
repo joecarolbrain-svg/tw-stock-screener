@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260705d';
+const APP_VERSION = '20260705e';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -1366,6 +1366,7 @@ function bindTabs() {
       }
       if (tab === 'disposition') {
         loadDisposition();
+        initDispSearch();
       }
       // Resize tables after switch
       setTimeout(() => {
@@ -3231,6 +3232,54 @@ function renderDisposition() {
   _bindDispCards(wEl, watchRows);
 }
 
+// ── 處置雷達搜尋（全市場任意股票，含健康股）──────────────
+let dispSearchInited = false;
+function initDispSearch() {
+  if (dispSearchInited) return;
+  dispSearchInited = true;
+  const input = document.getElementById('disp-search-input');
+  const results = document.getElementById('disp-search-results');
+  if (!input || !results) return;
+
+  const bucketBadge = (ticker) => {
+    const d = dispState.data;
+    if (!d) return '';
+    if ((d.punish || []).some(r => r.ticker === ticker)) return '<span class="disp-badge disp-badge-red">處置中</span>';
+    if ((d.watch || []).some(r => r.ticker === ticker)) return '<span class="disp-badge disp-badge-amber">潛在注意</span>';
+    return '<span class="disp-badge disp-badge-green">健康</span>';
+  };
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q) { results.hidden = true; results.innerHTML = ''; return; }
+    const rows = (state.data && state.data.rows) || [];
+    const matches = rows.filter(r =>
+      String(r.ticker).toLowerCase().includes(q) || (r.name || '').toLowerCase().includes(q)
+    ).slice(0, 15);
+    if (!matches.length) {
+      results.hidden = false;
+      results.innerHTML = `<div class="disp-search-item">查無符合的股票</div>`;
+      return;
+    }
+    results.hidden = false;
+    results.innerHTML = matches.map(r =>
+      `<div class="disp-search-item" data-ticker="${r.ticker}" data-name="${svEsc(r.name || '')}" data-market="${r.market || ''}">` +
+      `${r.ticker} ${svEsc(r.name || '')}${bucketBadge(r.ticker)}</div>`
+    ).join('');
+    results.querySelectorAll('.disp-search-item[data-ticker]').forEach(item => {
+      item.addEventListener('click', () => {
+        openKlineModal(item.dataset.ticker, item.dataset.name, item.dataset.market);
+        results.hidden = true;
+        input.value = '';
+      });
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!results.contains(e.target) && e.target !== input) results.hidden = true;
+  });
+}
+
 // ── K線彈窗內「處置風險分析」區塊（點任何分頁的個股都會查一次）──
 async function _ensureDispDataLoaded() {
   if (dispState.data) return dispState.data;
@@ -3266,24 +3315,61 @@ function _drHistoryItem(h) {
   return `<div class="dr-hist-row"><span>${fmtDate8(h.date)}</span><span class="sv-mut">${svEsc(nos)}</span></div>`;
 }
 
+const dispUniverseCache = {};
+async function _fetchUniverseSnapshot(ticker) {
+  if (ticker in dispUniverseCache) return dispUniverseCache[ticker];
+  try {
+    const d = await fetchJsonGz(`data/disposition_stock/${ticker}.json.gz`);
+    dispUniverseCache[ticker] = d;
+    return d;
+  } catch (err) {
+    dispUniverseCache[ticker] = null;
+    return null;
+  }
+}
+
+function _dispBanner(r, fromUniverse) {
+  const isPunish = r.punish_start_date != null || r.bucket === 'punish';
+  const isWatch = !isPunish && (r.bucket === 'watch' || r.watch_count_10d != null);
+  if (fromUniverse) {
+    const cls = r.banner || r.bucket || 'healthy';
+    const text = {
+      punish: '🚨 處置中（有其他款接近/已觸發，留意升級風險）',
+      punish_stable: '🛡️ 處置中，目前無升級處置風險',
+      watch: '👀 潛在注意股（尚未處置）',
+      healthy: '✅ 狀態良好',
+    }[cls] || '✅ 狀態良好';
+    const sub = cls.startsWith('punish') ? '本頁為全市場搜尋輕量版，不含處置期間累計/注意股歷史' : '';
+    return { cls, text, sub };
+  }
+  const cls = isPunish ? 'punish' : 'watch';
+  const text = isPunish
+    ? `🚨 處置中　撮合${r.matching_cycle_minutes}分盤　處置期${fmtDate8(r.punish_start_date)}起第${r.days_in_punish}天`
+    : `👀 潛在注意股（尚未處置）`;
+  const sub = isPunish
+    ? `估計出關倒數 ${r.est_days_to_exit} 個交易日${r.repeat_disposition_flag ? '（⚠️近期二度以上處置）' : ''}`
+    : `近10日觸發注意${r.watch_count_10d}次　近30日${r.watch_count_30d}次`;
+  return { cls, text, sub };
+}
+
 async function renderDispositionRisk(ticker) {
   const el = document.getElementById('dr-block');
   if (!el) return;
   el.innerHTML = '';
   const data = await _ensureDispDataLoaded();
-  if (!data) return;
-  const r = [...(data.punish || []), ...(data.watch || [])]
-    .find(x => String(x.ticker) === String(ticker));
-  if (!r) return;   // 不在處置/潛在注意名單內，不顯示這個區塊
+  let r = data ? [...(data.punish || []), ...(data.watch || [])]
+    .find(x => String(x.ticker) === String(ticker)) : null;
+  let fromUniverse = false;
+  if (!r) {
+    r = await _fetchUniverseSnapshot(ticker);
+    fromUniverse = true;
+  }
+  if (!r) return;   // 全市場快照也查無此股(可能太新/資料不足)，不顯示這個區塊
 
-  const isPunish = r.punish_start_date != null;
-  const bannerCls = isPunish ? 'punish' : 'watch';
-  const bannerText = isPunish
-    ? `🚨 處置中　撮合${r.matching_cycle_minutes}分盤　處置期${fmtDate8(r.punish_start_date)}起第${r.days_in_punish}天`
-    : `👀 潛在注意股（尚未處置）`;
-  const bannerSub = isPunish
-    ? `估計出關倒數 ${r.est_days_to_exit} 個交易日${r.repeat_disposition_flag ? '（⚠️近期二度以上處置）' : ''}`
-    : `近10日觸發注意${r.watch_count_10d}次　近30日${r.watch_count_30d}次`;
+  const banner = _dispBanner(r, fromUniverse);
+  const bannerCls = banner.cls;
+  const bannerText = banner.text;
+  const bannerSub = banner.sub;
 
   // ① 觸發條件 + 預測細節（14款清單，含條款詳細數值色階與30/60/90日子窗）
   const clauses = r.clauses || {};

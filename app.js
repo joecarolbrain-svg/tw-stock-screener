@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260705c';
+const APP_VERSION = '20260705d';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -3101,6 +3101,7 @@ function _dispSigned(v, digits) {
 function _dispCardHtml(r, bucket) {
   const slopeCls = (r.ma20_slope || 0) > 0 ? 'num-pos' : ((r.ma20_slope || 0) < 0 ? 'num-neg' : '');
   const declineCls = (r.cumulative_decline_pct || 0) > 0 ? 'num-pos' : ((r.cumulative_decline_pct || 0) < 0 ? 'num-neg' : '');
+  const chgCls = (r.chg_pct || 0) > 0 ? 'num-pos' : ((r.chg_pct || 0) < 0 ? 'num-neg' : '');
   const cycleBadge = r.matching_cycle_minutes
     ? `<span class="disp-badge disp-badge-amber">${r.matching_cycle_minutes}分盤</span>` : '';
   const statusBadge = bucket === 'punish'
@@ -3111,14 +3112,17 @@ function _dispCardHtml(r, bucket) {
   const declineLine = bucket === 'punish'
     ? `累幅<span class="${declineCls}">${_dispSigned(r.cumulative_decline_pct, 1)}%</span>　`
     : '';
+  const volTxt = r.volume != null ? `${Math.round(r.volume).toLocaleString()}張` : '--';
+  const turnoverTxt = r.turnover_pct != null ? `${r.turnover_pct.toFixed(1)}%` : '--';
   return `<button type="button" class="disp-card" data-ticker="${r.ticker}">
     <div class="disp-card-head">
       <span class="disp-card-code">${r.ticker}</span>
       <span class="disp-card-name">${r.name || ''}</span>
       <span class="disp-card-market">${r.market || ''}</span>
     </div>
-    <div class="disp-card-price">${r.close ?? '--'}</div>
+    <div class="disp-card-price">${r.close ?? '--'}<span class="${chgCls}" style="font-size:13px;margin-left:6px">${_dispSigned(r.chg_pct, 2)}%</span></div>
     <div class="disp-card-badges">${cycleBadge} ${statusBadge}${repeatIcon}${fullDeliveryIcon}</div>
+    <div class="disp-card-meta">量${volTxt}　週轉率${turnoverTxt}</div>
     <div class="disp-card-meta">位階${_dispSigned(r.position_index, 1)}　月線斜率<span class="${slopeCls}">${_dispSigned(r.ma20_slope, 1)}%</span></div>
     <div class="disp-card-meta">${declineLine}距高點${_dispSigned(r.drawdown_from_high, 1)}%</div>
   </button>`;
@@ -3163,36 +3167,49 @@ async function loadDisposition() {
   }
 }
 
+function _drChip(r) {
+  const cycleTxt = r.matching_cycle_minutes ? `${r.matching_cycle_minutes}分盤` : '';
+  return `<button type="button" class="dr-daily-chip" data-ticker="${r.ticker}">` +
+    `${r.ticker} ${r.name || ''}${cycleTxt ? ` <span class="disp-badge disp-badge-amber">${cycleTxt}</span>` : ''}` +
+    `</button>`;
+}
+
+function _bindDrChips(container, rows) {
+  container.querySelectorAll('.dr-daily-chip').forEach(chip => {
+    const t = chip.dataset.ticker;
+    const r = rows.find(x => String(x.ticker) === t);
+    if (r) chip.addEventListener('click', () => openKlineModal(r.ticker, r.name, r.market));
+  });
+}
+
 function renderDispFocusStrip(data) {
   const el = document.getElementById('disp-focus-strip');
   if (!el) return;
-  const rows = (data.punish || []).slice();
-  rows.sort((a, b) => (a.est_days_to_exit ?? 999) - (b.est_days_to_exit ?? 999)
-                    || (a.position_index ?? 999) - (b.position_index ?? 999));
-  const top = rows.slice(0, 3);
-  if (!top.length) { el.hidden = true; el.innerHTML = ''; return; }
+  const upcoming = data.upcoming || [];
+  const newToday = data.new_today || [];
+  const exiting = (data.punish || []).slice()
+    .sort((a, b) => (a.est_days_to_exit ?? 999) - (b.est_days_to_exit ?? 999))
+    .slice(0, 12);
+
+  if (!upcoming.length && !newToday.length && !exiting.length) {
+    el.hidden = true; el.innerHTML = ''; return;
+  }
   el.hidden = false;
-  el.innerHTML =
-    `<div class="fs-head">🚨 即將出關焦點 <span class="fs-sub">出關倒數 → 位階 排序，點卡片看 K 線</span></div>` +
-    `<div class="fs-cards">` +
-    top.map((r, i) => {
-      const pi = r.position_index;
-      const pos = !(pi != null && pi < 0);
-      const piTxt = pi == null ? '--' : `${pi > 0 ? '+' : ''}${pi.toFixed(1)}`;
-      const repeatTxt = r.repeat_disposition_flag ? '⚠️二度處置　' : '';
-      const declineTxt = r.cumulative_decline_pct != null ? r.cumulative_decline_pct.toFixed(1) : '--';
-      return `<button type="button" class="fs-card ${pos ? 'pos' : 'neg'}">
-        <div class="fs-row"><span class="fs-rank">#${i + 1}</span><span class="fs-hits">出關${r.est_days_to_exit}日</span></div>
-        <div class="fs-chg">${piTxt}</div>
-        <div class="fs-id"><span class="fs-code">${r.ticker}</span> <span class="fs-name">${r.name || ''}</span></div>
-        <div class="fs-meta">${repeatTxt}累幅${declineTxt}%　位階(布林通道)</div>
-      </button>`;
-    }).join('') +
-    `</div>`;
-  el.querySelectorAll('.fs-card').forEach((card, i) => {
-    const r = top[i];
-    card.addEventListener('click', () => openKlineModal(r.ticker, r.name, r.market));
-  });
+  el.innerHTML = `<div class="dr-daily-wrap">
+    <div class="dr-daily-col">
+      <div class="dr-daily-title">⚠️ 即將處置 <span class="fs-sub">${upcoming.length}</span></div>
+      <div class="dr-daily-chips">${upcoming.length ? upcoming.map(_drChip).join('') : '<span class="sv-mut">目前無</span>'}</div>
+    </div>
+    <div class="dr-daily-col">
+      <div class="dr-daily-title">🔶 今日進處置 <span class="fs-sub">${newToday.length}</span></div>
+      <div class="dr-daily-chips">${newToday.length ? newToday.map(_drChip).join('') : '<span class="sv-mut">目前無</span>'}</div>
+    </div>
+    <div class="dr-daily-col">
+      <div class="dr-daily-title">🔷 近期出關 <span class="fs-sub">${exiting.length}</span></div>
+      <div class="dr-daily-chips">${exiting.length ? exiting.map(_drChip).join('') : '<span class="sv-mut">目前無</span>'}</div>
+    </div>
+  </div>`;
+  _bindDrChips(el, [...upcoming, ...newToday, ...exiting]);
 }
 
 function renderDisposition() {
@@ -3230,11 +3247,23 @@ async function _ensureDispDataLoaded() {
   }
 }
 
+const DR_LEVEL_MARK = { triggered: '⚠️', close: '🟡', far: '·', unavailable: '？' };
+const DR_LEVEL_CLS  = { triggered: 'hit-true', close: 'hit-close', far: 'hit-false', unavailable: 'hit-null' };
+
 function _drClauseItem(no, c) {
-  const mark = c.hit === true ? '⚠️' : (c.hit === false ? '·' : '？');
-  const cls = c.hit === true ? 'hit-true' : (c.hit === false ? 'hit-false' : 'hit-null');
+  const level = c.level || (c.hit === true ? 'triggered' : (c.hit === false ? 'far' : 'unavailable'));
+  const mark = DR_LEVEL_MARK[level] || '？';
+  const cls = DR_LEVEL_CLS[level] || 'hit-null';
+  const windowsTxt = (c.windows || []).map(w =>
+    `${w.days}日${w.level === 'triggered' ? '⚠️' : (w.level === 'close' ? '🟡' : '·')}`).join(' ');
   return `<div class="dr-clause-item ${cls}"><span class="dr-mark">${mark}</span>` +
-    `<span>第${no}款 ${svEsc(c.name)}<br><span class="sv-mut">${svEsc(c.text)}</span></span></div>`;
+    `<span>第${no}款 ${svEsc(c.name)}<br><span class="sv-mut">${svEsc(c.text)}</span>` +
+    (windowsTxt ? `<br><span class="sv-mut">${windowsTxt}</span>` : '') + `</span></div>`;
+}
+
+function _drHistoryItem(h) {
+  const nos = (h.clauses || []).map(n => `第${n}款`).join('、');
+  return `<div class="dr-hist-row"><span>${fmtDate8(h.date)}</span><span class="sv-mut">${svEsc(nos)}</span></div>`;
 }
 
 async function renderDispositionRisk(ticker) {
@@ -3256,23 +3285,35 @@ async function renderDispositionRisk(ticker) {
     ? `估計出關倒數 ${r.est_days_to_exit} 個交易日${r.repeat_disposition_flag ? '（⚠️近期二度以上處置）' : ''}`
     : `近10日觸發注意${r.watch_count_10d}次　近30日${r.watch_count_30d}次`;
 
+  // ① 觸發條件 + 預測細節（14款清單，含條款詳細數值色階與30/60/90日子窗）
+  const clauses = r.clauses || {};
+  const clauseHtml = Object.keys(clauses).length
+    ? `<div class="dr-clause-grid">${Object.entries(clauses).map(([no, c]) => _drClauseItem(no, c)).join('')}</div>`
+    : '';
+
+  // ② 除外情形（目前只做第2款，官方規則第3條第3/4款，見disposition_rules.py）
+  const ex2 = r.exemption_clause2;
+  const exemptionHtml = (ex2 && ex2.checked) ? `<div class="dr-section-title">第2款除外情形</div>
+    <div class="dr-exemption ${ex2.exempt ? 'exempt' : ''}">
+      <div>${ex2.exempt ? '✅ 符合除外情形' : '❌ 不符合除外情形'}</div>
+      <div class="sv-mut">${svEsc(ex2.text)}</div>
+    </div>` : '';
+
+  // ③ 處置期間累計（官方第6條四計數器）
   const w = r.disposition_windows || {};
-  const windowsHtml = w.streak3_of_c1 != null ? `<div class="dr-windows">
+  const windowsHtml = w.streak3_of_c1 != null ? `<div class="dr-section-title">處置期間累計</div>
+  <div class="dr-windows">
     <div class="dr-window-cell"><b>${w.streak3_of_c1}/3</b><span>連續三次(第1款)</span></div>
     <div class="dr-window-cell"><b>${w.streak5_of_c1to8}/5</b><span>連續五次(第1-8款)</span></div>
     <div class="dr-window-cell"><b>${w.count10_of_c1to8}/6</b><span>10日內(第1-8款)</span></div>
     <div class="dr-window-cell"><b>${w.count30_of_c1to8}/12</b><span>30日內(第1-8款)</span></div>
   </div>` : '';
 
-  const clauses = r.clauses || {};
-  const clauseHtml = Object.keys(clauses).length
-    ? `<div class="dr-clause-grid">${Object.entries(clauses).map(([no, c]) => _drClauseItem(no, c)).join('')}</div>`
-    : '';
-
+  // ④ 估值與融資融券
   const val = r.valuation || {};
   const valCell = (label, v, digits, suffix) =>
     `<div class="dr-val-cell"><b>${v != null ? v.toFixed(digits) + (suffix || '') : '--'}</b><span>${label}</span></div>`;
-  const valHtml = `<div class="dr-val-grid">
+  const valHtml = `<div class="dr-section-title">估值與融資融券</div><div class="dr-val-grid">
     ${valCell('本益比', val.pe_ratio, 1, '')}
     ${valCell('股價淨值比', val.pbr, 2, '')}
     ${valCell('週轉率', val.turnover_pct, 1, '%')}
@@ -3281,12 +3322,18 @@ async function renderDispositionRisk(ticker) {
     ${valCell('券資比', val.short_margin_ratio, 1, '%')}
   </div>`;
 
+  // ⑤ 注意股歷史（近30日，逐日觸發哪幾款）
+  const hist = r.alert_history || [];
+  const histHtml = hist.length ? `<div class="dr-section-title">注意股歷史（近30日）</div>
+    <div class="dr-hist-list">${hist.map(_drHistoryItem).join('')}</div>` : '';
+
   el.innerHTML = `<div class="dr-wrap">
     <div class="dr-banner ${bannerCls}">${bannerText}<div class="dr-banner-sub">${bannerSub}</div></div>
-    ${windowsHtml}
-    <div class="dr-section-title">14款觸發狀態（⚠️=觸發／·=未觸發／？=無法判定，見說明文字）</div>
+    <div class="dr-section-title">14款觸發狀態（⚠️觸發／🟡接近門檻／·未觸發／？無法判定，見說明文字）</div>
     ${clauseHtml}
-    <div class="dr-section-title">估值與融資融券</div>
+    ${exemptionHtml}
+    ${windowsHtml}
     ${valHtml}
+    ${histHtml}
   </div>`;
 }

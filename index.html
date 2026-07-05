@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260705c" />
+  <link rel="stylesheet" href="style.css?v=20260705d" />
 </head>
 <body>
   <header class="topbar">
@@ -521,8 +521,8 @@
     <div class="filters">
       <div class="filter-row legend-row">
         <span class="legend-label">說明：</span>
-        <span class="legend-item">⚠️ MVP版，僅用TEJ逐日注意/處置Y-N flag估算，非官方逐款(1~8款)判定</span>
-        <span class="legend-item"><b>出關倒數</b> 估算值，一般處置約10個交易日</span>
+        <span class="legend-item">⚠️ 14款依證交所/櫃買中心官方規則計算，券商/投資人集中度、TDR、當日沖銷等無資料來源的款固定顯示「？無法判定」</span>
+        <span class="legend-item"><b>出關倒數</b> 一般處置約10個交易日（曾觸第13款則12日）</span>
         <span class="legend-item"><b>位階</b> 布林通道位置，0=月線，+10=上軌，-10=下軌</span>
         <span class="legend-item"><b>注意密集度</b> 期間內被列注意股的天數</span>
         <span class="filler"></span>
@@ -577,7 +577,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260705c"></script>
+  <script src="app.js?v=20260705d"></script>
   <script src="calc.js?v=20260704a"></script>
 </body>
 </html>

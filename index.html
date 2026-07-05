@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260704a" />
+  <link rel="stylesheet" href="style.css?v=20260705a" />
 </head>
 <body>
   <header class="topbar">
@@ -38,6 +38,7 @@
     <button class="tab-btn" data-tab="sector-flow">💸 族群資金流向</button>
     <button class="tab-btn" data-tab="cb">💎 可轉債監控</button>
     <button class="tab-btn" data-tab="signal-report">📋 訊號成績單</button>
+    <button class="tab-btn" data-tab="disposition">🚨 處置雷達</button>
     <button class="tab-btn" data-tab="calc">🧮 期貨計算機</button>
   </nav>
 
@@ -516,6 +517,27 @@
     </main>
   </section>
 
+  <section class="tab-panel" data-panel="disposition">
+    <div class="filters">
+      <div class="filter-row legend-row">
+        <span class="legend-label">說明：</span>
+        <span class="legend-item">⚠️ MVP版，僅用TEJ逐日注意/處置Y-N flag估算，非官方逐款(1~8款)判定</span>
+        <span class="legend-item"><b>出關倒數</b> 估算值，一般處置約10個交易日</span>
+        <span class="legend-item"><b>位階</b> 布林通道位置，0=月線，+10=上軌，-10=下軌</span>
+        <span class="legend-item"><b>注意密集度</b> 期間內被列注意股的天數</span>
+        <span class="filler"></span>
+        <span class="muted" id="disp-meta">--</span>
+      </div>
+    </div>
+    <main>
+      <div id="disp-focus-strip" class="focus-strip" hidden></div>
+      <h3 style="padding:8px 12px;margin:0;color:#e0e0e0">🚨 處置中</h3>
+      <div id="disp-punish-table"></div>
+      <h3 style="padding:16px 12px 8px;margin:0;color:#e0e0e0">👀 潛在注意股（未處置）</h3>
+      <div id="disp-watch-table"></div>
+    </main>
+  </section>
+
   <section class="tab-panel" data-panel="calc">
     <div class="filters">
       <div class="filter-row" style="align-items:center">
@@ -554,7 +576,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260704e"></script>
+  <script src="app.js?v=20260705b"></script>
   <script src="calc.js?v=20260704a"></script>
 </body>
 </html>

@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260704a';
+const APP_VERSION = '20260705b';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -1364,6 +1364,9 @@ function bindTabs() {
       if (tab === 'signal-report') {
         loadSignalReport();
       }
+      if (tab === 'disposition') {
+        loadDisposition();
+      }
       // Resize tables after switch
       setTimeout(() => {
         if (state.table) state.table.redraw();
@@ -1376,6 +1379,8 @@ function bindTabs() {
         ['listTable','stocksTable','historyTable'].forEach(k => {
           if (themeState[k]) themeState[k].redraw();
         });
+        if (dispState.punishTable) dispState.punishTable.redraw();
+        if (dispState.watchTable) dispState.watchTable.redraw();
       }, 50);
     });
   });
@@ -3084,3 +3089,171 @@ function initKlineModal() {
   });
 }
 document.addEventListener('DOMContentLoaded', initKlineModal);
+
+// ── 處置雷達：處置股 / 潛在注意股 ───────────────────────
+// MVP：只用 TEJ 逐日注意/處置 Y-N flag 估算，非官方逐款(1~8款)判定
+const dispState = { loaded: false, loadedDate: null, data: null, punishTable: null, watchTable: null };
+
+function _dispNum(c, digits) {
+  const v = c.getValue();
+  if (v == null) return '';
+  const n = Number(v);
+  return `${n > 0 ? '+' : ''}${n.toFixed(digits)}`;
+}
+
+function _dispPctCell(c, digits) {
+  const v = c.getValue();
+  if (v == null) return '';
+  const cls = v > 0 ? 'num-pos' : (v < 0 ? 'num-neg' : '');
+  return `<span class="${cls}">${_dispNum(c, digits)}</span>`;
+}
+
+const DISP_TICKER_COL = {
+  title: '代號', field: 'ticker', width: 80,
+  formatter: c => {
+    const r = c.getRow().getData();
+    return `<a href="#" style="color:#00d4aa">${r.ticker}</a>`;
+  },
+  cellClick: (e, c) => {
+    e.preventDefault();
+    const r = c.getRow().getData();
+    openKlineModal(r.ticker, r.name, r.market);
+  },
+};
+
+const DISP_PUNISH_COLS = [
+  DISP_TICKER_COL,
+  { title: '名稱', field: 'name', width: 100 },
+  { title: '收盤', field: 'close', width: 80, hozAlign: 'right', sorter: 'number' },
+  { title: '出關倒數', field: 'est_days_to_exit', width: 90, hozAlign: 'center', sorter: 'number',
+    formatter: c => {
+      const v = c.getValue();
+      if (v == null) return '';
+      const cls = v <= 3 ? 'disp-badge-red' : (v <= 7 ? 'disp-badge-amber' : 'disp-badge-green');
+      return `<span class="disp-badge ${cls}">${v}日</span>`;
+    } },
+  { title: '處置起始', field: 'punish_start_date', width: 95, formatter: c => fmtDate8(String(c.getValue() || '')) },
+  { title: '處置天數', field: 'days_in_punish', width: 85, hozAlign: 'right', sorter: 'number' },
+  { title: '二度處置', field: 'repeat_disposition_flag', width: 85, hozAlign: 'center',
+    formatter: c => c.getValue() ? '⚠️' : '' },
+  { title: '全額交割', field: 'full_delivery_flag', width: 85, hozAlign: 'center',
+    formatter: c => c.getValue() ? '⚠️' : '' },
+  { title: '位階', field: 'position_index', width: 80, hozAlign: 'right', sorter: 'number',
+    formatter: c => _dispNum(c, 1) },
+  { title: '月線斜率%', field: 'ma20_slope', width: 100, hozAlign: 'right', sorter: 'number',
+    formatter: c => _dispPctCell(c, 2) },
+  { title: '累幅%', field: 'cumulative_decline_pct', width: 90, hozAlign: 'right', sorter: 'number',
+    formatter: c => _dispPctCell(c, 2) },
+  { title: '距高點%', field: 'drawdown_from_high', width: 90, hozAlign: 'right', sorter: 'number',
+    formatter: c => _dispNum(c, 2) },
+  { title: '外資連買', field: 'foreign_streak', width: 85, hozAlign: 'right', sorter: 'number',
+    formatter: c => _dispPctCell(c, 0) },
+  { title: '投信連買', field: 'trust_streak', width: 85, hozAlign: 'right', sorter: 'number',
+    formatter: c => _dispPctCell(c, 0) },
+];
+
+const DISP_WATCH_COLS = [
+  DISP_TICKER_COL,
+  { title: '名稱', field: 'name', width: 100 },
+  { title: '收盤', field: 'close', width: 80, hozAlign: 'right', sorter: 'number' },
+  { title: '注意密集度(10日)', field: 'watch_count_10d', width: 130, hozAlign: 'center', sorter: 'number' },
+  { title: '注意密集度(30日)', field: 'watch_count_30d', width: 130, hozAlign: 'center', sorter: 'number' },
+  { title: '全額交割', field: 'full_delivery_flag', width: 85, hozAlign: 'center',
+    formatter: c => c.getValue() ? '⚠️' : '' },
+  { title: '位階', field: 'position_index', width: 80, hozAlign: 'right', sorter: 'number',
+    formatter: c => _dispNum(c, 1) },
+  { title: '月線斜率%', field: 'ma20_slope', width: 100, hozAlign: 'right', sorter: 'number',
+    formatter: c => _dispPctCell(c, 2) },
+  { title: '距高點%', field: 'drawdown_from_high', width: 90, hozAlign: 'right', sorter: 'number',
+    formatter: c => _dispNum(c, 2) },
+  { title: '外資連買', field: 'foreign_streak', width: 85, hozAlign: 'right', sorter: 'number',
+    formatter: c => _dispPctCell(c, 0) },
+  { title: '投信連買', field: 'trust_streak', width: 85, hozAlign: 'right', sorter: 'number',
+    formatter: c => _dispPctCell(c, 0) },
+];
+
+async function loadDisposition() {
+  if (dispState.loaded && dispState.loadedDate === currentDate) {
+    renderDisposition(); return;
+  }
+  const metaEl = document.getElementById('disp-meta');
+  const entry = (indexMeta?.dates || []).find(
+    e => e.date === currentDate && (e.has || []).includes('disposition'));
+  let dDate = currentDate;
+  if (!entry) {
+    const fallback = (indexMeta?.dates || []).find(e => (e.has || []).includes('disposition'));
+    if (!fallback) {
+      metaEl.textContent = '無處置雷達資料';
+      document.getElementById('disp-punish-table').innerHTML = '';
+      document.getElementById('disp-watch-table').innerHTML = '';
+      return;
+    }
+    dDate = fallback.date;
+  }
+  metaEl.textContent = '載入中...';
+  try {
+    dispState.data = await fetchJsonGz(`data/daily/${dDate}/disposition.json.gz`);
+    dispState.loaded = true;
+    dispState.loadedDate = currentDate;
+    metaEl.textContent = `資料日 ${dispState.data.trading_date}　|　處置中 ${dispState.data.punish.length} 檔　|　`
+      + `潛在注意股 ${dispState.data.watch.length} 檔　|　更新 ${dispState.data.generated_at.slice(11, 16)}`;
+    renderDisposition();
+  } catch (err) {
+    metaEl.textContent = `載入失敗：${err.message}`;
+  }
+}
+
+function renderDispFocusStrip(data) {
+  const el = document.getElementById('disp-focus-strip');
+  if (!el) return;
+  const rows = (data.punish || []).slice();
+  rows.sort((a, b) => (a.est_days_to_exit ?? 999) - (b.est_days_to_exit ?? 999)
+                    || (a.position_index ?? 999) - (b.position_index ?? 999));
+  const top = rows.slice(0, 3);
+  if (!top.length) { el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  el.innerHTML =
+    `<div class="fs-head">🚨 即將出關焦點 <span class="fs-sub">出關倒數 → 位階 排序，點卡片看 K 線</span></div>` +
+    `<div class="fs-cards">` +
+    top.map((r, i) => {
+      const pi = r.position_index;
+      const pos = !(pi != null && pi < 0);
+      const piTxt = pi == null ? '--' : `${pi > 0 ? '+' : ''}${pi.toFixed(1)}`;
+      const repeatTxt = r.repeat_disposition_flag ? '⚠️二度處置　' : '';
+      const declineTxt = r.cumulative_decline_pct != null ? r.cumulative_decline_pct.toFixed(1) : '--';
+      return `<button type="button" class="fs-card ${pos ? 'pos' : 'neg'}">
+        <div class="fs-row"><span class="fs-rank">#${i + 1}</span><span class="fs-hits">出關${r.est_days_to_exit}日</span></div>
+        <div class="fs-chg">${piTxt}</div>
+        <div class="fs-id"><span class="fs-code">${r.ticker}</span> <span class="fs-name">${r.name || ''}</span></div>
+        <div class="fs-meta">${repeatTxt}累幅${declineTxt}%　位階(布林通道)</div>
+      </button>`;
+    }).join('') +
+    `</div>`;
+  el.querySelectorAll('.fs-card').forEach((card, i) => {
+    const r = top[i];
+    card.addEventListener('click', () => openKlineModal(r.ticker, r.name, r.market));
+  });
+}
+
+function renderDisposition() {
+  if (!dispState.data) return;
+  renderDispFocusStrip(dispState.data);
+  if (dispState.punishTable) dispState.punishTable.destroy();
+  if (dispState.watchTable) dispState.watchTable.destroy();
+  dispState.punishTable = new Tabulator('#disp-punish-table', {
+    data: dispState.data.punish,
+    layout: 'fitDataTable',
+    height: '420px',
+    columns: DISP_PUNISH_COLS,
+    initialSort: [{ column: 'position_index', dir: 'asc' }],
+    placeholder: '目前無處置中股票',
+  });
+  dispState.watchTable = new Tabulator('#disp-watch-table', {
+    data: dispState.data.watch,
+    layout: 'fitDataTable',
+    height: '420px',
+    columns: DISP_WATCH_COLS,
+    initialSort: [{ column: 'watch_count_10d', dir: 'desc' }],
+    placeholder: '目前無潛在注意股',
+  });
+}

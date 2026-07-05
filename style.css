@@ -494,6 +494,17 @@ main { padding: 0 8px; max-width: 100vw; overflow-x: auto; box-sizing: border-bo
 .num-neg { color: #ff6b6b; }
 .num-neg-soft { color: #ff9a9a; }
 
+/* ── 處置雷達 badge ──────────────────────────────── */
+.disp-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.disp-badge-red    { background: #5e1b1b; color: #ef9a9a; }
+.disp-badge-amber  { background: #5e4a1b; color: #ffcc80; }
+.disp-badge-green  { background: #1b5e20; color: #a5d6a7; }
+
 /* ── Footer ──────────────────────────────────────── */
 footer {
   padding: 10px 20px;

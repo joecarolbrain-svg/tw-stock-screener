@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "generated_at": "2026-07-05T17:21:20+08:00",
+  "generated_at": "2026-07-05T21:34:18+08:00",
   "latest_date": "20260704",
   "dates": [
     {
@@ -721,6 +721,7 @@
     {
       "date": "20260522",
       "has": [
+        "disposition",
         "industry_flow",
         "industry_flow_1",
         "industry_flow_10",

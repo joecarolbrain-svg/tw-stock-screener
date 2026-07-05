@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260705g';
+const APP_VERSION = '20260705h';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -3359,11 +3359,12 @@ function _drWindowsHtml(w) {
 
 // 今日實際觸發的款別（任一即可），對應attnup橘框「N/N 觸發條件」區塊
 function _drTriggeredHtml(clauses) {
-  const hit = Object.entries(clauses).filter(([, c]) => c.hit === true);
-  if (!hit.length) return '';
+  // 已觸發 或 接近門檻(含明日可能觸發的價格提示) 都列進來，比對attnup「任一即可」的觸發條件框
+  const active = Object.entries(clauses).filter(([, c]) => c.level === 'triggered' || c.level === 'close');
+  if (!active.length) return '';
   return `<div class="dr-trigger-box">
     <div class="dr-trigger-title">◎ 觸發條件（任一即可）</div>
-    ${hit.map(([no, c]) => `<div class="dr-trigger-row">${no}. ${svEsc(c.text)} — 第${no}款</div>`).join('')}
+    ${active.map(([no, c]) => `<div class="dr-trigger-row">${no}. ${svEsc(c.text)} — 第${no}款</div>`).join('')}
   </div>`;
 }
 
@@ -3504,6 +3505,7 @@ async function renderDispositionRisk(ticker) {
 
   el.innerHTML = `<div class="dr-wrap">
     <div class="dr-banner ${bannerCls}">${bannerText}<div class="dr-banner-sub">${bannerSub}</div></div>
+    <div class="dr-footnote">ℹ️ 第9-14款為公告用途，觸發不計入處置累計次數（僅第1-8款計入）</div>
     ${_drForecastHtml(r.risk_forecast)}
     ${windowsHtml}
     ${triggeredHtml}

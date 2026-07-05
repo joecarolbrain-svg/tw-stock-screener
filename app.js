@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260705b';
+const APP_VERSION = '20260705c';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -1379,8 +1379,6 @@ function bindTabs() {
         ['listTable','stocksTable','historyTable'].forEach(k => {
           if (themeState[k]) themeState[k].redraw();
         });
-        if (dispState.punishTable) dispState.punishTable.redraw();
-        if (dispState.watchTable) dispState.watchTable.redraw();
       }, 50);
     });
   });
@@ -3062,6 +3060,7 @@ async function openKlineModal(ticker, name, market) {
   const row = (state.data && state.data.rows)
     ? state.data.rows.find(r => String(r.ticker) === String(ticker)) || null : null;
   renderStockSummary(ticker, name, market, row);
+  renderDispositionRisk(ticker);
 
   try {
     let d = klineState.cache[ticker];
@@ -3090,87 +3089,48 @@ function initKlineModal() {
 }
 document.addEventListener('DOMContentLoaded', initKlineModal);
 
-// ── 處置雷達：處置股 / 潛在注意股 ───────────────────────
-// MVP：只用 TEJ 逐日注意/處置 Y-N flag 估算，非官方逐款(1~8款)判定
-const dispState = { loaded: false, loadedDate: null, data: null, punishTable: null, watchTable: null };
+// ── 處置雷達：處置股 / 潛在注意股（卡片格線，仿attnup排版）───
+const dispState = { loaded: false, loadedDate: null, data: null };
 
-function _dispNum(c, digits) {
-  const v = c.getValue();
-  if (v == null) return '';
+function _dispSigned(v, digits) {
+  if (v == null) return '--';
   const n = Number(v);
   return `${n > 0 ? '+' : ''}${n.toFixed(digits)}`;
 }
 
-function _dispPctCell(c, digits) {
-  const v = c.getValue();
-  if (v == null) return '';
-  const cls = v > 0 ? 'num-pos' : (v < 0 ? 'num-neg' : '');
-  return `<span class="${cls}">${_dispNum(c, digits)}</span>`;
+function _dispCardHtml(r, bucket) {
+  const slopeCls = (r.ma20_slope || 0) > 0 ? 'num-pos' : ((r.ma20_slope || 0) < 0 ? 'num-neg' : '');
+  const declineCls = (r.cumulative_decline_pct || 0) > 0 ? 'num-pos' : ((r.cumulative_decline_pct || 0) < 0 ? 'num-neg' : '');
+  const cycleBadge = r.matching_cycle_minutes
+    ? `<span class="disp-badge disp-badge-amber">${r.matching_cycle_minutes}分盤</span>` : '';
+  const statusBadge = bucket === 'punish'
+    ? `<span class="disp-badge ${r.est_days_to_exit <= 3 ? 'disp-badge-red' : (r.est_days_to_exit <= 7 ? 'disp-badge-amber' : 'disp-badge-green')}">出關${r.est_days_to_exit}日</span>`
+    : `<span class="disp-badge disp-badge-amber">近10日注意${r.watch_count_10d}次</span>`;
+  const repeatIcon = r.repeat_disposition_flag ? ' ⚠️二度' : '';
+  const fullDeliveryIcon = r.full_delivery_flag ? ' 🈵全額' : '';
+  const declineLine = bucket === 'punish'
+    ? `累幅<span class="${declineCls}">${_dispSigned(r.cumulative_decline_pct, 1)}%</span>　`
+    : '';
+  return `<button type="button" class="disp-card" data-ticker="${r.ticker}">
+    <div class="disp-card-head">
+      <span class="disp-card-code">${r.ticker}</span>
+      <span class="disp-card-name">${r.name || ''}</span>
+      <span class="disp-card-market">${r.market || ''}</span>
+    </div>
+    <div class="disp-card-price">${r.close ?? '--'}</div>
+    <div class="disp-card-badges">${cycleBadge} ${statusBadge}${repeatIcon}${fullDeliveryIcon}</div>
+    <div class="disp-card-meta">位階${_dispSigned(r.position_index, 1)}　月線斜率<span class="${slopeCls}">${_dispSigned(r.ma20_slope, 1)}%</span></div>
+    <div class="disp-card-meta">${declineLine}距高點${_dispSigned(r.drawdown_from_high, 1)}%</div>
+  </button>`;
 }
 
-const DISP_TICKER_COL = {
-  title: '代號', field: 'ticker', width: 80,
-  formatter: c => {
-    const r = c.getRow().getData();
-    return `<a href="#" style="color:#00d4aa">${r.ticker}</a>`;
-  },
-  cellClick: (e, c) => {
-    e.preventDefault();
-    const r = c.getRow().getData();
-    openKlineModal(r.ticker, r.name, r.market);
-  },
-};
-
-const DISP_PUNISH_COLS = [
-  DISP_TICKER_COL,
-  { title: '名稱', field: 'name', width: 100 },
-  { title: '收盤', field: 'close', width: 80, hozAlign: 'right', sorter: 'number' },
-  { title: '出關倒數', field: 'est_days_to_exit', width: 90, hozAlign: 'center', sorter: 'number',
-    formatter: c => {
-      const v = c.getValue();
-      if (v == null) return '';
-      const cls = v <= 3 ? 'disp-badge-red' : (v <= 7 ? 'disp-badge-amber' : 'disp-badge-green');
-      return `<span class="disp-badge ${cls}">${v}日</span>`;
-    } },
-  { title: '處置起始', field: 'punish_start_date', width: 95, formatter: c => fmtDate8(String(c.getValue() || '')) },
-  { title: '處置天數', field: 'days_in_punish', width: 85, hozAlign: 'right', sorter: 'number' },
-  { title: '二度處置', field: 'repeat_disposition_flag', width: 85, hozAlign: 'center',
-    formatter: c => c.getValue() ? '⚠️' : '' },
-  { title: '全額交割', field: 'full_delivery_flag', width: 85, hozAlign: 'center',
-    formatter: c => c.getValue() ? '⚠️' : '' },
-  { title: '位階', field: 'position_index', width: 80, hozAlign: 'right', sorter: 'number',
-    formatter: c => _dispNum(c, 1) },
-  { title: '月線斜率%', field: 'ma20_slope', width: 100, hozAlign: 'right', sorter: 'number',
-    formatter: c => _dispPctCell(c, 2) },
-  { title: '累幅%', field: 'cumulative_decline_pct', width: 90, hozAlign: 'right', sorter: 'number',
-    formatter: c => _dispPctCell(c, 2) },
-  { title: '距高點%', field: 'drawdown_from_high', width: 90, hozAlign: 'right', sorter: 'number',
-    formatter: c => _dispNum(c, 2) },
-  { title: '外資連買', field: 'foreign_streak', width: 85, hozAlign: 'right', sorter: 'number',
-    formatter: c => _dispPctCell(c, 0) },
-  { title: '投信連買', field: 'trust_streak', width: 85, hozAlign: 'right', sorter: 'number',
-    formatter: c => _dispPctCell(c, 0) },
-];
-
-const DISP_WATCH_COLS = [
-  DISP_TICKER_COL,
-  { title: '名稱', field: 'name', width: 100 },
-  { title: '收盤', field: 'close', width: 80, hozAlign: 'right', sorter: 'number' },
-  { title: '注意密集度(10日)', field: 'watch_count_10d', width: 130, hozAlign: 'center', sorter: 'number' },
-  { title: '注意密集度(30日)', field: 'watch_count_30d', width: 130, hozAlign: 'center', sorter: 'number' },
-  { title: '全額交割', field: 'full_delivery_flag', width: 85, hozAlign: 'center',
-    formatter: c => c.getValue() ? '⚠️' : '' },
-  { title: '位階', field: 'position_index', width: 80, hozAlign: 'right', sorter: 'number',
-    formatter: c => _dispNum(c, 1) },
-  { title: '月線斜率%', field: 'ma20_slope', width: 100, hozAlign: 'right', sorter: 'number',
-    formatter: c => _dispPctCell(c, 2) },
-  { title: '距高點%', field: 'drawdown_from_high', width: 90, hozAlign: 'right', sorter: 'number',
-    formatter: c => _dispNum(c, 2) },
-  { title: '外資連買', field: 'foreign_streak', width: 85, hozAlign: 'right', sorter: 'number',
-    formatter: c => _dispPctCell(c, 0) },
-  { title: '投信連買', field: 'trust_streak', width: 85, hozAlign: 'right', sorter: 'number',
-    formatter: c => _dispPctCell(c, 0) },
-];
+function _bindDispCards(container, rows) {
+  container.querySelectorAll('.disp-card').forEach(card => {
+    const t = card.dataset.ticker;
+    const r = rows.find(x => String(x.ticker) === t);
+    if (r) card.addEventListener('click', () => openKlineModal(r.ticker, r.name, r.market));
+  });
+}
 
 async function loadDisposition() {
   if (dispState.loaded && dispState.loadedDate === currentDate) {
@@ -3238,22 +3198,95 @@ function renderDispFocusStrip(data) {
 function renderDisposition() {
   if (!dispState.data) return;
   renderDispFocusStrip(dispState.data);
-  if (dispState.punishTable) dispState.punishTable.destroy();
-  if (dispState.watchTable) dispState.watchTable.destroy();
-  dispState.punishTable = new Tabulator('#disp-punish-table', {
-    data: dispState.data.punish,
-    layout: 'fitDataTable',
-    height: '420px',
-    columns: DISP_PUNISH_COLS,
-    initialSort: [{ column: 'position_index', dir: 'asc' }],
-    placeholder: '目前無處置中股票',
-  });
-  dispState.watchTable = new Tabulator('#disp-watch-table', {
-    data: dispState.data.watch,
-    layout: 'fitDataTable',
-    height: '420px',
-    columns: DISP_WATCH_COLS,
-    initialSort: [{ column: 'watch_count_10d', dir: 'desc' }],
-    placeholder: '目前無潛在注意股',
-  });
+  const punishRows = dispState.data.punish || [];
+  const watchRows = dispState.data.watch || [];
+
+  const pEl = document.getElementById('disp-punish-table');
+  pEl.innerHTML = punishRows.length
+    ? `<div class="disp-card-grid">${punishRows.map(r => _dispCardHtml(r, 'punish')).join('')}</div>`
+    : `<div class="sv-none">目前無處置中股票</div>`;
+  _bindDispCards(pEl, punishRows);
+
+  const wEl = document.getElementById('disp-watch-table');
+  wEl.innerHTML = watchRows.length
+    ? `<div class="disp-card-grid">${watchRows.map(r => _dispCardHtml(r, 'watch')).join('')}</div>`
+    : `<div class="sv-none">目前無潛在注意股</div>`;
+  _bindDispCards(wEl, watchRows);
+}
+
+// ── K線彈窗內「處置風險分析」區塊（點任何分頁的個股都會查一次）──
+async function _ensureDispDataLoaded() {
+  if (dispState.data) return dispState.data;
+  const entry = (indexMeta?.dates || []).find(
+    e => e.date === currentDate && (e.has || []).includes('disposition'));
+  const fallback = entry ? null : (indexMeta?.dates || []).find(e => (e.has || []).includes('disposition'));
+  const dDate = entry ? currentDate : (fallback ? fallback.date : null);
+  if (!dDate) return null;
+  try {
+    dispState.data = await fetchJsonGz(`data/daily/${dDate}/disposition.json.gz`);
+    return dispState.data;
+  } catch (err) {
+    return null;
+  }
+}
+
+function _drClauseItem(no, c) {
+  const mark = c.hit === true ? '⚠️' : (c.hit === false ? '·' : '？');
+  const cls = c.hit === true ? 'hit-true' : (c.hit === false ? 'hit-false' : 'hit-null');
+  return `<div class="dr-clause-item ${cls}"><span class="dr-mark">${mark}</span>` +
+    `<span>第${no}款 ${svEsc(c.name)}<br><span class="sv-mut">${svEsc(c.text)}</span></span></div>`;
+}
+
+async function renderDispositionRisk(ticker) {
+  const el = document.getElementById('dr-block');
+  if (!el) return;
+  el.innerHTML = '';
+  const data = await _ensureDispDataLoaded();
+  if (!data) return;
+  const r = [...(data.punish || []), ...(data.watch || [])]
+    .find(x => String(x.ticker) === String(ticker));
+  if (!r) return;   // 不在處置/潛在注意名單內，不顯示這個區塊
+
+  const isPunish = r.punish_start_date != null;
+  const bannerCls = isPunish ? 'punish' : 'watch';
+  const bannerText = isPunish
+    ? `🚨 處置中　撮合${r.matching_cycle_minutes}分盤　處置期${fmtDate8(r.punish_start_date)}起第${r.days_in_punish}天`
+    : `👀 潛在注意股（尚未處置）`;
+  const bannerSub = isPunish
+    ? `估計出關倒數 ${r.est_days_to_exit} 個交易日${r.repeat_disposition_flag ? '（⚠️近期二度以上處置）' : ''}`
+    : `近10日觸發注意${r.watch_count_10d}次　近30日${r.watch_count_30d}次`;
+
+  const w = r.disposition_windows || {};
+  const windowsHtml = w.streak3_of_c1 != null ? `<div class="dr-windows">
+    <div class="dr-window-cell"><b>${w.streak3_of_c1}/3</b><span>連續三次(第1款)</span></div>
+    <div class="dr-window-cell"><b>${w.streak5_of_c1to8}/5</b><span>連續五次(第1-8款)</span></div>
+    <div class="dr-window-cell"><b>${w.count10_of_c1to8}/6</b><span>10日內(第1-8款)</span></div>
+    <div class="dr-window-cell"><b>${w.count30_of_c1to8}/12</b><span>30日內(第1-8款)</span></div>
+  </div>` : '';
+
+  const clauses = r.clauses || {};
+  const clauseHtml = Object.keys(clauses).length
+    ? `<div class="dr-clause-grid">${Object.entries(clauses).map(([no, c]) => _drClauseItem(no, c)).join('')}</div>`
+    : '';
+
+  const val = r.valuation || {};
+  const valCell = (label, v, digits, suffix) =>
+    `<div class="dr-val-cell"><b>${v != null ? v.toFixed(digits) + (suffix || '') : '--'}</b><span>${label}</span></div>`;
+  const valHtml = `<div class="dr-val-grid">
+    ${valCell('本益比', val.pe_ratio, 1, '')}
+    ${valCell('股價淨值比', val.pbr, 2, '')}
+    ${valCell('週轉率', val.turnover_pct, 1, '%')}
+    ${valCell('融資使用率', val.margin_usage_pct, 1, '%')}
+    ${valCell('融券使用率', val.short_usage_pct, 1, '%')}
+    ${valCell('券資比', val.short_margin_ratio, 1, '%')}
+  </div>`;
+
+  el.innerHTML = `<div class="dr-wrap">
+    <div class="dr-banner ${bannerCls}">${bannerText}<div class="dr-banner-sub">${bannerSub}</div></div>
+    ${windowsHtml}
+    <div class="dr-section-title">14款觸發狀態（⚠️=觸發／·=未觸發／？=無法判定，見說明文字）</div>
+    ${clauseHtml}
+    <div class="dr-section-title">估值與融資融券</div>
+    ${valHtml}
+  </div>`;
 }

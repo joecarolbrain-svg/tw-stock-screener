@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260705e';
+const APP_VERSION = '20260705f';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -3296,7 +3296,7 @@ async function _ensureDispDataLoaded() {
   }
 }
 
-const DR_LEVEL_MARK = { triggered: '⚠️', close: '🟡', far: '·', unavailable: '？' };
+const DR_LEVEL_MARK = { triggered: '🔴', close: '🟡', far: '⚪', unavailable: '？' };
 const DR_LEVEL_CLS  = { triggered: 'hit-true', close: 'hit-close', far: 'hit-false', unavailable: 'hit-null' };
 
 function _drClauseItem(no, c) {
@@ -3304,7 +3304,7 @@ function _drClauseItem(no, c) {
   const mark = DR_LEVEL_MARK[level] || '？';
   const cls = DR_LEVEL_CLS[level] || 'hit-null';
   const windowsTxt = (c.windows || []).map(w =>
-    `${w.days}日${w.level === 'triggered' ? '⚠️' : (w.level === 'close' ? '🟡' : '·')}`).join(' ');
+    `${w.days}日${w.level === 'triggered' ? '🔴' : (w.level === 'close' ? '🟡' : '⚪')}`).join(' ');
   return `<div class="dr-clause-item ${cls}"><span class="dr-mark">${mark}</span>` +
     `<span>第${no}款 ${svEsc(c.name)}<br><span class="sv-mut">${svEsc(c.text)}</span>` +
     (windowsTxt ? `<br><span class="sv-mut">${windowsTxt}</span>` : '') + `</span></div>`;
@@ -3312,7 +3312,57 @@ function _drClauseItem(no, c) {
 
 function _drHistoryItem(h) {
   const nos = (h.clauses || []).map(n => `第${n}款`).join('、');
-  return `<div class="dr-hist-row"><span>${fmtDate8(h.date)}</span><span class="sv-mut">${svEsc(nos)}</span></div>`;
+  return `<div class="dr-hist-row"><span>🕒 ${fmtDate8(h.date)}</span><span class="sv-mut">${svEsc(nos)}</span></div>`;
+}
+
+function _drProgressBar(cur, max, label) {
+  const pct = max > 0 ? Math.min(100, (cur / max) * 100) : 0;
+  const cls = cur >= max ? 'full' : (pct >= 60 ? 'high' : '');
+  return `<div class="dr-progress-cell">
+    <div class="dr-progress-label">${label}</div>
+    <div class="dr-progress-track"><div class="dr-progress-fill ${cls}" style="width:${pct}%"></div></div>
+    <div class="dr-progress-num">${cur}/${max}</div>
+  </div>`;
+}
+
+// 官方第6條四計數器，用進度條呈現（比對attnup排版）
+function _drWindowsHtml(w) {
+  if (w.streak3_of_c1 == null) return '';
+  return `<div class="dr-section-title">處置期間累計</div>
+    <div class="dr-progress-grid">
+      ${_drProgressBar(w.streak3_of_c1, 3, '連續三次(第1款)')}
+      ${_drProgressBar(w.streak5_of_c1to8, 5, '連續五次(第1-8款)')}
+      ${_drProgressBar(w.count10_of_c1to8, 6, '10日內(第1-8款)')}
+      ${_drProgressBar(w.count30_of_c1to8, 12, '30日內(第1-8款)')}
+    </div>`;
+}
+
+// 今日實際觸發的款別（任一即可），對應attnup橘框「N/N 觸發條件」區塊
+function _drTriggeredHtml(clauses) {
+  const hit = Object.entries(clauses).filter(([, c]) => c.hit === true);
+  if (!hit.length) return '';
+  return `<div class="dr-trigger-box">
+    <div class="dr-trigger-title">◎ 觸發條件（任一即可）</div>
+    ${hit.map(([no, c]) => `<div class="dr-trigger-row">${no}. ${svEsc(c.text)} — 第${no}款</div>`).join('')}
+  </div>`;
+}
+
+// 14款總覽checklist：計入處置累計(1-8) / 僅公告不計入累計(9-14)，色塊pill
+function _drOverviewPill(no, c) {
+  const level = c.level || (c.hit === true ? 'triggered' : (c.hit === false ? 'far' : 'unavailable'));
+  const cls = level === 'triggered' ? 'hit' : (level === 'unavailable' ? 'na' : '');
+  const mark = { triggered: '🔴', close: '🟡', far: '⚪', unavailable: '－' }[level] || '－';
+  return `<div class="dr-pill ${cls}">${mark} 第${no}款</div>`;
+}
+function _drOverviewHtml(clauses) {
+  if (!Object.keys(clauses).length) return '';
+  const cum = [1, 2, 3, 4, 5, 6, 7, 8].map(n => _drOverviewPill(n, clauses[String(n)])).join('');
+  const ann = [9, 10, 11, 12, 13, 14].map(n => _drOverviewPill(n, clauses[String(n)])).join('');
+  return `<div class="dr-section-title">14款觸發總覽</div>
+    <div class="sv-mut" style="margin-bottom:4px">計入處置累計（第1-8款）</div>
+    <div class="dr-pill-grid">${cum}</div>
+    <div class="sv-mut" style="margin:8px 0 4px">僅公告不計入累計（第9-14款）</div>
+    <div class="dr-pill-grid">${ann}</div>`;
 }
 
 const dispUniverseCache = {};
@@ -3371,31 +3421,32 @@ async function renderDispositionRisk(ticker) {
   const bannerText = banner.text;
   const bannerSub = banner.sub;
 
-  // ① 觸發條件 + 預測細節（14款清單，含條款詳細數值色階與30/60/90日子窗）
   const clauses = r.clauses || {};
+
+  // ① 觸發條件（今日任一即可，只列有實際觸發的款）
+  const triggeredHtml = _drTriggeredHtml(clauses);
+
+  // ② 處置期間累計（官方第6條四計數器，進度條）
+  const windowsHtml = _drWindowsHtml(r.disposition_windows || {});
+
+  // ③ 預測細節（14款逐款詳解，含30/60/90日子窗與色階）
   const clauseHtml = Object.keys(clauses).length
-    ? `<div class="dr-clause-grid">${Object.entries(clauses).map(([no, c]) => _drClauseItem(no, c)).join('')}</div>`
+    ? `<div class="dr-clause-legend">🔴已觸發　🟡接近門檻（近20%內）　⚪未觸發　？資料不足/無法判定</div>
+       <div class="dr-clause-grid">${Object.entries(clauses).map(([no, c]) => _drClauseItem(no, c)).join('')}</div>`
     : '';
 
-  // ② 除外情形（目前只做第2款，官方規則第3條第3/4款，見disposition_rules.py）
+  // ④ 除外情形（目前只做第2款，官方規則第3條第3/4款，見disposition_rules.py）
   const ex2 = r.exemption_clause2;
-  const exemptionHtml = (ex2 && ex2.checked) ? `<div class="dr-section-title">第2款除外情形</div>
+  const exemptionHtml = (ex2 && ex2.checked) ? `<div class="dr-section-title">第2款除外情形（準確度有待驗證）</div>
     <div class="dr-exemption ${ex2.exempt ? 'exempt' : ''}">
       <div>${ex2.exempt ? '✅ 符合除外情形' : '❌ 不符合除外情形'}</div>
       <div class="sv-mut">${svEsc(ex2.text)}</div>
     </div>` : '';
 
-  // ③ 處置期間累計（官方第6條四計數器）
-  const w = r.disposition_windows || {};
-  const windowsHtml = w.streak3_of_c1 != null ? `<div class="dr-section-title">處置期間累計</div>
-  <div class="dr-windows">
-    <div class="dr-window-cell"><b>${w.streak3_of_c1}/3</b><span>連續三次(第1款)</span></div>
-    <div class="dr-window-cell"><b>${w.streak5_of_c1to8}/5</b><span>連續五次(第1-8款)</span></div>
-    <div class="dr-window-cell"><b>${w.count10_of_c1to8}/6</b><span>10日內(第1-8款)</span></div>
-    <div class="dr-window-cell"><b>${w.count30_of_c1to8}/12</b><span>30日內(第1-8款)</span></div>
-  </div>` : '';
+  // ⑤ 14款觸發總覽（計入/不計入處置累計 分組色塊）
+  const overviewHtml = _drOverviewHtml(clauses);
 
-  // ④ 估值與融資融券
+  // ⑥ 估值與融資融券
   const val = r.valuation || {};
   const valCell = (label, v, digits, suffix) =>
     `<div class="dr-val-cell"><b>${v != null ? v.toFixed(digits) + (suffix || '') : '--'}</b><span>${label}</span></div>`;
@@ -3408,17 +3459,19 @@ async function renderDispositionRisk(ticker) {
     ${valCell('券資比', val.short_margin_ratio, 1, '%')}
   </div>`;
 
-  // ⑤ 注意股歷史（近30日，逐日觸發哪幾款）
+  // ⑦ 注意股歷史（近30日，逐日觸發哪幾款）
   const hist = r.alert_history || [];
   const histHtml = hist.length ? `<div class="dr-section-title">注意股歷史（近30日）</div>
     <div class="dr-hist-list">${hist.map(_drHistoryItem).join('')}</div>` : '';
 
   el.innerHTML = `<div class="dr-wrap">
     <div class="dr-banner ${bannerCls}">${bannerText}<div class="dr-banner-sub">${bannerSub}</div></div>
-    <div class="dr-section-title">14款觸發狀態（⚠️觸發／🟡接近門檻／·未觸發／？無法判定，見說明文字）</div>
+    ${triggeredHtml}
+    ${windowsHtml}
+    <div class="dr-section-title">預測細節</div>
     ${clauseHtml}
     ${exemptionHtml}
-    ${windowsHtml}
+    ${overviewHtml}
     ${valHtml}
     ${histHtml}
   </div>`;

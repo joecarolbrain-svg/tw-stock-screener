@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260705f';
+const APP_VERSION = '20260705g';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -3325,6 +3325,26 @@ function _drProgressBar(cur, max, label) {
   </div>`;
 }
 
+// 預測性風險提示：把現有計數器往前推一步，不是預測股價（見disposition_rules.forecast_disposition_risk）
+function _drForecastHtml(fc) {
+  if (!fc || !fc.checked || fc.already_at_risk || !fc.nearest) return '';
+  const n = fc.nearest;
+  return `<div class="dr-forecast-box">
+    <div class="dr-forecast-title">📈 預測性風險提示</div>
+    <div class="dr-forecast-row">若${svEsc(n.need)}，還差 <b>${n.gap}</b> 次可能達到「${svEsc(n.label)}」門檻</div>
+  </div>`;
+}
+
+// 類股差幅（與大盤/與同類股的差幅，第1/3-5/7款判定用的分母）
+function _drDiffsHtml(diffs) {
+  if (!diffs || (diffs.market_diff_pct == null && diffs.sector_diff_pct == null)) return '';
+  return `<div class="dr-section-title">類股差幅（第1/3-5/7款需≥20%）</div>
+  <div class="dr-val-grid">
+    <div class="dr-val-cell"><b>${diffs.market_diff_pct != null ? diffs.market_diff_pct.toFixed(1) + '%' : '--'}</b><span>與大盤</span></div>
+    <div class="dr-val-cell"><b>${diffs.sector_diff_pct != null ? diffs.sector_diff_pct.toFixed(1) + '%' : '--'}</b><span>與同類股</span></div>
+  </div>`;
+}
+
 // 官方第6條四計數器，用進度條呈現（比對attnup排版）
 function _drWindowsHtml(w) {
   if (w.streak3_of_c1 == null) return '';
@@ -3351,7 +3371,7 @@ function _drTriggeredHtml(clauses) {
 function _drOverviewPill(no, c) {
   const level = c.level || (c.hit === true ? 'triggered' : (c.hit === false ? 'far' : 'unavailable'));
   const cls = level === 'triggered' ? 'hit' : (level === 'unavailable' ? 'na' : '');
-  const mark = { triggered: '🔴', close: '🟡', far: '⚪', unavailable: '－' }[level] || '－';
+  const mark = { triggered: '⚠', close: '◎', far: '◎', unavailable: '－' }[level] || '－';
   return `<div class="dr-pill ${cls}">${mark} 第${no}款</div>`;
 }
 function _drOverviewHtml(clauses) {
@@ -3435,21 +3455,37 @@ async function renderDispositionRisk(ticker) {
        <div class="dr-clause-grid">${Object.entries(clauses).map(([no, c]) => _drClauseItem(no, c)).join('')}</div>`
     : '';
 
-  // ④ 除外情形（目前只做第2款，官方規則第3條第3/4款，見disposition_rules.py）
+  // ④ 除外情形（目前只做第2款，官方規則第3條第3/4款，見disposition_rules.py）——
+  // 三個獨立框(30/60/90日)＋明日方向提示，比對attnup排版
   const ex2 = r.exemption_clause2;
   const exemptionHtml = (ex2 && ex2.checked) ? `<div class="dr-section-title">第2款除外情形（準確度有待驗證）</div>
-    <div class="dr-exemption ${ex2.exempt ? 'exempt' : ''}">
-      <div>${ex2.exempt ? '✅ 符合除外情形' : '❌ 不符合除外情形'}</div>
-      <div class="sv-mut">${svEsc(ex2.text)}</div>
-    </div>` : '';
+    <div class="dr-exemption-summary ${ex2.exempt ? 'exempt' : ''}">
+      ${ex2.exempt ? '✅ 符合除外情形' : '❌ 不符合除外情形'}
+    </div>
+    <div class="dr-exemption-grid">
+      ${(ex2.periods || []).map(p => `<div class="dr-exemption-cell">
+        <div class="dr-exemption-period">${p.days}日期間</div>
+        <div class="sv-mut">${svEsc(p.text)}</div>
+        ${p.tomorrow_hint ? `<div class="dr-exemption-hint">${svEsc(p.tomorrow_hint)}</div>` : ''}
+      </div>`).join('')}
+    </div>
+    <div class="sv-mut" style="margin-top:4px;font-style:italic">
+      * 此為條款尚未觸發時的預測，實際除外仍需符合完整條件</div>` : '';
 
   // ⑤ 14款觸發總覽（計入/不計入處置累計 分組色塊）
   const overviewHtml = _drOverviewHtml(clauses);
 
-  // ⑥ 估值與融資融券
+  // ⑥ 類股差幅
+  const diffsHtml = _drDiffsHtml(r.category_diffs);
+
+  // ⑦ 估值與融資融券
   const val = r.valuation || {};
   const valCell = (label, v, digits, suffix) =>
     `<div class="dr-val-cell"><b>${v != null ? v.toFixed(digits) + (suffix || '') : '--'}</b><span>${label}</span></div>`;
+  const changeCell = (label, v) => {
+    const cls = (v || 0) > 0 ? 'num-pos' : ((v || 0) < 0 ? 'num-neg' : '');
+    return `<div class="dr-val-cell"><b class="${cls}">${v != null ? _dispSigned(v, 0) : '--'}</b><span>${label}</span></div>`;
+  };
   const valHtml = `<div class="dr-section-title">估值與融資融券</div><div class="dr-val-grid">
     ${valCell('本益比', val.pe_ratio, 1, '')}
     ${valCell('股價淨值比', val.pbr, 2, '')}
@@ -3457,21 +3493,25 @@ async function renderDispositionRisk(ticker) {
     ${valCell('融資使用率', val.margin_usage_pct, 1, '%')}
     ${valCell('融券使用率', val.short_usage_pct, 1, '%')}
     ${valCell('券資比', val.short_margin_ratio, 1, '%')}
+    ${changeCell('融資增減(張)', val.margin_change)}
+    ${changeCell('融券增減(張)', val.short_change)}
   </div>`;
 
-  // ⑦ 注意股歷史（近30日，逐日觸發哪幾款）
+  // ⑧ 注意股歷史（近30日，逐日觸發哪幾款）
   const hist = r.alert_history || [];
   const histHtml = hist.length ? `<div class="dr-section-title">注意股歷史（近30日）</div>
     <div class="dr-hist-list">${hist.map(_drHistoryItem).join('')}</div>` : '';
 
   el.innerHTML = `<div class="dr-wrap">
     <div class="dr-banner ${bannerCls}">${bannerText}<div class="dr-banner-sub">${bannerSub}</div></div>
-    ${triggeredHtml}
+    ${_drForecastHtml(r.risk_forecast)}
     ${windowsHtml}
+    ${triggeredHtml}
     <div class="dr-section-title">預測細節</div>
     ${clauseHtml}
     ${exemptionHtml}
     ${overviewHtml}
+    ${diffsHtml}
     ${valHtml}
     ${histHtml}
   </div>`;

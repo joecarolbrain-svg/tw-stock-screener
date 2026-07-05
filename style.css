@@ -575,11 +575,18 @@ main { padding: 0 8px; max-width: 100vw; overflow-x: auto; box-sizing: border-bo
 .dr-clause-item.hit-close { color: #ffcc80; }
 .dr-clause-item.hit-false { color: #9a9aa8; }
 .dr-clause-item.hit-null  { color: #6a6a7a; font-style: italic; }
-.dr-exemption {
-  background: #131326; border: 1px solid #2a2a3e; border-radius: 6px;
-  padding: 8px 10px; font-size: 12px; margin-bottom: 6px;
+.dr-exemption-summary {
+  font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 6px;
+  background: #131326; border: 1px solid #2a2a3e; margin-bottom: 6px; color: #ef9a9a;
 }
-.dr-exemption.exempt { border-color: #2e7d32; }
+.dr-exemption-summary.exempt { border-color: #2e7d32; color: #a5d6a7; }
+.dr-exemption-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 4px; }
+@media (max-width: 620px) { .dr-exemption-grid { grid-template-columns: 1fr; } }
+.dr-exemption-cell {
+  background: #131326; border: 1px solid #2a2a3e; border-radius: 6px; padding: 8px 10px; font-size: 11px;
+}
+.dr-exemption-period { font-weight: 700; color: #cfd3dc; margin-bottom: 3px; }
+.dr-exemption-hint { color: #64b5f6; margin-top: 3px; }
 .dr-hist-list { display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow-y: auto; }
 .dr-hist-row { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; padding: 3px 4px; border-top: 1px solid #20203a; }
 
@@ -590,6 +597,14 @@ main { padding: 0 8px; max-width: 100vw; overflow-x: auto; box-sizing: border-bo
 }
 .dr-trigger-title { font-size: 13px; font-weight: 700; color: #ffb74d; margin-bottom: 6px; }
 .dr-trigger-row { font-size: 12px; color: #ffd8a8; line-height: 1.6; }
+
+/* 預測性風險提示 */
+.dr-forecast-box {
+  background: #1a2a3a; border: 1px solid #4fc3f7; border-radius: 8px;
+  padding: 8px 12px; margin-bottom: 10px;
+}
+.dr-forecast-title { font-size: 12px; font-weight: 700; color: #4fc3f7; margin-bottom: 4px; }
+.dr-forecast-row { font-size: 12px; color: #cfd3dc; }
 
 /* 累計四計數器進度條 */
 .dr-progress-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }

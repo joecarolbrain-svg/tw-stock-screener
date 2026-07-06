@@ -3315,14 +3315,39 @@ function _drHistoryItem(h) {
   return `<div class="dr-hist-row"><span>🕒 ${fmtDate8(h.date)}</span><span class="sv-mut">${svEsc(nos)}</span></div>`;
 }
 
-function _drProgressBar(cur, max, label) {
+function _drProgressBar(cur, max, label, dateChips) {
   const pct = max > 0 ? Math.min(100, (cur / max) * 100) : 0;
   const cls = cur >= max ? 'full' : (pct >= 60 ? 'high' : '');
+  const chipsHtml = (dateChips && dateChips.length)
+    ? `<div class="dr-progress-dates">${dateChips.map(d => `<span class="dr-progress-date">${fmtDate8(d)}</span>`).join('')}</div>`
+    : '';
   return `<div class="dr-progress-cell">
     <div class="dr-progress-label">${label}</div>
     <div class="dr-progress-track"><div class="dr-progress-fill ${cls}" style="width:${pct}%"></div></div>
     <div class="dr-progress-num">${cur}/${max}</div>
+    ${chipsHtml}
   </div>`;
+}
+
+// 從alert_history(近30日逐日觸發款別)回推「哪幾天算進這個計數器」，比對attnup每個gauge旁的日期清單。
+// alert_history只收錄「當天有任何觸發」的日子，但因此只要clause命中就一定會出現在清單裡，
+// 從最新一天往回抓連續run（中間不能被非該clause的日子隔開）就是正確的streak组成日期。
+function _drWindowDates(alertHistory, clauseSet, mode, limit) {
+  if (!limit || limit <= 0) return [];
+  // alert_history的clauses是JSON數字(Python int序列化結果)，clauseSet統一轉字串比對避免型別不符
+  const set = clauseSet.map(String);
+  const isHit = h => (h.clauses || []).some(c => set.includes(String(c)));
+  const sorted = [...(alertHistory || [])].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  if (mode === 'streak') {
+    // streak模式：必須是alert_history裡最前面連續的幾筆(沒有被其他日子插隊)才算連續
+    const out = [];
+    for (const h of sorted) {
+      if (!isHit(h) || out.length >= limit) break;
+      out.push(h.date);
+    }
+    return out;
+  }
+  return sorted.filter(isHit).slice(0, limit).map(h => h.date);
 }
 
 // 預測性風險提示：把現有計數器往前推一步，不是預測股價（見disposition_rules.forecast_disposition_risk）
@@ -3345,15 +3370,17 @@ function _drDiffsHtml(diffs) {
   </div>`;
 }
 
-// 官方第6條四計數器，用進度條呈現（比對attnup排版）
-function _drWindowsHtml(w) {
+// 官方第6條四計數器，用進度條呈現（比對attnup排版），旁邊附上實際計入的觸發日期
+function _drWindowsHtml(w, alertHistory) {
   if (w.streak3_of_c1 == null) return '';
+  const c1 = ['1'];
+  const c18 = ['1', '2', '3', '4', '5', '6', '7', '8'];
   return `<div class="dr-section-title">處置期間累計</div>
     <div class="dr-progress-grid">
-      ${_drProgressBar(w.streak3_of_c1, 3, '連續三次(第1款)')}
-      ${_drProgressBar(w.streak5_of_c1to8, 5, '連續五次(第1-8款)')}
-      ${_drProgressBar(w.count10_of_c1to8, 6, '10日內(第1-8款)')}
-      ${_drProgressBar(w.count30_of_c1to8, 12, '30日內(第1-8款)')}
+      ${_drProgressBar(w.streak3_of_c1, 3, '連續三次(第1款)', _drWindowDates(alertHistory, c1, 'streak', w.streak3_of_c1 || 0))}
+      ${_drProgressBar(w.streak5_of_c1to8, 5, '連續五次(第1-8款)', _drWindowDates(alertHistory, c18, 'streak', w.streak5_of_c1to8 || 0))}
+      ${_drProgressBar(w.count10_of_c1to8, 6, '10日內(第1-8款)', _drWindowDates(alertHistory, c18, 'count', w.count10_of_c1to8 || 0))}
+      ${_drProgressBar(w.count30_of_c1to8, 12, '30日內(第1-8款)', _drWindowDates(alertHistory, c18, 'count', w.count30_of_c1to8 || 0))}
     </div>`;
 }
 
@@ -3369,16 +3396,17 @@ function _drTriggeredHtml(clauses) {
 }
 
 // 14款總覽checklist：計入處置累計(1-8) / 僅公告不計入累計(9-14)，色塊pill
-function _drOverviewPill(no, c) {
+// 紅=已觸發／黃=接近門檻／灰=未觸發／－=無法判定；僅公告組(9-14)另加藍色調跟計入累計組(1-8)區隔，比對attnup排版
+function _drOverviewPill(no, c, isAnnounce) {
   const level = c.level || (c.hit === true ? 'triggered' : (c.hit === false ? 'far' : 'unavailable'));
-  const cls = level === 'triggered' ? 'hit' : (level === 'unavailable' ? 'na' : '');
-  const mark = { triggered: '⚠', close: '◎', far: '◎', unavailable: '－' }[level] || '－';
-  return `<div class="dr-pill ${cls}">${mark} 第${no}款</div>`;
+  const cls = level === 'triggered' ? 'hit' : (level === 'close' ? 'close' : (level === 'unavailable' ? 'na' : ''));
+  const mark = DR_LEVEL_MARK[level] || '？';
+  return `<div class="dr-pill ${isAnnounce ? 'announce' : ''} ${cls}">${mark} 第${no}款</div>`;
 }
 function _drOverviewHtml(clauses) {
   if (!Object.keys(clauses).length) return '';
-  const cum = [1, 2, 3, 4, 5, 6, 7, 8].map(n => _drOverviewPill(n, clauses[String(n)])).join('');
-  const ann = [9, 10, 11, 12, 13, 14].map(n => _drOverviewPill(n, clauses[String(n)])).join('');
+  const cum = [1, 2, 3, 4, 5, 6, 7, 8].map(n => _drOverviewPill(n, clauses[String(n)], false)).join('');
+  const ann = [9, 10, 11, 12, 13, 14].map(n => _drOverviewPill(n, clauses[String(n)], true)).join('');
   return `<div class="dr-section-title">14款觸發總覽</div>
     <div class="sv-mut" style="margin-bottom:4px">計入處置累計（第1-8款）</div>
     <div class="dr-pill-grid">${cum}</div>
@@ -3447,8 +3475,8 @@ async function renderDispositionRisk(ticker) {
   // ① 觸發條件（今日任一即可，只列有實際觸發的款）
   const triggeredHtml = _drTriggeredHtml(clauses);
 
-  // ② 處置期間累計（官方第6條四計數器，進度條）
-  const windowsHtml = _drWindowsHtml(r.disposition_windows || {});
+  // ② 處置期間累計（官方第6條四計數器，進度條+觸發日期）
+  const windowsHtml = _drWindowsHtml(r.disposition_windows || {}, r.alert_history || []);
 
   // ③ 預測細節（14款逐款詳解，含30/60/90日子窗與色階）
   const clauseHtml = Object.keys(clauses).length

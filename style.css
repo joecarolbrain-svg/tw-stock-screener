@@ -619,17 +619,26 @@ main { padding: 0 8px; max-width: 100vw; overflow-x: auto; box-sizing: border-bo
 .dr-progress-fill.high { background: #ffb300; }
 .dr-progress-fill.full { background: #ef5350; }
 .dr-progress-num { font-size: 12px; color: #cfd3dc; margin-top: 4px; font-weight: 700; }
+.dr-progress-dates { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
+.dr-progress-date {
+  font-size: 9px; color: #9a9aa8; background: #0d0d1a; border: 1px solid #2a2a3e;
+  border-radius: 4px; padding: 1px 4px;
+}
 
 .dr-clause-legend { font-size: 11px; color: #9a9aa8; margin-bottom: 6px; }
 
-/* 14款總覽色塊 */
+/* 14款總覽色塊：計入處置累計(第1-8款)用紅/黃/灰三階；僅公告(第9-14款)統一藍色調區隔兩組 */
 .dr-pill-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
 .dr-pill {
   font-size: 11px; padding: 4px 9px; border-radius: 12px; background: #1c1c30;
   border: 1px solid #2a2a3e; color: #9a9aa8;
 }
 .dr-pill.hit { background: #4a1414; border-color: #ef5350; color: #ffb0b0; }
+.dr-pill.close { background: #4a3814; border-color: #ffb300; color: #ffd280; }
 .dr-pill.na { color: #55556a; }
+.dr-pill.announce { background: #10203a; border-color: #2a4a6e; color: #8fb4dd; }
+.dr-pill.announce.hit { background: #4a1414; border-color: #ef5350; color: #ffb0b0; }
+.dr-pill.announce.close { background: #4a3814; border-color: #ffb300; color: #ffd280; }
 .dr-val-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .dr-val-cell {
   background: #131326; border: 1px solid #2a2a3e; border-radius: 6px;

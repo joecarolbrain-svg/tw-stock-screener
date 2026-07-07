@@ -3110,6 +3110,12 @@ function _dispCardHtml(r, bucket) {
     : `<span class="disp-badge disp-badge-amber">近10日注意${r.watch_count_10d}次</span>`;
   const repeatIcon = r.repeat_disposition_flag ? ' ⚠️二度' : '';
   const fullDeliveryIcon = r.full_delivery_flag ? ' 🈵全額' : '';
+  const w3 = r.wave3_signal || {};
+  const wave3Badge = w3.type === 'wave3_second' ? `<span class="disp-badge disp-badge-blue">🎯浪子回頭(加碼)</span>`
+    : w3.type === 'wave3_first' ? `<span class="disp-badge disp-badge-blue">🎯浪子回頭</span>`
+    : w3.type === 'decline_only' ? `<span class="disp-badge disp-badge-blue">處置後跌幅</span>` : '';
+  const chipHint = r.chip_concentration_5d_positive === true ? ' 🟢籌碼佳'
+    : r.chip_concentration_5d_positive === false ? ' 🔴籌碼弱' : '';
   const declineLine = bucket === 'punish'
     ? `累幅<span class="${declineCls}">${_dispSigned(r.cumulative_decline_pct, 1)}%</span>　`
     : '';
@@ -3122,9 +3128,9 @@ function _dispCardHtml(r, bucket) {
       <span class="disp-card-market">${r.market || ''}</span>
     </div>
     <div class="disp-card-price">${r.close ?? '--'}<span class="${chgCls}" style="font-size:13px;margin-left:6px">${_dispSigned(r.chg_pct, 2)}%</span></div>
-    <div class="disp-card-badges">${cycleBadge} ${statusBadge}${repeatIcon}${fullDeliveryIcon}</div>
+    <div class="disp-card-badges">${cycleBadge} ${statusBadge}${repeatIcon}${fullDeliveryIcon} ${wave3Badge}</div>
     <div class="disp-card-meta">量${volTxt}　週轉率${turnoverTxt}</div>
-    <div class="disp-card-meta">位階${_dispSigned(r.position_index, 1)}　月線斜率<span class="${slopeCls}">${_dispSigned(r.ma20_slope, 1)}%</span></div>
+    <div class="disp-card-meta">位階${_dispSigned(r.position_index, 1)}　月線斜率<span class="${slopeCls}">${_dispSigned(r.ma20_slope, 1)}%</span>${chipHint}</div>
     <div class="disp-card-meta">${declineLine}距高點${_dispSigned(r.drawdown_from_high, 1)}%</div>
   </button>`;
 }
@@ -3446,7 +3452,7 @@ function _dispBanner(r, fromUniverse) {
     ? `🚨 處置中　撮合${r.matching_cycle_minutes}分盤　處置期${fmtDate8(r.punish_start_date)}起第${r.days_in_punish}天`
     : `👀 潛在注意股（尚未處置）`;
   const sub = isPunish
-    ? `估計出關倒數 ${r.est_days_to_exit} 個交易日${r.repeat_disposition_flag ? '（⚠️近期二度以上處置）' : ''}`
+    ? `估計出關倒數 ${r.est_days_to_exit} 個交易日${r.repeat_disposition_flag ? '（⚠️近期二度以上處置）' : ''}${r.day1_avoid ? '（⚠️處置首日，統計上表現最弱，不建議追價進場）' : ''}`
     : `近10日觸發注意${r.watch_count_10d}次　近30日${r.watch_count_30d}次`;
   return { cls, text, sub };
 }

@@ -522,6 +522,7 @@ main { padding: 0 8px; max-width: 100vw; overflow-x: auto; box-sizing: border-bo
 .disp-card-price { font-size: 18px; font-weight: 700; color: #eef1f5; margin-bottom: 4px; }
 .disp-card-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; align-items: center; }
 .disp-card-meta { font-size: 11px; color: #9a9aa8; line-height: 1.6; }
+.disp-card-wave3 { color: #90caf9; margin-top: 2px; padding-top: 4px; border-top: 1px dashed #2a2a3e; }
 
 .dr-daily-wrap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 4px 12px 16px; }
 @media (max-width: 760px) { .dr-daily-wrap { grid-template-columns: 1fr; } }

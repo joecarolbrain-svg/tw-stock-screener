@@ -3099,6 +3099,23 @@ function _dispSigned(v, digits) {
   return `${n > 0 ? '+' : ''}${n.toFixed(digits)}`;
 }
 
+function _wave3PriceLine(r) {
+  const w3 = r.wave3_signal || {};
+  const wp = r.wave3_price || {};
+  const active = w3.type === 'wave3_first' || w3.type === 'wave3_second' || w3.type === 'decline_only';
+  if (active) {
+    if (wp.entry_price_suggested == null) return '';
+    return `<div class="disp-card-meta disp-card-wave3">💡建議進場≈${wp.entry_price_suggested}　東山再起停利≈${wp.takeprofit_price_suggested ?? '--'}</div>`;
+  }
+  if (wp.target_price_first == null && wp.target_price_decline_only == null) return '';
+  const parts = [];
+  if (wp.target_price_second != null) parts.push(`≤${wp.target_price_second}加碼`);
+  if (wp.target_price_first != null) parts.push(`≤${wp.target_price_first}首次`);
+  if (wp.target_price_decline_only != null) parts.push(`≤${wp.target_price_decline_only}跌幅`);
+  const gateNote = wp.slope_gate_ok ? '' : '　<span class="num-neg">(斜率未達標)</span>';
+  return `<div class="disp-card-meta disp-card-wave3">🎯浪子回頭門檻：${parts.join(' / ')}${gateNote}</div>`;
+}
+
 function _dispCardHtml(r, bucket) {
   const slopeCls = (r.ma20_slope || 0) > 0 ? 'num-pos' : ((r.ma20_slope || 0) < 0 ? 'num-neg' : '');
   const declineCls = (r.cumulative_decline_pct || 0) > 0 ? 'num-pos' : ((r.cumulative_decline_pct || 0) < 0 ? 'num-neg' : '');
@@ -3132,6 +3149,7 @@ function _dispCardHtml(r, bucket) {
     <div class="disp-card-meta">量${volTxt}　週轉率${turnoverTxt}</div>
     <div class="disp-card-meta">位階${_dispSigned(r.position_index, 1)}　月線斜率<span class="${slopeCls}">${_dispSigned(r.ma20_slope, 1)}%</span>${chipHint}</div>
     <div class="disp-card-meta">${declineLine}距高點${_dispSigned(r.drawdown_from_high, 1)}%</div>
+    ${_wave3PriceLine(r)}
   </button>`;
 }
 

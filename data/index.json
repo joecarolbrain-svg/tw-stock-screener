@@ -1,8 +1,16 @@
 {
   "schema_version": "2.0",
-  "generated_at": "2026-07-07T22:50:09+08:00",
+  "generated_at": "2026-07-08T23:36:51+08:00",
   "latest_date": "20260707",
   "dates": [
+    {
+      "date": "20260708",
+      "has": [
+        "disposition",
+        "hanku",
+        "market"
+      ]
+    },
     {
       "date": "20260707",
       "has": [

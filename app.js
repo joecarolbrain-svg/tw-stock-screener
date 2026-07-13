@@ -650,9 +650,9 @@ function buildTable(data) {
         const p = c.precision != null ? c.precision : 2;
         const txt = Number(v).toFixed(p);
         // 漲跌幅/距高百分比類欄位上色
-        if (['dist_high', 'dist_year_high', 'risk_pct', 'stop_loss_pct', 'chg_pct'].includes(c.id)) {
+        if (['dist_high', 'dist_year_high', 'risk_pct', 'stop_loss_pct', 'chg_pct', 'score_delta'].includes(c.id)) {
           const cls = v > 0 ? 'num-pos' : (v < 0 ? 'num-neg' : '');
-          const sign = c.id === 'chg_pct' && v > 0 ? '+' : '';
+          const sign = (c.id === 'chg_pct' || c.id === 'score_delta') && v > 0 ? '+' : '';
           return `<span class="${cls}">${sign}${txt}</span>`;
         }
         return txt;
@@ -689,6 +689,16 @@ function buildTable(data) {
         if (v >= 3) return `<span class="hits-strong">×${v}</span>`;
         if (v >= 2) return `<span class="hits-mid">×${v}</span>`;
         return `<span>${v}</span>`;
+      };
+    }
+    // 連續上榜欄：≥5 螢光、≥3 橘（延續愈久＝訊號愈成熟）
+    if (c.id === 'board_streak') {
+      def.formatter = (cell) => {
+        const v = cell.getValue();
+        if (v == null || v === 0) return '';
+        if (v >= 5) return `<span class="hits-strong" title="連續上榜${v}個交易日">${v}日</span>`;
+        if (v >= 3) return `<span class="hits-mid" title="連續上榜${v}個交易日">${v}日</span>`;
+        return `<span>${v}日</span>`;
       };
     }
     // 族群集中度欄：≥70 標紅、≥50 黃

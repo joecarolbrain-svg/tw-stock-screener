@@ -141,6 +141,8 @@ const state = {
   onlyHotGroup: false,
   // 只看跨策略共振（≥2 策略）
   onlyResonance: false,
+  // 排名延續快捷視圖（互斥）：null|new(新進)|surge(衝榜中)|fade(掉分)
+  persistView: null,
   // 主升策略：off|sig|A|B；sig 模式用 mainupSignals 勾選的旗標(5訊號+3條件+季線突破)
   mainupMode: 'off',
   mainupSignals: new Set(['s1', 's2', 's3', 's4', 's5', 'c1', 'c2', 'c3', 'mainup_ma60']),
@@ -746,6 +748,10 @@ function applyFilters() {
     if (state.onlyResonance && _resoCount(row) < 2) return false;
     // 只顯示族群 z≥1
     if (state.onlyHotGroup && (row.max_group_z == null || row.max_group_z < 1)) return false;
+    // 排名延續快捷視圖（互斥）：null 皆不卡；三者只判命中股（非命中的 board_streak/score_delta 為 null）
+    if (state.persistView === 'new'   && row.stage_move !== '🆕新進') return false;
+    if (state.persistView === 'surge' && !(row.board_streak >= 2 && row.score_delta > 0)) return false;
+    if (state.persistView === 'fade'  && !(row.score_delta < 0)) return false;
     // 分類（AND/OR）
     if (state.selectedCats.size > 0) {
       const rowCats = new Set(row.categories || []);
@@ -834,6 +840,13 @@ function applyFilters() {
 const DIM_LABEL = { industry: '產業', sector: '類股', concept: '題材' };
 const MAINUP_MODE_LABEL = { sig: '自訂', A: '穩健A', B: '獵飆B' };
 const ISLAND_MODE_LABEL = { top: '頂部', bottom: '底部', any: '任一' };
+const PV_LABEL = { new: '🆕新進', surge: '🔥衝榜中', fade: '⚠️掉分' };
+
+// 清除排名延續快捷視圖（狀態 + 按鈕 active 樣式）
+function clearPersistView() {
+  state.persistView = null;
+  document.querySelectorAll('#persist-views .pv-btn').forEach(b => b.classList.remove('active'));
+}
 
 function renderActiveFilters() {
   const bar = document.getElementById('active-filters');
@@ -858,6 +871,7 @@ function renderActiveFilters() {
   if (state.groupZMin != null) add('groupZMin', `族群z≥${state.groupZMin}`);
   if (state.onlyResonance) add('onlyResonance', '⚡只看共振');
   if (state.onlyHotGroup) add('onlyHotGroup', '族群z≥1');
+  if (state.persistView) add('persistView', PV_LABEL[state.persistView]);
   if (state.onlyPinned) add('onlyPinned', '只看勾選');
 
   if (!chips.length) {
@@ -922,6 +936,7 @@ function removeFilter(key) {
     case 'groupZMin': state.groupZMin = null; document.getElementById('group-z-min').value = ''; break;
     case 'onlyResonance': state.onlyResonance = false; document.getElementById('only-resonance').checked = false; break;
     case 'onlyHotGroup': state.onlyHotGroup = false; document.getElementById('only-hot-group').checked = false; break;
+    case 'persistView': clearPersistView(); break;
     case 'onlyPinned': {
       state.onlyPinned = false;
       const b = document.getElementById('btn-only-pinned');
@@ -1054,6 +1069,17 @@ function bindControls() {
     });
   }
 
+  // 排名延續快捷視圖：互斥，點已啟用的鈕＝關閉
+  document.querySelectorAll('#persist-views .pv-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pv = btn.dataset.pv;
+      const turningOff = state.persistView === pv;
+      clearPersistView();
+      if (!turningOff) { state.persistView = pv; btn.classList.add('active'); }
+      applyFilters();
+    });
+  });
+
   document.getElementById('btn-only-pinned').addEventListener('click', (e) => {
     state.onlyPinned = !state.onlyPinned;
     e.target.classList.toggle('btn-active', state.onlyPinned);
@@ -1094,6 +1120,7 @@ function clearAllFilters() {
   state.mainupEntry = '';
   state.mainupExclDist = false;
   state.islandMode = 'off';
+  clearPersistView();
   state.patternSignals.clear();
   document.querySelectorAll('input[name="pattern-sig"]').forEach(cb => { cb.checked = false; });
 
@@ -2578,6 +2605,23 @@ function mainCardHtml(r) {
   const hot = (r.max_group_z != null && r.max_group_z >= 1)
     ? '<span class="sc-hot">🔥族群</span>' : '';
 
+  // 排名延續：連續上榜 / 升降階 / Δ分（只在命中股有值）
+  const persistBits = [];
+  if (r.board_streak != null) {
+    if (r.stage_move === '🆕新進') {
+      persistBits.push('<span class="pst pst-new">🆕新進榜</span>');
+    } else {
+      const sCls = r.board_streak >= 5 ? 'pst-hot' : (r.board_streak >= 3 ? 'pst-mid' : '');
+      persistBits.push(`<span class="pst ${sCls}" title="連續上榜 ${r.board_streak} 個交易日">連${r.board_streak}日</span>`);
+      if (r.stage_move === '🔼升階') persistBits.push(`<span class="pst pst-up" title="分類軌跡 ${r.cat_path || ''}">🔼升階</span>`);
+      else if (r.stage_move === '⬇️降階') persistBits.push(`<span class="pst pst-down" title="分類軌跡 ${r.cat_path || ''}">⬇️降階</span>`);
+    }
+    if (r.score_delta != null && r.score_delta !== 0) {
+      persistBits.push(`<span class="pst ${r.score_delta > 0 ? 'pst-up' : 'pst-down'}" title="較前一交易日分數變化">${r.score_delta > 0 ? '+' : ''}${r.score_delta}分</span>`);
+    }
+  }
+  const persistHtml = persistBits.length ? `<div class="sc-persist">${persistBits.join('')}</div>` : '';
+
   // 法人連買/連賣 ≥3 天才顯示（雜訊過濾）
   const instBits = [];
   if (r.foreign_streak >= 3) instBits.push(`<span class="tag tag-good">外資連買${r.foreign_streak}日</span>`);
@@ -2604,6 +2648,7 @@ function mainCardHtml(r) {
       <span class="q-score">分 ${r.score != null ? Math.round(r.score) : '--'}</span>
       <span class="q-rs">RS ${_cardNum(r.rs, 0)}</span>
     </div>
+    ${persistHtml}
     <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span><span class="sc-vol">量 ${_cardNum(r.vol_ratio, 1)}x</span></div>
     <div class="sc-trade">
       <span><i>進場</i>${entry}</span>

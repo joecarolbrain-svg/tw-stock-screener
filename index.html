@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260705h" />
+  <link rel="stylesheet" href="style.css?v=20260714b" />
 </head>
 <body>
   <header class="topbar">
@@ -77,6 +77,11 @@
       <label class="check-toggle" title="只顯示族群最高 z ≥ 1 的個股（族群在熱區）">
         <input type="checkbox" id="only-hot-group" /> 🌊 族群z≥1
       </label>
+      <div class="persist-views" id="persist-views" title="排名延續快捷視圖（互斥）：新進榜 / 連續在榜且分數上升 / 較前一交易日掉分">
+        <button type="button" class="pv-btn" data-pv="new" title="今日才進榜（前一交易日不在命中清單）">🆕新進</button>
+        <button type="button" class="pv-btn" data-pv="surge" title="連續在榜 ≥2 日且分數較前一交易日上升">🔥衝榜中</button>
+        <button type="button" class="pv-btn" data-pv="fade" title="分數較前一交易日下降（動能轉弱、留意減碼）">⚠️掉分</button>
+      </div>
       <span class="filler"></span>
       <span id="filter-summary" class="muted"></span>
     </div>
@@ -583,7 +588,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260714a"></script>
+  <script src="app.js?v=20260714b"></script>
   <script src="calc.js?v=20260704a"></script>
 </body>
 </html>

@@ -143,6 +143,8 @@ const state = {
   onlyResonance: false,
   // 排名延續快捷視圖（互斥）：null|new(新進)|surge(衝榜中)|fade(掉分)
   persistView: null,
+  // 主表欄位密度：false=精簡(只核心欄)｜true=完整(全部欄)
+  tableFull: localStorage.getItem('tableFull') === '1',
   // 主升策略：off|sig|A|B；sig 模式用 mainupSignals 勾選的旗標(5訊號+3條件+季線突破)
   mainupMode: 'off',
   mainupSignals: new Set(['s1', 's2', 's3', 's4', 's5', 'c1', 'c2', 'c3', 'mainup_ma60']),
@@ -611,6 +613,55 @@ function renderDimensionOptions() {
 }
 
 // ── 5. 建表（Tabulator） ────────────────────────────
+// 精簡模式核心欄（+ 合併的 persist）；其餘欄「完整」模式才顯示
+const MAIN_CORE_IDS = new Set([
+  'ticker', 'name', 'chg_pct', 'hits', 'score', 'category_main', 'persist',
+  'verdict', 'strength', 'entry_price', 'stop_loss', 'rr', 'ind_top3_share', 'exit_warn',
+]);
+// 退掉的欄（與新「延續」重複的舊連續欄）
+const MAIN_HIDE_IDS = new Set(['streak_days', 'streak_note']);
+
+// 延續徽章（卡片 + 主表「延續」欄共用）：連N日 / 升降階 / Δ分
+function persistBadgesHtml(r) {
+  if (r.board_streak == null) return '';
+  const bits = [];
+  if (r.stage_move === '🆕新進') {
+    bits.push('<span class="pst pst-new">🆕新進榜</span>');
+  } else {
+    const sCls = r.board_streak >= 5 ? 'pst-hot' : (r.board_streak >= 3 ? 'pst-mid' : '');
+    bits.push(`<span class="pst ${sCls}">連${r.board_streak}日</span>`);
+    if (r.stage_move === '🔼升階') bits.push('<span class="pst pst-up">🔼升階</span>');
+    else if (r.stage_move === '⬇️降階') bits.push('<span class="pst pst-down">⬇️降階</span>');
+  }
+  if (r.score_delta != null && r.score_delta !== 0) {
+    bits.push(`<span class="pst ${r.score_delta > 0 ? 'pst-up' : 'pst-down'}">${r.score_delta > 0 ? '+' : ''}${r.score_delta}分</span>`);
+  }
+  return bits.join('');
+}
+
+// 分數走勢 unicode sparkline（score_hist = [{d,s}…] 舊→新）
+function persistSparkline(hist) {
+  if (!Array.isArray(hist) || !hist.length) return '';
+  const bars = '▁▂▃▄▅▆▇█';
+  const vals = hist.map(h => h.s).filter(v => v != null);
+  if (!vals.length) return '';
+  const mn = Math.min(...vals), mx = Math.max(...vals), rng = (mx - mn) || 1;
+  return hist.map(h => h.s == null ? ' ' : bars[Math.round((h.s - mn) / rng * 7)]).join('');
+}
+
+// 依 state.tableFull 顯示/隱藏非核心欄
+function applyTableDensity() {
+  if (!state.table) return;
+  state.table.getColumns().forEach(col => {
+    const f = col.getField();
+    if (!f || f === 'persist') return;         // pin / 延續 複合欄一律保留
+    if (state.tableFull || MAIN_CORE_IDS.has(f)) col.show();
+    else col.hide();
+  });
+  const btn = document.getElementById('btn-table-density');
+  if (btn) btn.textContent = state.tableFull ? '⊞ 完整' : '⊟ 精簡';
+}
+
 function buildTable(data) {
   // pin 欄位（最前）
   const pinCol = {
@@ -634,12 +685,13 @@ function buildTable(data) {
     },
   };
 
-  const cols = [pinCol, ...data.column_meta.map(c => {
+  const baseCols = data.column_meta.filter(c => !MAIN_HIDE_IDS.has(c.id)).map(c => {
     const def = {
       title: c.label,
       field: c.id,
       headerFilter: false,
       headerTooltip: c.label,
+      visible: state.tableFull || MAIN_CORE_IDS.has(c.id),   // 精簡=只核心
     };
     if (c.frozen) def.frozen = true;
     if (c.width) def.width = c.width;
@@ -714,7 +766,24 @@ function buildTable(data) {
       };
     }
     return def;
-  })];
+  });
+
+  // 合併「延續」複合欄（連N日/升降階/Δ分，hover=軌跡），插在 主分類 之後
+  const persistCol = {
+    title: '延續', field: 'persist', headerSort: false, width: 150, visible: true,
+    headerTooltip: '排名延續：連續上榜天數 / 分類升降階 / 較前一交易日分數變化',
+    formatter: (cell) => {
+      const r = cell.getRow().getData();
+      const html = persistBadgesHtml(r);
+      if (!html) return '';
+      return `<span title="分類軌跡 ${r.cat_path || '—'}">${html}</span>`;
+    },
+  };
+  const ci = baseCols.findIndex(c => c.field === 'category_main');
+  if (ci >= 0) baseCols.splice(ci + 1, 0, persistCol);
+  else baseCols.push(persistCol);
+
+  const cols = [pinCol, ...baseCols];
 
   state.table = new Tabulator('#main-table', {
     data: data.rows,
@@ -733,6 +802,7 @@ function buildTable(data) {
     state.table.getRows().forEach(row => {
       if (state.pinned.has(row.getData().ticker)) row.freeze();
     });
+    applyTableDensity();   // 同步精簡/完整按鈕文字與欄位可見性
   });
   updatePinSummary();
 }
@@ -1066,6 +1136,16 @@ function bindControls() {
     resoChk.addEventListener('change', e => {
       state.onlyResonance = e.target.checked;
       applyFilters();
+    });
+  }
+
+  // 主表精簡/完整切換
+  const densBtn = document.getElementById('btn-table-density');
+  if (densBtn) {
+    densBtn.addEventListener('click', () => {
+      state.tableFull = !state.tableFull;
+      try { localStorage.setItem('tableFull', state.tableFull ? '1' : '0'); } catch (_) {}
+      applyTableDensity();
     });
   }
 
@@ -2605,22 +2685,10 @@ function mainCardHtml(r) {
   const hot = (r.max_group_z != null && r.max_group_z >= 1)
     ? '<span class="sc-hot">🔥族群</span>' : '';
 
-  // 排名延續：連續上榜 / 升降階 / Δ分（只在命中股有值）
-  const persistBits = [];
-  if (r.board_streak != null) {
-    if (r.stage_move === '🆕新進') {
-      persistBits.push('<span class="pst pst-new">🆕新進榜</span>');
-    } else {
-      const sCls = r.board_streak >= 5 ? 'pst-hot' : (r.board_streak >= 3 ? 'pst-mid' : '');
-      persistBits.push(`<span class="pst ${sCls}" title="連續上榜 ${r.board_streak} 個交易日">連${r.board_streak}日</span>`);
-      if (r.stage_move === '🔼升階') persistBits.push(`<span class="pst pst-up" title="分類軌跡 ${r.cat_path || ''}">🔼升階</span>`);
-      else if (r.stage_move === '⬇️降階') persistBits.push(`<span class="pst pst-down" title="分類軌跡 ${r.cat_path || ''}">⬇️降階</span>`);
-    }
-    if (r.score_delta != null && r.score_delta !== 0) {
-      persistBits.push(`<span class="pst ${r.score_delta > 0 ? 'pst-up' : 'pst-down'}" title="較前一交易日分數變化">${r.score_delta > 0 ? '+' : ''}${r.score_delta}分</span>`);
-    }
-  }
-  const persistHtml = persistBits.length ? `<div class="sc-persist">${persistBits.join('')}</div>` : '';
+  // 排名延續：連續上榜 / 升降階 / Δ分（卡片與主表共用 persistBadgesHtml）
+  const persistInner = persistBadgesHtml(r);
+  const persistHtml = persistInner
+    ? `<div class="sc-persist" title="分類軌跡 ${r.cat_path || '—'}">${persistInner}</div>` : '';
 
   // 法人連買/連賣 ≥3 天才顯示（雜訊過濾）
   const instBits = [];
@@ -3002,9 +3070,21 @@ function renderStockSummary(ticker, name, market, row) {
   const chg = svNum(G('chg_pct'));
   const chgCol = chg == null ? '#888' : chg >= 0 ? '#ef5350' : '#26a69a';
   const priceRow = `<div class="sv-price">收盤 <b>${svHas(G('close')) ? G('close') : '--'}</b>` +
-    (chg != null ? `　<b style="color:${chgCol}">${chg > 0 ? '+' : ''}${chg}%</b>` : '') +
-    (svHas(G('streak_note')) ? `　<span class="sv-mut">${svEsc(G('streak_note'))}</span>` : '') + `</div>` +
+    (chg != null ? `　<b style="color:${chgCol}">${chg > 0 ? '+' : ''}${chg}%</b>` : '') + `</div>` +
     (svHas(G('verdict')) ? `<div class="sv-verdict">${svEsc(G('verdict'))}</div>` : '');
+
+  // 延續面板：連續上榜徽章 + 分類軌跡 + 分數走勢 sparkline
+  let persistPanel = '';
+  if (svHas(G('board_streak'))) {
+    const badges = persistBadgesHtml(row);
+    const hist = G('score_hist') || [];
+    const spk = persistSparkline(hist);
+    const first = hist.length ? hist[0].s : null, last = hist.length ? hist[hist.length - 1].s : null;
+    const spkLine = spk
+      ? `<div class="sv-spark">${spk}<span class="sv-mut">　分數 ${first != null ? Math.round(first) : '--'}→${last != null ? Math.round(last) : '--'}</span></div>` : '';
+    const trail = svHas(G('cat_path')) ? `<div class="sv-mut">分類軌跡 ${svEsc(G('cat_path'))}</div>` : '';
+    persistPanel = `<div class="sv-persist-badges">${badges}</div>${trail}${spkLine}`;
+  }
 
   // ② 入選分類 badge（用主表 categories 的 label/color）
   const catMeta = {};
@@ -3078,6 +3158,7 @@ function renderStockSummary(ticker, name, market, row) {
   el.innerHTML = `<div class="sv-wrap">
     ${priceRow}
     ${catHtml ? `<div class="sv-cats">${catHtml}</div>` : ''}
+    ${svRow('📈', '延續', persistPanel)}
     ${svRow('📌', '訊號', sig.join('　·　'))}
     ${svRow('🏭', '題材族群', th.join('　｜　'))}
     ${svRow('💰', '籌碼', `<span id="sv-chip">載入中…</span>`)}

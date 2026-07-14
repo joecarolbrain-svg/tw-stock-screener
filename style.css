@@ -419,6 +419,31 @@ input:focus, select:focus { outline: 2px solid #00d4aa; outline-offset: -1px; }
 .sc-persist .pst-up   { color: #22c55e; background: rgba(34,197,94,0.14); }
 .sc-persist .pst-down { color: #ef5350; background: rgba(239,83,80,0.14); }
 
+/* 🏦 法人買賣超排行 */
+.ir-inst-toggle { display: inline-flex; gap: 4px; }
+.ir-inst-toggle .ir-btn { font-size: 13px; color: #aaa; cursor: pointer; padding: 5px 12px;
+  border-radius: 6px; border: 1px solid #2a2a3e; background: transparent; }
+.ir-inst-toggle .ir-btn:hover { color: #e0e0e0; border-color: #4a90e2; }
+.ir-inst-toggle .ir-btn.active { color: #0b1020; background: #4a90e2; border-color: #4a90e2; font-weight: 700; }
+#ir-body { padding: 8px 12px 24px; }
+.ir-cols { display: flex; gap: 16px; align-items: flex-start; }
+.ir-col { flex: 1 1 0; min-width: 0; }
+.ir-single { max-width: 640px; margin: 0 auto; }
+.ir-h { font-size: 14px; font-weight: 700; color: #e8eefc; padding: 6px 8px; position: sticky; top: 0;
+  background: #12161f; border-bottom: 1px solid #2a2a3e; }
+.ir-rows { display: flex; flex-direction: column; }
+.ir-row { display: grid; grid-template-columns: 34px 1fr 92px 62px 62px; align-items: center;
+  gap: 6px; padding: 4px 8px; font-size: 12.5px; border-bottom: 1px solid #1c2130; cursor: pointer; }
+.ir-row:hover { background: rgba(74,144,226,0.10); }
+.ir-row.ir-hdr { cursor: default; color: #7a8394; font-size: 11px; border-bottom: 1px solid #2a2a3e; }
+.ir-row.ir-hdr:hover { background: transparent; }
+.ir-rk { color: #7a8394; text-align: right; }
+.ir-nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #dfe6f2; }
+.ir-lot { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.ir-cl { text-align: right; color: #b9c2d0; font-variant-numeric: tabular-nums; }
+.ir-chg { text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) { .ir-cols { flex-direction: column; } }
+
 /* 依延續分組：段落標題（跨整列） */
 .sc-group { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px;
   margin: 10px 2px 2px; padding: 4px 8px; border-radius: 6px;

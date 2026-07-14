@@ -1492,6 +1492,9 @@ function bindTabs() {
       if (tab === 'concept' && !themeState.loaded) {
         loadTheme();
       }
+      if (tab === 'inst-rank') {
+        loadInstRank();
+      }
       if (tab === 'cb') {
         loadCB();
       }
@@ -3064,6 +3067,115 @@ function renderSectorFlowStocks(sector) {
     initialSort: [{ column: 'net5_yi', dir: 'desc' }],
   });
 }
+
+// ═════════════════════════════════════════════════════════
+//  🏦 法人買賣超排行（inst-rank）— 個股外資/投信/自營/合計 買賣超雙欄 + 漲停
+// ═════════════════════════════════════════════════════════
+const instRankState = { loaded: false, loadedDate: null, data: null,
+  inst: 'f', limitOnly: false, onlyHit: false, search: '' };
+const INST_LABEL = { f: '外資', t: '投信', d: '自營', tot: '合計' };
+
+async function loadInstRank() {
+  if (instRankState.loaded && instRankState.loadedDate === currentDate) { renderInstRank(); return; }
+  const body = document.getElementById('ir-body');
+  const entry = (indexMeta?.dates || []).find(
+    e => e.date === currentDate && (e.has || []).includes('inst_rank'));
+  let date = currentDate;
+  if (!entry) {
+    const fb = (indexMeta?.dates || []).find(e => (e.has || []).includes('inst_rank'));
+    if (!fb) { body.innerHTML = '<div style="padding:20px;color:#aaa">該日期無法人買賣超資料（跑 export_inst_rank.py）。</div>'; return; }
+    date = fb.date;
+  }
+  try {
+    instRankState.data = await fetchJsonGz(`data/daily/${date}/inst_rank.json.gz`);
+    instRankState.loaded = true;
+    instRankState.loadedDate = currentDate;
+    renderInstRank();
+  } catch (e) {
+    body.innerHTML = `<div style="padding:20px;color:#f88">載入失敗：${e.message}</div>`;
+  }
+}
+
+function _irRowHtml(r, i, inst) {
+  const net = r[inst] || 0;
+  const chgc = r.chg == null ? '' : (r.chg > 0 ? 'num-pos' : (r.chg < 0 ? 'num-neg' : ''));
+  const mark = (r.hit ? '⭐' : '') + (r.up ? '🔥' : '');
+  return `<div class="ir-row" data-code="${r.code}" data-name="${(r.name || '').replace(/"/g, '')}">`
+    + `<span class="ir-rk">${i + 1}</span>`
+    + `<span class="ir-nm">${mark}${r.code} ${r.name || ''}</span>`
+    + `<span class="ir-lot ${net > 0 ? 'num-pos' : (net < 0 ? 'num-neg' : '')}">${net > 0 ? '+' : ''}${net.toLocaleString()}</span>`
+    + `<span class="ir-cl">${r.close == null ? '--' : r.close}</span>`
+    + `<span class="ir-chg ${chgc}">${r.chg == null ? '' : (r.chg > 0 ? '+' : '') + r.chg + '%'}</span>`
+    + `</div>`;
+}
+
+function _irTable(title, rows, inst) {
+  const hdr = `<div class="ir-h">${title}</div>`;
+  if (!rows.length) return hdr + '<div class="muted" style="padding:12px">無</div>';
+  const head = `<div class="ir-row ir-hdr"><span class="ir-rk">#</span><span class="ir-nm">名稱</span>`
+    + `<span class="ir-lot">張數</span><span class="ir-cl">收盤</span><span class="ir-chg">幅度</span></div>`;
+  return hdr + `<div class="ir-rows">${head}${rows.map((r, i) => _irRowHtml(r, i, inst)).join('')}</div>`;
+}
+
+function renderInstRank() {
+  const d = instRankState.data;
+  const body = document.getElementById('ir-body');
+  if (!d) { body.innerHTML = '<div class="muted" style="padding:20px">無資料</div>'; return; }
+  const inst = instRankState.inst;
+  const q = (instRankState.search || '').toLowerCase();
+  const rows = d.rows.filter(r => {
+    if (instRankState.onlyHit && !r.hit) return false;
+    if (q && !String(r.code).includes(q) && !(r.name || '').toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const metaEl = document.getElementById('ir-meta');
+  if (metaEl) metaEl.textContent = `${d.trading_date}｜${d.count} 檔｜漲停 ${d.limit_up}`;
+
+  if (instRankState.limitOnly) {
+    const up = rows.filter(r => r.up).sort((a, b) => (b.chg || 0) - (a.chg || 0));
+    body.innerHTML = `<div class="ir-single">${_irTable(`🔥 今日漲停（${up.length}）`, up, inst)}</div>`;
+    _bindIrRows(); return;
+  }
+  const CAP = 50;
+  const buy = rows.filter(r => (r[inst] || 0) > 0).sort((a, b) => b[inst] - a[inst]).slice(0, CAP);
+  const sell = rows.filter(r => (r[inst] || 0) < 0).sort((a, b) => a[inst] - b[inst]).slice(0, CAP);
+  body.innerHTML = `<div class="ir-cols">`
+    + `<div class="ir-col">${_irTable(`${INST_LABEL[inst]} 買超`, buy, inst)}</div>`
+    + `<div class="ir-col">${_irTable(`${INST_LABEL[inst]} 賣超`, sell, inst)}</div></div>`;
+  _bindIrRows();
+}
+
+function _bindIrRows() {
+  const mkt = {};
+  ((state.data && state.data.rows) || []).forEach(r => { mkt[String(r.ticker)] = r.market; });
+  document.querySelectorAll('#ir-body .ir-row[data-code]').forEach(el => {
+    el.addEventListener('click', () =>
+      openKlineModal(el.dataset.code, el.dataset.name, mkt[el.dataset.code] || ''));
+  });
+}
+
+function initInstRankControls() {
+  document.querySelectorAll('#ir-inst-toggle .ir-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      instRankState.inst = b.dataset.inst;
+      document.querySelectorAll('#ir-inst-toggle .ir-btn').forEach(x => x.classList.toggle('active', x === b));
+      instRankState.limitOnly = false;
+      document.getElementById('ir-limitup').classList.remove('btn-active');
+      if (instRankState.loaded) renderInstRank();
+    });
+  });
+  const lu = document.getElementById('ir-limitup');
+  if (lu) lu.addEventListener('click', () => {
+    instRankState.limitOnly = !instRankState.limitOnly;
+    lu.classList.toggle('btn-active', instRankState.limitOnly);
+    if (instRankState.loaded) renderInstRank();
+  });
+  const oh = document.getElementById('ir-only-hit');
+  if (oh) oh.addEventListener('change', e => { instRankState.onlyHit = e.target.checked; if (instRankState.loaded) renderInstRank(); });
+  const s = document.getElementById('ir-search');
+  if (s) s.addEventListener('input', e => { instRankState.search = e.target.value.trim(); if (instRankState.loaded) renderInstRank(); });
+}
+document.addEventListener('DOMContentLoaded', initInstRankControls);
 
 function initSectorFlowControls() {
   ['sf-state', 'sf-search'].forEach(id => {

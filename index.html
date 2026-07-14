@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260714e" />
+  <link rel="stylesheet" href="style.css?v=20260714f" />
 </head>
 <body>
   <header class="topbar">
@@ -36,6 +36,7 @@
     <button class="tab-btn" data-tab="watchlist">⭐ 自選股</button>
     <button class="tab-btn" data-tab="hanku">🌀 Hanku波段</button>
     <button class="tab-btn" data-tab="sector-flow">💸 族群資金流向</button>
+    <button class="tab-btn" data-tab="inst-rank">🏦 法人買賣超</button>
     <button class="tab-btn" data-tab="cb">💎 可轉債監控</button>
     <button class="tab-btn" data-tab="signal-report">📋 訊號成績單</button>
     <button class="tab-btn" data-tab="disposition">🚨 處置雷達</button>
@@ -321,6 +322,30 @@
             style="width:100%;height:calc(100vh - 110px);border:0;display:block;background:#0e1218"></iframe>
   </section>
 
+  <section class="tab-panel" data-panel="inst-rank">
+    <div class="filters">
+      <div class="filter-row">
+        <div class="ir-inst-toggle" id="ir-inst-toggle" title="看哪一家法人買賣超">
+          <button type="button" class="ir-btn active" data-inst="f">外資</button>
+          <button type="button" class="ir-btn" data-inst="t">投信</button>
+          <button type="button" class="ir-btn" data-inst="d">自營</button>
+          <button type="button" class="ir-btn" data-inst="tot">合計</button>
+        </div>
+        <button type="button" id="ir-limitup" class="btn btn-ghost" title="只看今日漲停個股">🔥 今日漲停</button>
+        <label class="check-toggle" title="只看同時是每日看板篩選命中的股">
+          <input type="checkbox" id="ir-only-hit" /> ⭐ 只看命中股
+        </label>
+        <input type="text" id="ir-search" class="search-box" placeholder="🔍 代號/名稱" />
+        <span class="filler"></span>
+        <span class="muted" id="ir-meta">--</span>
+      </div>
+      <div class="filter-row legend-row">
+        <span class="legend-item">單位：張　·　⭐=每日看板命中股（可點進 K 線）　·　🔥=今日漲停　·　資料源：三大法人個股買賣超</span>
+      </div>
+    </div>
+    <main><div id="ir-body"></div></main>
+  </section>
+
   <section class="tab-panel" data-panel="industry-ranking">
     <div class="filters">
       <div class="filter-row">
@@ -590,7 +615,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260714e"></script>
+  <script src="app.js?v=20260714f"></script>
   <script src="calc.js?v=20260704a"></script>
 </body>
 </html>

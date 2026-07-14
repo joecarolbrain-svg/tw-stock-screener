@@ -622,14 +622,17 @@ const MAIN_CORE_IDS = new Set([
 const MAIN_HIDE_IDS = new Set(['streak_days', 'streak_note']);
 
 // 延續徽章（卡片 + 主表「延續」欄共用）：連N日 / 升降階 / Δ分
-function persistBadgesHtml(r) {
+// slim=true（分組卡片用）：省略與段落標題重複的 🆕新進榜、🔼升階/⬇️降階 字樣，只留數字
+function persistBadgesHtml(r, slim = false) {
   if (r.board_streak == null) return '';
+  // 今日上榜（streak==1，含斷檔後回歸）：段標已表達則 slim 省略；streak==1 無 Δ分
+  if (r.board_streak === 1) {
+    return slim ? '' : '<span class="pst pst-new">🆕今日上榜</span>';
+  }
   const bits = [];
-  if (r.stage_move === '🆕新進') {
-    bits.push('<span class="pst pst-new">🆕新進榜</span>');
-  } else {
-    const sCls = r.board_streak >= 5 ? 'pst-hot' : (r.board_streak >= 3 ? 'pst-mid' : '');
-    bits.push(`<span class="pst ${sCls}">連${r.board_streak}日</span>`);
+  const sCls = r.board_streak >= 5 ? 'pst-hot' : (r.board_streak >= 3 ? 'pst-mid' : '');
+  bits.push(`<span class="pst ${sCls}">連${r.board_streak}日</span>`);
+  if (!slim) {
     if (r.stage_move === '🔼升階') bits.push('<span class="pst pst-up">🔼升階</span>');
     else if (r.stage_move === '⬇️降階') bits.push('<span class="pst pst-down">⬇️降階</span>');
   }
@@ -637,6 +640,16 @@ function persistBadgesHtml(r) {
     bits.push(`<span class="pst ${r.score_delta > 0 ? 'pst-up' : 'pst-down'}">${r.score_delta > 0 ? '+' : ''}${r.score_delta}分</span>`);
   }
   return bits.join('');
+}
+
+// 延續生命週期分組：new(今日上榜) / surge(加溫) / fade(轉弱) / flat(持平)；非命中回 null
+function persistBucket(r) {
+  const s = r.board_streak;
+  if (s == null) return null;
+  if (s <= 1) return 'new';
+  if (r.score_delta < 0 || r.stage_move === '⬇️降階') return 'fade';
+  if (r.score_delta > 0 || r.stage_move === '🔼升階') return 'surge';
+  return 'flat';
 }
 
 // 分數走勢 unicode sparkline（score_hist = [{d,s}…] 舊→新）
@@ -818,10 +831,13 @@ function applyFilters() {
     if (state.onlyResonance && _resoCount(row) < 2) return false;
     // 只顯示族群 z≥1
     if (state.onlyHotGroup && (row.max_group_z == null || row.max_group_z < 1)) return false;
-    // 排名延續快捷視圖（互斥）：null 皆不卡；三者只判命中股（非命中的 board_streak/score_delta 為 null）
-    if (state.persistView === 'new'   && row.stage_move !== '🆕新進') return false;
-    if (state.persistView === 'surge' && !(row.board_streak >= 2 && row.score_delta > 0)) return false;
-    if (state.persistView === 'fade'  && !(row.score_delta < 0)) return false;
+    // 排名延續快捷視圖（互斥）：對齊卡片三分段（加溫段=surge+持平），filter 與分組一致
+    if (state.persistView) {
+      const b = persistBucket(row);
+      const sec = (b === 'surge' || b === 'flat') ? 'warm' : (b === 'fade' ? 'weak' : b);
+      const want = { new: 'new', surge: 'warm', fade: 'weak' }[state.persistView];
+      if (sec !== want) return false;
+    }
     // 分類（AND/OR）
     if (state.selectedCats.size > 0) {
       const rowCats = new Set(row.categories || []);
@@ -910,7 +926,7 @@ function applyFilters() {
 const DIM_LABEL = { industry: '產業', sector: '類股', concept: '題材' };
 const MAINUP_MODE_LABEL = { sig: '自訂', A: '穩健A', B: '獵飆B' };
 const ISLAND_MODE_LABEL = { top: '頂部', bottom: '底部', any: '任一' };
-const PV_LABEL = { new: '🆕新進', surge: '🔥衝榜中', fade: '⚠️掉分' };
+const PV_LABEL = { new: '🆕今日上榜', surge: '🔥延續加溫', fade: '⚠️延續轉弱' };
 
 // 清除排名延續快捷視圖（狀態 + 按鈕 active 樣式）
 function clearPersistView() {
@@ -2663,7 +2679,7 @@ function _hitTier(h) {
   return 'q-grey';
 }
 
-function mainCardHtml(r) {
+function mainCardHtml(r, grouped = false) {
   const cmap = (state.data && state.data._catColor) || {};
   const catTags = (r.categories || []).map(code =>
     `<span class="cat-tag" style="background:${cmap[code] || '#888'}">${code}</span>`).join('');
@@ -2686,8 +2702,8 @@ function mainCardHtml(r) {
   const hot = (r.max_group_z != null && r.max_group_z >= 1)
     ? '<span class="sc-hot">🔥族群</span>' : '';
 
-  // 排名延續：連續上榜 / 升降階 / Δ分（卡片與主表共用 persistBadgesHtml）
-  const persistInner = persistBadgesHtml(r);
+  // 排名延續：連續上榜 / 升降階 / Δ分（卡片與主表共用；分組卡片用 slim 版避免與段標重複）
+  const persistInner = persistBadgesHtml(r, grouped);
   const persistHtml = persistInner
     ? `<div class="sc-persist" title="分類軌跡 ${r.cat_path || '—'}">${persistInner}</div>` : '';
 
@@ -2757,6 +2773,32 @@ function mainCardHtml(r) {
   </div>`;
 }
 
+// 依延續生命週期分組渲染卡片（段落標題跨欄；只含命中股）
+function renderGroupedCards(active) {
+  const SECT_CAP = 80;
+  const byScore = (a, b) => (b.score || 0) - (a.score || 0);
+  const buckets = { new: [], surge: [], fade: [], flat: [] };
+  active.forEach(r => { const b = persistBucket(r); if (b) buckets[b].push(r); });
+  const sections = [
+    { rows: buckets.new.sort(byScore), cls: 'sec-new',
+      label: '🆕 今日上榜', note: '全新訊號 — 優先評估' },
+    { rows: buckets.surge.sort(byScore).concat(buckets.flat.sort(byScore)), cls: 'sec-surge',
+      label: '🔥 延續加溫', note: '連續在榜且加分/升階 — 進場續抱首選' },
+    { rows: buckets.fade.sort(byScore), cls: 'sec-fade',
+      label: '⚠️ 延續轉弱', note: '連續在榜但掉分/降階 — 留意減碼' },
+  ];
+  let out = '';
+  sections.forEach(sec => {
+    if (!sec.rows.length) return;
+    out += `<div class="sc-group ${sec.cls}"><span class="sg-title">${sec.label}</span>`
+      + `<span class="sg-n">${sec.rows.length}</span><span class="sg-note">${sec.note}</span></div>`;
+    out += sec.rows.slice(0, SECT_CAP).map(r => mainCardHtml(r, true)).join('');
+    if (sec.rows.length > SECT_CAP)
+      out += `<div class="muted" style="padding:2px 8px;grid-column:1/-1">顯示前 ${SECT_CAP} / 共 ${sec.rows.length}</div>`;
+  });
+  return out;
+}
+
 function refreshMainView() {
   if (!state.table) return;
   const view = state.mainView || (state.mainView = getTabView('main', 'card'));
@@ -2773,14 +2815,19 @@ function refreshMainView() {
   if (tableEl) tableEl.style.display = 'none';
   if (cardsEl) cardsEl.style.display = '';
   if (sortEl) sortEl.style.display = '';
-  const CAP = 200;
   const active = state.table.getData('active');
-  const sortKey = (sortEl && sortEl.value) || 'hits';
-  active.sort(MAIN_CARD_SORT[sortKey] || MAIN_CARD_SORT.hits);
-  const shown = active.slice(0, CAP);
-  let html = shown.map(mainCardHtml).join('');
-  if (active.length > CAP)
-    html += `<div class="muted" style="padding:8px;grid-column:1/-1">顯示前 ${CAP} / 共 ${active.length} 檔（縮小篩選或切表格看全部）</div>`;
+  const sortKey = (sortEl && sortEl.value) || 'persist_group';
+  let html;
+  if (sortKey === 'persist_group') {
+    html = renderGroupedCards(active);
+  } else {
+    const CAP = 200;
+    active.sort(MAIN_CARD_SORT[sortKey] || MAIN_CARD_SORT.hits);
+    const shown = active.slice(0, CAP);
+    html = shown.map(r => mainCardHtml(r)).join('');
+    if (active.length > CAP)
+      html += `<div class="muted" style="padding:8px;grid-column:1/-1">顯示前 ${CAP} / 共 ${active.length} 檔（縮小篩選或切表格看全部）</div>`;
+  }
   cardsEl.innerHTML = html || '<div class="muted" style="padding:20px">🔍 沒有符合條件的個股</div>';
   cardsEl.querySelectorAll('.main-card').forEach((card) => {
     card.addEventListener('click', (e) => {

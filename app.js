@@ -1145,7 +1145,8 @@ function bindControls() {
     densBtn.addEventListener('click', () => {
       state.tableFull = !state.tableFull;
       try { localStorage.setItem('tableFull', state.tableFull ? '1' : '0'); } catch (_) {}
-      applyTableDensity();
+      applyTableDensity();   // 表格：顯示/隱藏欄位
+      refreshMainView();     // 卡片：重繪以展開/收合細節
     });
   }
 
@@ -2698,6 +2699,28 @@ function mainCardHtml(r) {
   else if (r.trust_streak <= -3) instBits.push(`<span class="tag tag-warn">投信連賣${-r.trust_streak}日</span>`);
   const instHtml = instBits.join('');
 
+  // 完整模式：卡片展開細節（精簡模式不顯示）
+  let detailHtml = '';
+  if (state.tableFull) {
+    const pairs = [];
+    const addN = (label, v, dp = 2, suf = '') => { if (v != null) pairs.push([label, _cardNum(v, dp) + suf]); };
+    const addT = (label, v) => { if (v != null && String(v).trim() && String(v) !== '—') pairs.push([label, String(v)]); };
+    addN('MA5', r.ma5); addN('MA60', r.ma60);
+    addN('距前高', r.dist_high, 1, '%'); addN('距年高', r.dist_year_high, 1, '%');
+    addN('套牢密度', r.trap_density, 1); addT('上方賣壓', r.overhead);
+    addN('防守', r.defense); addN('停損', r.stop_loss);
+    addN('風險', r.risk_pct, 1, '%'); addN('部位', r.position_pct, 1, '%');
+    addN('出貨風險', r.dist_risk, 0); addN('主力買超', r.broker_net, 0);
+    addT('主升', r.mainup_tag);
+    [['圓弧', r.rounding_state], ['黃金', r.fib_state], ['缺口', r.gap_state],
+     ['N字', r.nbase_state], ['支撐', r.sr_state], ['上檔', r.sr_overhead]]
+      .forEach(([l, v]) => addT(l, v));
+    if (pairs.length) {
+      detailHtml = `<div class="sc-detail">` +
+        pairs.map(([l, v]) => `<span class="d-item"><i>${l}</i>${v}</span>`).join('') + `</div>`;
+    }
+  }
+
   // 跨策略共振徽章
   const hk = resonance.hanku[r.ticker];
   const resoN = _resoCount(r);
@@ -2724,6 +2747,7 @@ function mainCardHtml(r) {
       <span><i>RR</i><b class="${rrCls}">${rr == null ? '--' : Number(rr).toFixed(2)}</b></span>
     </div>
     ${resoRow}
+    ${detailHtml}
     <div class="sc-tags">
       ${r.industry ? `<span class="tag">${r.industry}</span>` : ''}
       ${flagHtml}

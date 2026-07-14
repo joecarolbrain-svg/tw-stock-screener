@@ -80,6 +80,9 @@
       <label class="check-toggle" title="只顯示族群最高 z ≥ 1 的個股（族群在熱區）">
         <input type="checkbox" id="only-hot-group" /> 🌊 族群z≥1
       </label>
+      <label class="check-toggle" title="只看今日外資或投信買超的股（配合命中＝法人×篩選共振）">
+        <input type="checkbox" id="only-inst-buy" /> 🏦 法人買超
+      </label>
       <div class="persist-views" id="persist-views" title="排名延續快捷（互斥，與卡片依延續分組同標準）：今日上榜 / 延續加溫 / 延續轉弱">
         <button type="button" class="pv-btn" data-pv="new" title="今日(重)上榜：board_streak=1（昨日不在榜）">🆕今日上榜</button>
         <button type="button" class="pv-btn" data-pv="surge" title="延續加溫：連續在榜≥2日且加分或升階">🔥加溫</button>
@@ -615,7 +618,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260714f"></script>
+  <script src="app.js?v=20260714g"></script>
   <script src="calc.js?v=20260704a"></script>
 </body>
 </html>

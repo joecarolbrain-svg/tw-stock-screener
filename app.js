@@ -82,6 +82,7 @@ async function onDateChange(ev) {
   try {
     const data = await loadData();
     state.data = data;
+    await mergeInstNet(data);
     data._catColor = {};
     data.categories.forEach(c => { data._catColor[c.code] = c.color; });
     buildTickerIndustry(data);
@@ -141,6 +142,8 @@ const state = {
   onlyHotGroup: false,
   // 只看跨策略共振（≥2 策略）
   onlyResonance: false,
+  // 只看今日外資或投信買超
+  onlyInstBuy: false,
   // 排名延續快捷視圖（互斥）：null|new(新進)|surge(衝榜中)|fade(掉分)
   persistView: null,
   // 主表欄位密度：false=精簡(只核心欄)｜true=完整(全部欄)
@@ -344,6 +347,24 @@ const rankState = {
 // ── 1. 載入 JSON ────────────────────────────────────
 async function loadData() {
   return await fetchJsonGz(dailyPath('latest'));
+}
+
+// 把當日法人買賣超(inst_rank)的外資/投信/自營淨額 join 進主表 rows（P3 看板整合）
+async function mergeInstNet(data) {
+  const rows = data.rows || [];
+  try {
+    const inst = await fetchJsonGz(dailyPath('inst_rank'));
+    const map = {};
+    (inst.rows || []).forEach(r => { map[String(r.code)] = r; });
+    rows.forEach(row => {
+      const m = map[String(row.ticker)];
+      row.foreign_net = m ? m.f : null;
+      row.trust_net = m ? m.t : null;
+      row.dealer_net = m ? m.d : null;
+    });
+  } catch (_) {
+    rows.forEach(row => { row.foreign_net = row.trust_net = row.dealer_net = null; });
+  }
 }
 
 // ── 1.5 今日市場快照（大盤籌碼 market.json + 漲跌家數 + 共振數） ──
@@ -662,6 +683,13 @@ function persistSparkline(hist) {
   return hist.map(h => h.s == null ? ' ' : bars[Math.round((h.s - mn) / rng * 7)]).join('');
 }
 
+// 法人買賣超張數格式（正綠負紅、千分位）
+function _instNetFmt(v) {
+  if (v == null) return '';
+  const cls = v > 0 ? 'num-pos' : (v < 0 ? 'num-neg' : '');
+  return `<span class="${cls}">${v > 0 ? '+' : ''}${v.toLocaleString()}</span>`;
+}
+
 // 依 state.tableFull 顯示/隱藏非核心欄
 function applyTableDensity() {
   if (!state.table) return;
@@ -796,6 +824,16 @@ function buildTable(data) {
   if (ci >= 0) baseCols.splice(ci + 1, 0, persistCol);
   else baseCols.push(persistCol);
 
+  // 法人今日買賣超（張，前端 join 自 inst_rank）— 非核心，完整模式才顯示
+  ['foreign_net', 'trust_net'].forEach(fid => {
+    baseCols.push({
+      title: fid === 'foreign_net' ? '外資買超' : '投信買超', field: fid,
+      hozAlign: 'right', sorter: 'number', width: 92,
+      visible: state.tableFull, headerTooltip: '今日' + (fid === 'foreign_net' ? '外資' : '投信') + '買賣超（張）',
+      formatter: (cell) => _instNetFmt(cell.getValue()),
+    });
+  });
+
   const cols = [pinCol, ...baseCols];
 
   state.table = new Tabulator('#main-table', {
@@ -831,6 +869,8 @@ function applyFilters() {
     if (state.onlyResonance && _resoCount(row) < 2) return false;
     // 只顯示族群 z≥1
     if (state.onlyHotGroup && (row.max_group_z == null || row.max_group_z < 1)) return false;
+    // 只看法人買超（外資或投信今日淨買 > 0）
+    if (state.onlyInstBuy && !((row.foreign_net || 0) > 0 || (row.trust_net || 0) > 0)) return false;
     // 排名延續快捷視圖（互斥）：對齊卡片三分段（加溫段=surge+持平），filter 與分組一致
     if (state.persistView) {
       const b = persistBucket(row);
@@ -957,6 +997,7 @@ function renderActiveFilters() {
   if (state.groupZMin != null) add('groupZMin', `族群z≥${state.groupZMin}`);
   if (state.onlyResonance) add('onlyResonance', '⚡只看共振');
   if (state.onlyHotGroup) add('onlyHotGroup', '族群z≥1');
+  if (state.onlyInstBuy) add('onlyInstBuy', '🏦法人買超');
   if (state.persistView) add('persistView', PV_LABEL[state.persistView]);
   if (state.onlyPinned) add('onlyPinned', '只看勾選');
 
@@ -1022,6 +1063,7 @@ function removeFilter(key) {
     case 'groupZMin': state.groupZMin = null; document.getElementById('group-z-min').value = ''; break;
     case 'onlyResonance': state.onlyResonance = false; document.getElementById('only-resonance').checked = false; break;
     case 'onlyHotGroup': state.onlyHotGroup = false; document.getElementById('only-hot-group').checked = false; break;
+    case 'onlyInstBuy': state.onlyInstBuy = false; { const e = document.getElementById('only-inst-buy'); if (e) e.checked = false; } break;
     case 'persistView': clearPersistView(); break;
     case 'onlyPinned': {
       state.onlyPinned = false;
@@ -1151,6 +1193,14 @@ function bindControls() {
   if (resoChk) {
     resoChk.addEventListener('change', e => {
       state.onlyResonance = e.target.checked;
+      applyFilters();
+    });
+  }
+
+  const instBuyChk = document.getElementById('only-inst-buy');
+  if (instBuyChk) {
+    instBuyChk.addEventListener('change', e => {
+      state.onlyInstBuy = e.target.checked;
       applyFilters();
     });
   }
@@ -2343,6 +2393,7 @@ function renderThemeHistory() {
     renderDatePicker();
     const data = await loadData();
     state.data = data;
+    await mergeInstNet(data);
 
     // 建分類顏色 lookup（供命中策略欄渲染色塊用）
     data._catColor = {};
@@ -2730,6 +2781,8 @@ function mainCardHtml(r, grouped = false) {
     addN('防守', r.defense); addN('停損', r.stop_loss);
     addN('風險', r.risk_pct, 1, '%'); addN('部位', r.position_pct, 1, '%');
     addN('出貨風險', r.dist_risk, 0); addN('主力買超', r.broker_net, 0);
+    if (r.foreign_net != null && r.foreign_net !== 0) pairs.push(['外資買超', (r.foreign_net > 0 ? '+' : '') + r.foreign_net.toLocaleString()]);
+    if (r.trust_net != null && r.trust_net !== 0) pairs.push(['投信買超', (r.trust_net > 0 ? '+' : '') + r.trust_net.toLocaleString()]);
     addT('主升', r.mainup_tag);
     [['圓弧', r.rounding_state], ['黃金', r.fib_state], ['缺口', r.gap_state],
      ['N字', r.nbase_state], ['支撐', r.sr_state], ['上檔', r.sr_overhead]]

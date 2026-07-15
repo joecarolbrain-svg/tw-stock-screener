@@ -336,8 +336,17 @@
     else root.innerHTML = `<div class="qef-empty" style="padding:30px">輸入股票代號（例如 2327）→ 自動帶現價/近期高/週支撐/ATR,算出今日加碼/減倉三條線。</div>`;
   }
 
+  // 外部呼叫（K線彈窗「用期貨計算機試算」）：帶入代號並依大/小型設每口股數
+  //   presetMult：2000=大型股期、100=小型股期；null=不覆寫沿用上次
+  function loadTicker(ticker, presetMult) {
+    if (presetMult === 100 || presetMult === 2000) saveG({ mult: presetMult });
+    const inp = document.getElementById('calc-ticker-input');
+    if (inp) inp.value = ticker || '';
+    loadTabTicker(ticker);
+  }
+
   // ── 全域曝露 ────────────────────────────────────────
-  window.QEFCalc = { initTab };
+  window.QEFCalc = { initTab, loadTicker };
 
   document.addEventListener('DOMContentLoaded', () => { initTab(); });
 })();

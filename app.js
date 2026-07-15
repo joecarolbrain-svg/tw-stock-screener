@@ -144,6 +144,8 @@ const state = {
   onlyResonance: false,
   // 只看今日外資或投信買超
   onlyInstBuy: false,
+  // 只看有個股期貨（大型或小型）
+  onlyStf: false,
   // 排名延續快捷視圖（互斥）：null|new(新進)|surge(衝榜中)|fade(掉分)
   persistView: null,
   // 主表欄位密度：false=精簡(只核心欄)｜true=完整(全部欄)
@@ -871,6 +873,8 @@ function applyFilters() {
     if (state.onlyHotGroup && (row.max_group_z == null || row.max_group_z < 1)) return false;
     // 只看法人買超（外資或投信今日淨買 > 0）
     if (state.onlyInstBuy && !((row.foreign_net || 0) > 0 || (row.trust_net || 0) > 0)) return false;
+    // 只看有個股期貨（大型或小型）
+    if (state.onlyStf && !row.stf && !row.stf_mini) return false;
     // 排名延續快捷視圖（互斥）：對齊卡片三分段（加溫段=surge+持平），filter 與分組一致
     if (state.persistView) {
       const b = persistBucket(row);
@@ -998,6 +1002,7 @@ function renderActiveFilters() {
   if (state.onlyResonance) add('onlyResonance', '⚡只看共振');
   if (state.onlyHotGroup) add('onlyHotGroup', '族群z≥1');
   if (state.onlyInstBuy) add('onlyInstBuy', '🏦法人買超');
+  if (state.onlyStf) add('onlyStf', '📈有股期');
   if (state.persistView) add('persistView', PV_LABEL[state.persistView]);
   if (state.onlyPinned) add('onlyPinned', '只看勾選');
 
@@ -1064,6 +1069,7 @@ function removeFilter(key) {
     case 'onlyResonance': state.onlyResonance = false; document.getElementById('only-resonance').checked = false; break;
     case 'onlyHotGroup': state.onlyHotGroup = false; document.getElementById('only-hot-group').checked = false; break;
     case 'onlyInstBuy': state.onlyInstBuy = false; { const e = document.getElementById('only-inst-buy'); if (e) e.checked = false; } break;
+    case 'onlyStf': state.onlyStf = false; { const e = document.getElementById('only-stf'); if (e) e.checked = false; } break;
     case 'persistView': clearPersistView(); break;
     case 'onlyPinned': {
       state.onlyPinned = false;
@@ -1201,6 +1207,14 @@ function bindControls() {
   if (instBuyChk) {
     instBuyChk.addEventListener('change', e => {
       state.onlyInstBuy = e.target.checked;
+      applyFilters();
+    });
+  }
+
+  const stfChk = document.getElementById('only-stf');
+  if (stfChk) {
+    stfChk.addEventListener('change', e => {
+      state.onlyStf = e.target.checked;
       applyFilters();
     });
   }
@@ -1418,7 +1432,13 @@ function renderWatchlist() {
           return `<a class="ticker-link" href="${tvUrl(r.ticker, r.market)}" target="_blank">${r.ticker}</a>`;
         },
       },
-      { title: '名稱', field: 'name', widthGrow: 1 },
+      {
+        title: '名稱', field: 'name', widthGrow: 1,
+        formatter: (cell) => {
+          const r = cell.getRow().getData();
+          return `${r.name || ''}${stfBadgeHtml(r)}`;
+        },
+      },
       {
         title: '當日%', field: 'chg_pct', hozAlign: 'right', widthGrow: 0.6, sorter: 'number',
         formatter: (c) => {
@@ -2733,6 +2753,15 @@ function _hitTier(h) {
   return 'q-grey';
 }
 
+// 個股期貨標記：有大型→[期]，有小型(每口100股)→再加[小期]。小型 ⊂ 大型。
+function stfBadgeHtml(r) {
+  if (!r.stf && !r.stf_mini) return '';
+  let h = '';
+  if (r.stf) h += '<span class="stf-badge stf-big" title="有大型個股期貨（每口2000股）">期</span>';
+  if (r.stf_mini) h += '<span class="stf-badge stf-mini" title="有小型個股期貨（每口100股）">小期</span>';
+  return h;
+}
+
 function mainCardHtml(r, grouped = false) {
   const cmap = (state.data && state.data._catColor) || {};
   const catTags = (r.categories || []).map(code =>
@@ -2803,7 +2832,7 @@ function mainCardHtml(r, grouped = false) {
 
   return `<div class="stk-card main-card ${_hitTier(r.hits)}${resoN >= 2 ? ' is-reso' : ''}" data-ticker="${r.ticker}">
     <div class="sc-head">
-      <span class="sc-id"><b>${r.ticker}</b> ${r.name || ''}</span>
+      <span class="sc-id"><b>${r.ticker}</b> ${r.name || ''}${stfBadgeHtml(r)}</span>
       <span class="sc-head-r">${zap}${hot}<span class="sc-pin ${pinned ? 'on' : ''}" data-pin="${r.ticker}">${pinned ? '★' : '☆'}</span></span>
     </div>
     <div class="sc-quality">
@@ -3391,6 +3420,17 @@ function renderStockSummary(ticker, name, market, row) {
   if (rrV != null) px.push(`R:R <b style="color:${rrV >= 2 ? '#22c55e' : rrV >= 1 ? '#f5b942' : '#888'}">${rrV.toFixed(2)}</b>`);
   const pxNote = svHas(G('entry_method')) ? `<div class="sv-mut" style="margin-top:3px">${svEsc(G('entry_method'))}</div>` : '';
 
+  // ⑥ 個股期貨（大型/小型）＋ 直達期貨計算機（自動帶每口股數）
+  let futHtml = '';
+  if (svTruthy(G('stf')) || G('stf') === true || svTruthy(G('stf_mini')) || G('stf_mini') === true) {
+    const isMini = G('stf_mini') === true || svTruthy(G('stf_mini'));
+    const bits = [];
+    if (G('stf') === true || svTruthy(G('stf'))) bits.push('大型 <b>2,000</b>股/口');
+    if (isMini) bits.push('<b style="color:#ffd7a8">小型 100股/口</b>');
+    futHtml = `${stfBadgeHtml(row)}　${bits.join('　·　')}　` +
+      `<button type="button" class="sv-calc-btn" onclick="openCalcFor('${svEsc(ticker)}',${isMini ? 100 : 2000})">🧮 期貨計算機試算</button>`;
+  }
+
   el.innerHTML = `<div class="sv-wrap">
     ${priceRow}
     ${catHtml ? `<div class="sv-cats">${catHtml}</div>` : ''}
@@ -3398,6 +3438,7 @@ function renderStockSummary(ticker, name, market, row) {
     ${svRow('📌', '訊號', sig.join('　·　'))}
     ${svRow('🏭', '題材族群', th.join('　｜　'))}
     ${svRow('💰', '籌碼', `<span id="sv-chip">載入中…</span>`)}
+    ${svRow('🧮', '個股期貨', futHtml)}
     ${svRow('📐', '關鍵價位', px.length ? px.join('　｜　') + pxNote : '')}
     <div class="sv-foot">訊號為策略輔助、非投資建議 — 進出場請至 TradingView 自行判斷。</div>
   </div>`;
@@ -3422,6 +3463,15 @@ function patchChipBlock(d) {
     lag = `<span class="sv-mut">（法人至 ${svEsc(d.dates[f.asofIdx])}）</span>`;
   el.innerHTML = bits.length ? bits.join('　｜　') + '　' + lag : '外資/投信近日無明顯方向 ' + lag;
 }
+
+// K線彈窗「🧮 期貨計算機試算」：切到頂部期貨計算機分頁，帶入代號＋每口股數(2000/100)
+window.openCalcFor = function (ticker, mult) {
+  const modal = document.getElementById('kline-modal');
+  if (modal) modal.hidden = true;               // 收掉彈窗，露出分頁
+  const btn = document.querySelector('.tab-btn[data-tab="calc"]');
+  if (btn) btn.click();                          // 走既有切分頁流程
+  if (window.QEFCalc && QEFCalc.loadTicker) QEFCalc.loadTicker(String(ticker), mult);
+};
 
 async function openKlineModal(ticker, name, market) {
   const modal = document.getElementById('kline-modal');

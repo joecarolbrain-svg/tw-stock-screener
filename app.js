@@ -146,6 +146,8 @@ const state = {
   onlyInstBuy: false,
   // 只看有個股期貨（大型或小型）
   onlyStf: false,
+  // 只看今日收紅K（陽線：收盤>開盤）
+  onlyRedK: false,
   // 排名延續快捷視圖（互斥）：null|new(新進)|surge(衝榜中)|fade(掉分)
   persistView: null,
   // 主表欄位密度：false=精簡(只核心欄)｜true=完整(全部欄)
@@ -875,6 +877,8 @@ function applyFilters() {
     if (state.onlyInstBuy && !((row.foreign_net || 0) > 0 || (row.trust_net || 0) > 0)) return false;
     // 只看有個股期貨（大型或小型）
     if (state.onlyStf && !row.stf && !row.stf_mini) return false;
+    // 只看今日收紅K（陽線：收盤>開盤）
+    if (state.onlyRedK && !row.is_red_k) return false;
     // 排名延續快捷視圖（互斥）：對齊卡片三分段（加溫段=surge+持平），filter 與分組一致
     if (state.persistView) {
       const b = persistBucket(row);
@@ -1003,6 +1007,7 @@ function renderActiveFilters() {
   if (state.onlyHotGroup) add('onlyHotGroup', '族群z≥1');
   if (state.onlyInstBuy) add('onlyInstBuy', '🏦法人買超');
   if (state.onlyStf) add('onlyStf', '📈有股期');
+  if (state.onlyRedK) add('onlyRedK', '🔴收紅K');
   if (state.persistView) add('persistView', PV_LABEL[state.persistView]);
   if (state.onlyPinned) add('onlyPinned', '只看勾選');
 
@@ -1070,6 +1075,7 @@ function removeFilter(key) {
     case 'onlyHotGroup': state.onlyHotGroup = false; document.getElementById('only-hot-group').checked = false; break;
     case 'onlyInstBuy': state.onlyInstBuy = false; { const e = document.getElementById('only-inst-buy'); if (e) e.checked = false; } break;
     case 'onlyStf': state.onlyStf = false; { const e = document.getElementById('only-stf'); if (e) e.checked = false; } break;
+    case 'onlyRedK': state.onlyRedK = false; { const e = document.getElementById('only-red-k'); if (e) e.checked = false; } break;
     case 'persistView': clearPersistView(); break;
     case 'onlyPinned': {
       state.onlyPinned = false;
@@ -1215,6 +1221,14 @@ function bindControls() {
   if (stfChk) {
     stfChk.addEventListener('change', e => {
       state.onlyStf = e.target.checked;
+      applyFilters();
+    });
+  }
+
+  const redKChk = document.getElementById('only-red-k');
+  if (redKChk) {
+    redKChk.addEventListener('change', e => {
+      state.onlyRedK = e.target.checked;
       applyFilters();
     });
   }

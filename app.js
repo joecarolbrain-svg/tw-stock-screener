@@ -3745,6 +3745,11 @@ async function _ensureDispDataLoaded() {
 const DR_LEVEL_MARK = { triggered: '🔴', close: '🟡', far: '⚪', unavailable: '？' };
 const DR_LEVEL_CLS  = { triggered: 'hit-true', close: 'hit-close', far: 'hit-false', unavailable: 'hit-null' };
 
+// 處置雷達前端只顯示「會進處置」的第1~8款；第9~14款(僅公告、不計入處置累計)後端引擎照算，
+// 但前端不呈現。要恢復顯示全部14款：把 DR_SHOW_MAX 改回 14（下方 5 處 helper 會自動跟著還原）。
+const DR_SHOW_MAX = 8;
+const _drInShow = (no) => Number(no) <= DR_SHOW_MAX;
+
 function _drClauseItem(no, c) {
   const level = c.level || (c.hit === true ? 'triggered' : (c.hit === false ? 'far' : 'unavailable'));
   const mark = DR_LEVEL_MARK[level] || '？';
@@ -3757,7 +3762,9 @@ function _drClauseItem(no, c) {
 }
 
 function _drHistoryItem(h) {
-  const nos = (h.clauses || []).map(n => `第${n}款`).join('、');
+  const shown = (h.clauses || []).filter(_drInShow);
+  if (!shown.length) return '';   // 該日僅第9~14款(不進處置)，過濾後整列不顯示
+  const nos = shown.map(n => `第${n}款`).join('、');
   return `<div class="dr-hist-row"><span>🕒 ${fmtDate8(h.date)}</span><span class="sv-mut">${svEsc(nos)}</span></div>`;
 }
 
@@ -3833,7 +3840,7 @@ function _drWindowsHtml(w, alertHistory) {
 // 今日實際觸發的款別（任一即可），對應attnup橘框「N/N 觸發條件」區塊
 function _drTriggeredHtml(clauses) {
   // 已觸發 或 接近門檻(含明日可能觸發的價格提示) 都列進來，比對attnup「任一即可」的觸發條件框
-  const active = Object.entries(clauses).filter(([, c]) => c.level === 'triggered' || c.level === 'close');
+  const active = Object.entries(clauses).filter(([no, c]) => _drInShow(no) && (c.level === 'triggered' || c.level === 'close'));
   if (!active.length) return '';
   return `<div class="dr-trigger-box">
     <div class="dr-trigger-title">◎ 觸發條件（任一即可）</div>
@@ -3851,13 +3858,16 @@ function _drOverviewPill(no, c, isAnnounce) {
 }
 function _drOverviewHtml(clauses) {
   if (!Object.keys(clauses).length) return '';
-  const cum = [1, 2, 3, 4, 5, 6, 7, 8].map(n => _drOverviewPill(n, clauses[String(n)], false)).join('');
-  const ann = [9, 10, 11, 12, 13, 14].map(n => _drOverviewPill(n, clauses[String(n)], true)).join('');
-  return `<div class="dr-section-title">14款觸發總覽</div>
-    <div class="sv-mut" style="margin-bottom:4px">計入處置累計（第1-8款）</div>
-    <div class="dr-pill-grid">${cum}</div>
-    <div class="sv-mut" style="margin:8px 0 4px">僅公告不計入累計（第9-14款）</div>
-    <div class="dr-pill-grid">${ann}</div>`;
+  const cum = [1, 2, 3, 4, 5, 6, 7, 8].filter(_drInShow)
+    .map(n => _drOverviewPill(n, clauses[String(n)], false)).join('');
+  const ann = [9, 10, 11, 12, 13, 14].filter(_drInShow)
+    .map(n => _drOverviewPill(n, clauses[String(n)], true)).join('');
+  const title = DR_SHOW_MAX >= 14 ? '14款觸發總覽' : '觸發款別總覽（計入處置的第1-8款）';
+  return `<div class="dr-section-title">${title}</div>
+    ${cum ? `<div class="sv-mut" style="margin-bottom:4px">計入處置累計（第1-8款）</div>
+    <div class="dr-pill-grid">${cum}</div>` : ''}
+    ${ann ? `<div class="sv-mut" style="margin:8px 0 4px">僅公告不計入累計（第9-14款）</div>
+    <div class="dr-pill-grid">${ann}</div>` : ''}`;
 }
 
 const dispUniverseCache = {};
@@ -3927,7 +3937,7 @@ async function renderDispositionRisk(ticker) {
   // ③ 預測細節（14款逐款詳解，含30/60/90日子窗與色階）
   const clauseHtml = Object.keys(clauses).length
     ? `<div class="dr-clause-legend">🔴已觸發　🟡接近門檻（近20%內）　⚪未觸發　？資料不足/無法判定</div>
-       <div class="dr-clause-grid">${Object.entries(clauses).map(([no, c]) => _drClauseItem(no, c)).join('')}</div>`
+       <div class="dr-clause-grid">${Object.entries(clauses).filter(([no]) => _drInShow(no)).map(([no, c]) => _drClauseItem(no, c)).join('')}</div>`
     : '';
 
   // ④ 除外情形（目前只做第2款，官方規則第3條第3/4款，見disposition_rules.py）——
@@ -3974,12 +3984,15 @@ async function renderDispositionRisk(ticker) {
 
   // ⑧ 注意股歷史（近30日，逐日觸發哪幾款）
   const hist = r.alert_history || [];
-  const histHtml = hist.length ? `<div class="dr-section-title">注意股歷史（近30日）</div>
-    <div class="dr-hist-list">${hist.map(_drHistoryItem).join('')}</div>` : '';
+  const histRows = hist.map(_drHistoryItem).filter(Boolean);
+  const histHtml = histRows.length ? `<div class="dr-section-title">注意股歷史（近30日）</div>
+    <div class="dr-hist-list">${histRows.join('')}</div>` : '';
 
   el.innerHTML = `<div class="dr-wrap">
     <div class="dr-banner ${bannerCls}">${bannerText}<div class="dr-banner-sub">${bannerSub}</div></div>
-    <div class="dr-footnote">ℹ️ 第9-14款為公告用途，觸發不計入處置累計次數（僅第1-8款計入）</div>
+    <div class="dr-footnote">${DR_SHOW_MAX >= 14
+      ? 'ℹ️ 第9-14款為公告用途，觸發不計入處置累計次數（僅第1-8款計入）'
+      : 'ℹ️ 僅顯示會進處置的第1-8款；第9-14款(僅公告、不計入處置)已隱藏'}</div>
     ${_drForecastHtml(r.risk_forecast)}
     ${windowsHtml}
     ${triggeredHtml}

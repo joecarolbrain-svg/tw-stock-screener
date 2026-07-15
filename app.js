@@ -146,8 +146,10 @@ const state = {
   onlyInstBuy: false,
   // 只看有個股期貨（大型或小型）
   onlyStf: false,
-  // 只看今日收紅K（陽線：收盤>開盤）
+  // 只看今日收紅K（陽線：收盤>開盤，或漲停）
   onlyRedK: false,
+  // 只看量能跟上（量比≥1.2 或 一字鎖漲停 或 處置股例外）
+  onlyVolUp: false,
   // 排名延續快捷視圖（互斥）：null|new(新進)|surge(衝榜中)|fade(掉分)
   persistView: null,
   // 主表欄位密度：false=精簡(只核心欄)｜true=完整(全部欄)
@@ -877,8 +879,10 @@ function applyFilters() {
     if (state.onlyInstBuy && !((row.foreign_net || 0) > 0 || (row.trust_net || 0) > 0)) return false;
     // 只看有個股期貨（大型或小型）
     if (state.onlyStf && !row.stf && !row.stf_mini) return false;
-    // 只看今日收紅K（陽線：收盤>開盤）
+    // 只看今日收紅K（陽線：收盤>開盤，或漲停）
     if (state.onlyRedK && !row.is_red_k) return false;
+    // 只看量能跟上（量比≥1.2 或 一字鎖漲停 或 處置股例外[量能失真豁免]）
+    if (state.onlyVolUp && !((row.vol_ratio || 0) >= 1.2 || row.is_limit_locked || row.is_disposition)) return false;
     // 排名延續快捷視圖（互斥）：對齊卡片三分段（加溫段=surge+持平），filter 與分組一致
     if (state.persistView) {
       const b = persistBucket(row);
@@ -1008,6 +1012,7 @@ function renderActiveFilters() {
   if (state.onlyInstBuy) add('onlyInstBuy', '🏦法人買超');
   if (state.onlyStf) add('onlyStf', '📈有股期');
   if (state.onlyRedK) add('onlyRedK', '🔴收紅K');
+  if (state.onlyVolUp) add('onlyVolUp', '🔊量能跟上');
   if (state.persistView) add('persistView', PV_LABEL[state.persistView]);
   if (state.onlyPinned) add('onlyPinned', '只看勾選');
 
@@ -1076,6 +1081,7 @@ function removeFilter(key) {
     case 'onlyInstBuy': state.onlyInstBuy = false; { const e = document.getElementById('only-inst-buy'); if (e) e.checked = false; } break;
     case 'onlyStf': state.onlyStf = false; { const e = document.getElementById('only-stf'); if (e) e.checked = false; } break;
     case 'onlyRedK': state.onlyRedK = false; { const e = document.getElementById('only-red-k'); if (e) e.checked = false; } break;
+    case 'onlyVolUp': state.onlyVolUp = false; { const e = document.getElementById('only-vol-up'); if (e) e.checked = false; } break;
     case 'persistView': clearPersistView(); break;
     case 'onlyPinned': {
       state.onlyPinned = false;
@@ -1229,6 +1235,14 @@ function bindControls() {
   if (redKChk) {
     redKChk.addEventListener('change', e => {
       state.onlyRedK = e.target.checked;
+      applyFilters();
+    });
+  }
+
+  const volUpChk = document.getElementById('only-vol-up');
+  if (volUpChk) {
+    volUpChk.addEventListener('change', e => {
+      state.onlyVolUp = e.target.checked;
       applyFilters();
     });
   }
@@ -1450,7 +1464,7 @@ function renderWatchlist() {
         title: '名稱', field: 'name', widthGrow: 1,
         formatter: (cell) => {
           const r = cell.getRow().getData();
-          return `${r.name || ''}${stfBadgeHtml(r)}`;
+          return `${r.name || ''}${stfBadgeHtml(r)}${volBadgeHtml(r)}`;
         },
       },
       {
@@ -2776,6 +2790,17 @@ function stfBadgeHtml(r) {
   return h;
 }
 
+// 量能標註:一字鎖漲停⚡ / 爆量🔊(≥1.5) / 放量🔊(≥1.2) / 處置股⚖️(量門檻豁免)
+function volBadgeHtml(r) {
+  // 處置股量能失真 → 只標⚖️處置,不顯示會誤導的爆量/放量倍數
+  if (r.is_disposition) return '<span class="stf-badge vol-disp" title="處置股:分盤撮合、量能失真,量門檻豁免">⚖️處置</span>';
+  if (r.is_limit_locked) return '<span class="stf-badge vol-lock" title="一字鎖漲停:買不到、量自然小但最強">⚡一字</span>';
+  const vr = r.vol_ratio;
+  if (vr != null && vr >= 1.5) return `<span class="stf-badge vol-boom" title="爆量:量比≥1.5×5日均量">🔊爆量${vr.toFixed(1)}x</span>`;
+  if (vr != null && vr >= 1.2) return `<span class="stf-badge vol-up" title="放量:量比≥1.2×5日均量">🔊放量${vr.toFixed(1)}x</span>`;
+  return '';
+}
+
 function mainCardHtml(r, grouped = false) {
   const cmap = (state.data && state.data._catColor) || {};
   const catTags = (r.categories || []).map(code =>
@@ -2846,7 +2871,7 @@ function mainCardHtml(r, grouped = false) {
 
   return `<div class="stk-card main-card ${_hitTier(r.hits)}${resoN >= 2 ? ' is-reso' : ''}" data-ticker="${r.ticker}">
     <div class="sc-head">
-      <span class="sc-id"><b>${r.ticker}</b> ${r.name || ''}${stfBadgeHtml(r)}</span>
+      <span class="sc-id"><b>${r.ticker}</b> ${r.name || ''}${stfBadgeHtml(r)}${volBadgeHtml(r)}</span>
       <span class="sc-head-r">${zap}${hot}<span class="sc-pin ${pinned ? 'on' : ''}" data-pin="${r.ticker}">${pinned ? '★' : '☆'}</span></span>
     </div>
     <div class="sc-quality">

@@ -86,8 +86,11 @@
       <label class="check-toggle" title="只看有個股期貨（大型每口2000股／小型每口100股）的標的，可用期貨操作">
         <input type="checkbox" id="only-stf" /> 📈 有股期
       </label>
-      <label class="check-toggle" title="只看今日收紅K（陽線：收盤>開盤，收在開盤之上=多方守住），對應朱家泓「買紅K不買大量黑K」">
+      <label class="check-toggle" title="只看今日收紅K（陽線：收盤>開盤；或漲停），對應朱家泓「買紅K不買大量黑K」">
         <input type="checkbox" id="only-red-k" /> 🔴 收紅K
+      </label>
+      <label class="check-toggle" title="只看量能跟上：量比≥1.2×5日均量（放量），例外納入一字鎖漲停(量小但最強)與處置股(分盤量失真、豁免量門檻)。卡片標註 爆量≥1.5/放量/⚡一字/⚖️處置">
+        <input type="checkbox" id="only-vol-up" /> 🔊 量能跟上
       </label>
       <div class="persist-views" id="persist-views" title="排名延續快捷（互斥，與卡片依延續分組同標準）：今日上榜 / 延續加溫 / 延續轉弱">
         <button type="button" class="pv-btn" data-pv="new" title="今日(重)上榜：board_streak=1（昨日不在榜）">🆕今日上榜</button>
@@ -624,7 +627,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260715c"></script>
+  <script src="app.js?v=20260715d"></script>
   <script src="calc.js?v=20260715a"></script>
 </body>
 </html>

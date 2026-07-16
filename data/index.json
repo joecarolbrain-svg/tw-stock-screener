@@ -1,8 +1,35 @@
 {
   "schema_version": "2.0",
-  "generated_at": "2026-07-16T00:23:20+08:00",
-  "latest_date": "20260715",
+  "generated_at": "2026-07-16T23:44:39+08:00",
+  "latest_date": "20260716",
   "dates": [
+    {
+      "date": "20260716",
+      "has": [
+        "cb",
+        "disposition",
+        "hanku",
+        "industry_flow",
+        "industry_flow_1",
+        "industry_flow_10",
+        "industry_flow_3",
+        "industry_flow_40",
+        "industry_flow_5",
+        "industry_flow_60",
+        "industry_ranking",
+        "inst_rank",
+        "latest",
+        "market",
+        "sector_flow",
+        "theme_flow",
+        "theme_flow_1",
+        "theme_flow_10",
+        "theme_flow_3",
+        "theme_flow_40",
+        "theme_flow_5",
+        "theme_flow_60"
+      ]
+    },
     {
       "date": "20260715",
       "has": [

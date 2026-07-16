@@ -869,6 +869,14 @@ function applyFilters() {
   if (!state.table) return;
 
   state.table.setFilter((row) => {
+    // 搜尋優先：輸入代號/名稱時，直接短路、凌駕所有發現型篩選（分類/維度/快捷鈕/分數門檻）。
+    // 明確查某一檔就一定看得到，即使該檔沒命中任何策略（hits=0、categories空、score=null）。
+    if (state.search) {
+      const q = state.search.toLowerCase();
+      const t = (row.ticker || '').toLowerCase();
+      const n = (row.name || '').toLowerCase();
+      return t.includes(q) || n.includes(q);
+    }
     // 只看勾選
     if (state.onlyPinned && !state.pinned.has(row.ticker)) return false;
     // 只看共振（同時被 ≥2 策略 actionable：突破/Hanku）
@@ -902,13 +910,7 @@ function applyFilters() {
       }
     }
 
-    // 代號/名稱搜尋（搜尋啟用時，其他閾值仍套用，但分數=0/RS=0 預設不卡）
-    if (state.search) {
-      const q = state.search.toLowerCase();
-      const t = (row.ticker || '').toLowerCase();
-      const n = (row.name || '').toLowerCase();
-      if (!t.includes(q) && !n.includes(q)) return false;
-    }
+    // （代號/名稱搜尋已移到本函式開頭做「搜尋優先」短路，見上）
 
     // 三維度（依當前 dim 切換來源欄位；維度內走 OR）
     if (state.dimSelected.size > 0) {

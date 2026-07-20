@@ -144,6 +144,10 @@ const state = {
   onlyResonance: false,
   // 只看今日外資或投信買超
   onlyInstBuy: false,
+  // 只看籌碼面偏多（chipAdvice 判定 法人強力同買 / 法人偏買）
+  onlyChipBull: false,
+  // 卡片分組檢視是否展開「未上榜」段（有搜尋字串時自動展開，不動此旗標）
+  showUnlisted: false,
   // 只看有個股期貨（大型或小型）
   onlyStf: false,
   // 只看今日收紅K（陽線：收盤>開盤，或漲停）
@@ -689,6 +693,106 @@ function persistSparkline(hist) {
   return hist.map(h => h.s == null ? ' ' : bars[Math.round((h.s - mn) / rng * 7)]).join('');
 }
 
+// ── 籌碼面建議 ────────────────────────────────────────
+// 只有 foreign_streak/foreign_sum5/trust_streak/trust_sum5 四個欄位可用（broker_net/foreign_net
+// 目前後端沒產，全為 null，不要拿來判斷）。主訊號用 streak：方向持續性與股本大小無關，
+// 對大型股/小型股都公平；sum5 只做「5日累計同向確認」與量級標註，不單獨當門檻
+// （5000張對小型股是天量、對台積電是雜訊，絕對張數門檻會失真）。
+// 每邊（外資/投信）-7 ~ +7：連買天數給主分，5日累計同向 +1、背離 -1。
+// 連 1 日只給 ±1（單日進出是雜訊，不足以構成方向），連 3 日以上才明顯加權。
+function _chipSideScore(streak, sum5) {
+  if (streak == null) return null;
+  const d = Math.abs(streak);
+  const w = d >= 5 ? 6 : d >= 3 ? 4 : d >= 2 ? 2 : d >= 1 ? 1 : 0;
+  let s = Math.sign(streak) * w;
+  if (s !== 0 && sum5 != null && sum5 !== 0) {
+    const agree = (sum5 > 0) === (s > 0);
+    s += agree ? Math.sign(s) : -Math.sign(s);
+  }
+  return s;
+}
+
+function _chipSideText(label, streak, sum5) {
+  if (streak == null) return '';
+  const d = Math.abs(streak);
+  const dir = streak > 0 ? `連買${d}日` : (streak < 0 ? `連賣${d}日` : '持平');
+  const amt = (sum5 == null) ? ''
+    : `（5日${sum5 > 0 ? '+' : ''}${Math.round(sum5).toLocaleString()}張）`;
+  return `${label}${dir}${amt}`;
+}
+
+// 散戶軸：融資餘額 5 日增減率 → -2(大減) ~ +2(大增)
+// 融資是散戶槓桿的代理變數。融資減＝散戶下車、籌碼往法人手上集中；融資暴增＝浮額變多。
+// ⚠️ 融資使用率過低（多見於金融股/大型權值）代表融資盤子極小，此時增減率是雜訊
+//    （例：合庫金融資餘額僅 2,010 張、使用率 0.05%，−29.8% 其實只有幾百張），一律視為無訊號。
+const MARGIN_UTIL_FLOOR = 1.0;   // 融資使用率 %(融資餘額/融資限額) 低於此值不採計
+function _marginFlowTier(pct, util) {
+  if (pct == null) return 0;
+  if (util != null && util < MARGIN_UTIL_FLOOR) return 0;
+  if (pct <= -5) return -2;
+  if (pct <= -1) return -1;
+  if (pct >= 10) return 2;
+  if (pct >= 3) return 1;
+  return 0;
+}
+
+const CHIP_ADVICE_MAP = {
+  concentrating: { icon: '🟢', label: '法人買·散戶退場', advice: '法人加碼同時融資減少 — 籌碼由散戶轉到法人手上，結構最乾淨，回檔可承接' },
+  strong:        { icon: '🟢', label: '法人強力同買',   advice: '外資投信同方向加碼，籌碼扎實 — 回檔可承接、拉回不輕易砍' },
+  bull:          { icon: '🟢', label: '法人偏買',       advice: '籌碼偏多，可順技術面訊號進場' },
+  bull_loose:    { icon: '🟡', label: '法人買·融資追高', advice: '法人雖買，但融資同步大增、浮額變多 — 容易被洗盤，部位放小、停損抓緊' },
+  retail_hot:    { icon: '🟡', label: '融資急增·法人未進場', advice: '散戶單邊加碼而法人沒跟 — 籌碼鬆散，不宜追價' },
+  split:         { icon: '🟡', label: '法人分歧',       advice: '外資投信不同調，籌碼未歸邊 — 進場減量、抓緊停損' },
+  flat:          { icon: '⚪', label: '法人無明顯方向', advice: '籌碼中性，勝負看技術面與族群' },
+  bear:          { icon: '🔴', label: '法人偏賣',       advice: '籌碼轉弱，反彈不宜追價' },
+  retail_catch:  { icon: '🔴', label: '法人賣·散戶接刀', advice: '法人調節、融資反而增加 — 最差的籌碼結構，避開' },
+  dump:          { icon: '🔴', label: '法人同步棄守',   advice: '外資投信同步調節，籌碼面不宜作多' },
+  na:            { icon: '⚫', label: '無法人資料',     advice: '' },
+};
+
+// 籌碼四象限：法人軸(外資+投信連買) × 散戶軸(融資5日增減)
+// 回傳 { key, icon, label, advice, detail, total, marginFlow, bullish }
+function chipAdvice(r) {
+  const f = _chipSideScore(r.foreign_streak, r.foreign_sum5);
+  const t = _chipSideScore(r.trust_streak, r.trust_sum5);
+  if (f == null && t == null) {
+    return { key: 'na', total: 0, marginFlow: 0, bullish: false, detail: '', ...CHIP_ADVICE_MAP.na };
+  }
+  const fs = f || 0, ts = t || 0, total = fs + ts;
+  const mFlow = _marginFlowTier(r.margin_chg5_pct, r.margin_util);
+  // 分歧＝兩邊都有明確方向(|分|≥2 ≈ 連≥2日)且方向相反；單邊只連1日不算分歧
+  const oppose = ((fs >= 2 && ts <= -2) || (fs <= -2 && ts >= 2));
+
+  let key;
+  if (oppose) key = 'split';
+  else if (total >= 4) {                       // 法人偏買
+    if (mFlow <= -1) key = 'concentrating';    //   ＋融資減 → 籌碼集中（最佳）
+    else if (mFlow >= 2) key = 'bull_loose';   //   ＋融資暴增 → 浮額多
+    else key = total >= 8 ? 'strong' : 'bull';
+  } else if (total <= -4) {                    // 法人偏賣
+    if (mFlow >= 2) key = 'retail_catch';      //   ＋融資增 → 散戶接刀（最差）
+    else key = total <= -8 ? 'dump' : 'bear';
+  } else {                                     // 法人沒方向
+    key = mFlow >= 2 ? 'retail_hot' : 'flat';
+  }
+
+  const bits = [_chipSideText('外資', r.foreign_streak, r.foreign_sum5),
+                _chipSideText('投信', r.trust_streak, r.trust_sum5)];
+  // 自營商雜訊高（含權證避險部位），只在連≥3日時才列出，且不參與判定
+  if (Math.abs(r.dealer_streak || 0) >= 3) bits.push(_chipSideText('自營', r.dealer_streak, r.dealer_sum5));
+  if (r.margin_chg5_pct != null && mFlow !== 0) {
+    bits.push(`融資5日${r.margin_chg5_pct > 0 ? '+' : ''}${r.margin_chg5_pct.toFixed(1)}%`);
+  } else if (r.margin_util != null && r.margin_util < MARGIN_UTIL_FLOOR) {
+    bits.push('融資盤極小');
+  }
+  return {
+    key, total, marginFlow: mFlow,
+    bullish: key === 'concentrating' || key === 'strong' || key === 'bull',
+    detail: bits.filter(Boolean).join('　｜　'),
+    ...CHIP_ADVICE_MAP[key],
+  };
+}
+
 // 法人買賣超張數格式（正綠負紅、千分位）
 function _instNetFmt(v) {
   if (v == null) return '';
@@ -883,8 +987,11 @@ function applyFilters() {
     if (state.onlyResonance && _resoCount(row) < 2) return false;
     // 只顯示族群 z≥1
     if (state.onlyHotGroup && (row.max_group_z == null || row.max_group_z < 1)) return false;
-    // 只看法人買超（外資或投信今日淨買 > 0）
-    if (state.onlyInstBuy && !((row.foreign_net || 0) > 0 || (row.trust_net || 0) > 0)) return false;
+    // 只看法人買超（外資或投信今日買超；streak≥1 即代表最新一日是買方）
+    // 註：原本用 foreign_net/trust_net，但後端從未輸出這兩欄（全 null），此鈕等於永遠篩空。
+    if (state.onlyInstBuy && !((row.foreign_streak || 0) >= 1 || (row.trust_streak || 0) >= 1)) return false;
+    // 只看籌碼面偏多（連買天數＋5日累計綜合，見 chipAdvice）
+    if (state.onlyChipBull && !chipAdvice(row).bullish) return false;
     // 只看有個股期貨（大型或小型）
     if (state.onlyStf && !row.stf && !row.stf_mini) return false;
     // 只看今日收紅K（陽線：收盤>開盤，或漲停）
@@ -1012,6 +1119,7 @@ function renderActiveFilters() {
   if (state.onlyResonance) add('onlyResonance', '⚡只看共振');
   if (state.onlyHotGroup) add('onlyHotGroup', '族群z≥1');
   if (state.onlyInstBuy) add('onlyInstBuy', '🏦法人買超');
+  if (state.onlyChipBull) add('onlyChipBull', '💰籌碼偏多');
   if (state.onlyStf) add('onlyStf', '📈有股期');
   if (state.onlyRedK) add('onlyRedK', '🔴收紅K');
   if (state.onlyVolUp) add('onlyVolUp', '🔊量能跟上');
@@ -1081,6 +1189,7 @@ function removeFilter(key) {
     case 'onlyResonance': state.onlyResonance = false; document.getElementById('only-resonance').checked = false; break;
     case 'onlyHotGroup': state.onlyHotGroup = false; document.getElementById('only-hot-group').checked = false; break;
     case 'onlyInstBuy': state.onlyInstBuy = false; { const e = document.getElementById('only-inst-buy'); if (e) e.checked = false; } break;
+    case 'onlyChipBull': state.onlyChipBull = false; { const e = document.getElementById('only-chip-bull'); if (e) e.checked = false; } break;
     case 'onlyStf': state.onlyStf = false; { const e = document.getElementById('only-stf'); if (e) e.checked = false; } break;
     case 'onlyRedK': state.onlyRedK = false; { const e = document.getElementById('only-red-k'); if (e) e.checked = false; } break;
     case 'onlyVolUp': state.onlyVolUp = false; { const e = document.getElementById('only-vol-up'); if (e) e.checked = false; } break;
@@ -1221,6 +1330,14 @@ function bindControls() {
   if (instBuyChk) {
     instBuyChk.addEventListener('change', e => {
       state.onlyInstBuy = e.target.checked;
+      applyFilters();
+    });
+  }
+
+  const chipBullChk = document.getElementById('only-chip-bull');
+  if (chipBullChk) {
+    chipBullChk.addEventListener('change', e => {
+      state.onlyChipBull = e.target.checked;
       applyFilters();
     });
   }
@@ -2831,6 +2948,13 @@ function mainCardHtml(r, grouped = false) {
   const persistHtml = persistInner
     ? `<div class="sc-persist" title="分類軌跡 ${r.cat_path || '—'}">${persistInner}</div>` : '';
 
+  // 籌碼面建議一行（結論 + 依據；無法人資料則整行不顯示）
+  const ca = chipAdvice(r);
+  const chipLine = ca.key === 'na' ? ''
+    : `<div class="sc-chip chip-${ca.key}" title="${ca.advice}${ca.detail ? '｜' + ca.detail : ''}">`
+      + `<span class="sc-chip-ico">${ca.icon}</span><b>${ca.label}</b>`
+      + (ca.detail ? `<span class="sc-chip-detail">${ca.detail}</span>` : '') + `</div>`;
+
   // 法人連買/連賣 ≥3 天才顯示（雜訊過濾）
   const instBits = [];
   if (r.foreign_streak >= 3) instBits.push(`<span class="tag tag-good">外資連買${r.foreign_streak}日</span>`);
@@ -2850,7 +2974,12 @@ function mainCardHtml(r, grouped = false) {
     addN('套牢密度', r.trap_density, 1); addT('上方賣壓', r.overhead);
     addN('防守', r.defense); addN('停損', r.stop_loss);
     addN('風險', r.risk_pct, 1, '%'); addN('部位', r.position_pct, 1, '%');
-    addN('出貨風險', r.dist_risk, 0); addN('主力買超', r.broker_net, 0);
+    addN('出貨風險', r.dist_risk, 0);
+    // 主力買超（券商分點 rank1）：來源已停更，一律帶資料日期避免被當成當日籌碼
+    const bkAsof = (state.data && state.data.chip_asof && state.data.chip_asof.broker) || '';
+    const bkSuf = bkAsof ? `<span class="sv-mut">（至${bkAsof}）</span>` : '';
+    if (r.broker_net != null && String(r.broker_net) !== '—') pairs.push(['主力買超', r.broker_net + bkSuf]);
+    if (r.broker_net_20 != null && String(r.broker_net_20) !== '—') pairs.push(['近20主力', r.broker_net_20 + bkSuf]);
     if (r.foreign_net != null && r.foreign_net !== 0) pairs.push(['外資買超', (r.foreign_net > 0 ? '+' : '') + r.foreign_net.toLocaleString()]);
     if (r.trust_net != null && r.trust_net !== 0) pairs.push(['投信買超', (r.trust_net > 0 ? '+' : '') + r.trust_net.toLocaleString()]);
     addT('主升', r.mainup_tag);
@@ -2883,6 +3012,7 @@ function mainCardHtml(r, grouped = false) {
     </div>
     ${persistHtml}
     <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span><span class="sc-vol">量 ${_cardNum(r.vol_ratio, 1)}x</span></div>
+    ${chipLine}
     <div class="sc-trade">
       <span><i>進場</i>${entry}</span>
       <span><i>目標</i>${_cardNum(r.target)}</span>
@@ -2899,12 +3029,17 @@ function mainCardHtml(r, grouped = false) {
   </div>`;
 }
 
-// 依延續生命週期分組渲染卡片（段落標題跨欄；只含命中股）
+// 依延續生命週期分組渲染卡片（段落標題跨欄）
+// 未命中任何策略的股沒有 board_streak → persistBucket() 回 null，以前會被整個丟掉，
+// 導致「搜尋得到卻看不到卡片」。現在一律收進第四段「未上榜」；因為全市場 2000+ 檔多數
+// 落在這段，預設收合，有搜尋字串時自動展開。
 function renderGroupedCards(active) {
   const SECT_CAP = 80;
   const byScore = (a, b) => (b.score || 0) - (a.score || 0);
-  const buckets = { new: [], surge: [], fade: [], flat: [] };
-  active.forEach(r => { const b = persistBucket(r); if (b) buckets[b].push(r); });
+  const byRs = (a, b) => (b.rs ?? -Infinity) - (a.rs ?? -Infinity);
+  const buckets = { new: [], surge: [], fade: [], flat: [], none: [] };
+  active.forEach(r => { const b = persistBucket(r); buckets[b || 'none'].push(r); });
+  const noneOpen = !!state.search || state.showUnlisted;
   const sections = [
     { rows: buckets.new.sort(byScore), cls: 'sec-new',
       label: '🆕 今日上榜', note: '全新訊號 — 優先評估' },
@@ -2912,12 +3047,17 @@ function renderGroupedCards(active) {
       label: '🔥 延續加溫', note: '連續在榜且加分/升階 — 進場續抱首選' },
     { rows: buckets.fade.sort(byScore), cls: 'sec-fade',
       label: '⚠️ 延續轉弱', note: '連續在榜但掉分/降階 — 留意減碼' },
+    { rows: buckets.none.sort(byRs), cls: 'sec-none', key: 'none', collapsed: !noneOpen,
+      label: '🔎 未上榜', note: '未命中任何策略 — 依 RS 排序，供搜尋/查價用' },
   ];
   let out = '';
   sections.forEach(sec => {
     if (!sec.rows.length) return;
-    out += `<div class="sc-group ${sec.cls}"><span class="sg-title">${sec.label}</span>`
+    const caret = sec.key === 'none' ? `<span class="sg-caret">${sec.collapsed ? '▸' : '▾'}</span>` : '';
+    out += `<div class="sc-group ${sec.cls}"${sec.key === 'none' ? ' data-toggle-unlisted="1"' : ''}>`
+      + `${caret}<span class="sg-title">${sec.label}</span>`
       + `<span class="sg-n">${sec.rows.length}</span><span class="sg-note">${sec.note}</span></div>`;
+    if (sec.collapsed) return;
     out += sec.rows.slice(0, SECT_CAP).map(r => mainCardHtml(r, true)).join('');
     if (sec.rows.length > SECT_CAP)
       out += `<div class="muted" style="padding:2px 8px;grid-column:1/-1">顯示前 ${SECT_CAP} / 共 ${sec.rows.length}</div>`;
@@ -2962,6 +3102,11 @@ function refreshMainView() {
       const r = active.find(x => String(x.ticker) === String(t));
       openKlineModal(t, r ? r.name : '', r ? r.market : '');
     });
+  });
+  const unlistedHead = cardsEl.querySelector('[data-toggle-unlisted]');
+  if (unlistedHead) unlistedHead.addEventListener('click', () => {
+    state.showUnlisted = !state.showUnlisted;
+    refreshMainView();
   });
   cardsEl.querySelectorAll('.sc-pin').forEach((p) => {
     p.addEventListener('click', (e) => {
@@ -3478,18 +3623,34 @@ function renderStockSummary(ticker, name, market, row) {
     ${svRow('📈', '延續', persistPanel)}
     ${svRow('📌', '訊號', sig.join('　·　'))}
     ${svRow('🏭', '題材族群', th.join('　｜　'))}
-    ${svRow('💰', '籌碼', `<span id="sv-chip">載入中…</span>`)}
+    ${svRow('💰', '籌碼', chipAdviceBlockHtml(row) + `<div id="sv-chip" class="sv-mut">融資/明細載入中…</div>`)}
     ${svRow('🧮', '個股期貨', futHtml)}
     ${svRow('📐', '關鍵價位', px.length ? px.join('　｜　') + pxNote : '')}
     <div class="sv-foot">訊號為策略輔助、非投資建議 — 進出場請至 TradingView 自行判斷。</div>
   </div>`;
 }
 
-// 籌碼區塊：kline payload 載完後補上
+// 彈窗籌碼建議區塊：結論一句話 + 依據（用主表 row，不必等 kline payload）
+function chipAdviceBlockHtml(row) {
+  if (!row) return '';
+  const ca = chipAdvice(row);
+  if (ca.key === 'na') return '';
+  const asof = (state.data && state.data.chip_asof) || {};
+  const stale = asof.broker && asof.margin && asof.broker !== asof.margin
+    ? `<div class="sv-chip-asof">⚠️ 分點主力籌碼資料僅到 ${asof.broker}（來源停更中）；法人/融資為 ${asof.margin}</div>` : '';
+  return `<div class="sv-chip-advice chip-${ca.key}">
+    <div class="sca-verdict">${ca.icon} <b>${ca.label}</b></div>
+    ${ca.advice ? `<div class="sca-advice">${svEsc(ca.advice)}</div>` : ''}
+    ${ca.detail ? `<div class="sca-detail sv-mut">${svEsc(ca.detail)}</div>` : ''}
+    ${stale}
+  </div>`;
+}
+
+// 籌碼區塊：kline payload 載完後補上（逐日法人明細 + 融資）
 function patchChipBlock(d) {
   const el = document.getElementById('sv-chip');
   if (!el) return;
-  if (!d || !d.has_inst) { el.textContent = '無法人資料'; return; }
+  if (!d || !d.has_inst) { el.textContent = '無逐日法人明細'; return; }
   const f = svInstStreak(d.inst_foreign), t = svInstStreak(d.inst_trust);
   const bits = [svInstBit('外資', f), svInstBit('投信', t)].filter(Boolean);
   // 融資5日增減

@@ -459,6 +459,67 @@ input:focus, select:focus { outline: 2px solid #00d4aa; outline-offset: -1px; }
 .sc-group.sec-surge .sg-n { background: #22c55e; }
 .sc-group.sec-fade  { border-left-color: #ef5350; }
 .sc-group.sec-fade  .sg-n { background: #ef5350; }
+/* 未上榜段：可收合（全市場多數落在這段，預設收合、有搜尋時自動展開） */
+.sc-group.sec-none  { border-left-color: #6b7280; cursor: pointer; user-select: none; }
+.sc-group.sec-none  .sg-n { background: #6b7280; color: #e8eefc; }
+.sc-group.sec-none:hover { background: rgba(255,255,255,0.06); }
+.sc-group .sg-caret { font-size: 12px; color: #8b93a3; width: 10px; }
+
+/* 💰 籌碼面建議（卡片一行） */
+.sc-chip { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+  font-size: 11.5px; border-radius: 6px; padding: 3px 7px;
+  background: rgba(255,255,255,0.04); border-left: 2px solid #6b7280; }
+.sc-chip b { font-weight: 700; }
+.sc-chip .sc-chip-detail { color: #8b93a3; font-size: 11px; }
+.sc-chip.chip-concentrating { border-left-color: #22c55e; background: rgba(34,197,94,0.16);
+  box-shadow: 0 0 0 1px rgba(34,197,94,0.25) inset; }
+.sc-chip.chip-concentrating b { color: #4ade80; }
+.sc-chip.chip-strong { border-left-color: #22c55e; background: rgba(34,197,94,0.12); }
+.sc-chip.chip-strong b { color: #4ade80; }
+.sc-chip.chip-bull   { border-left-color: #22c55e; }
+.sc-chip.chip-bull   b { color: #22c55e; }
+.sc-chip.chip-bull_loose { border-left-color: #f5b942; }
+.sc-chip.chip-bull_loose b { color: #f5b942; }
+.sc-chip.chip-retail_hot { border-left-color: #f5b942; }
+.sc-chip.chip-retail_hot b { color: #f5b942; }
+.sc-chip.chip-split  { border-left-color: #f5b942; }
+.sc-chip.chip-split  b { color: #f5b942; }
+.sc-chip.chip-flat   b { color: #9aa4b5; }
+.sc-chip.chip-bear   { border-left-color: #ef5350; }
+.sc-chip.chip-bear   b { color: #ef5350; }
+.sc-chip.chip-retail_catch { border-left-color: #ef5350; background: rgba(239,83,80,0.16);
+  box-shadow: 0 0 0 1px rgba(239,83,80,0.25) inset; }
+.sc-chip.chip-retail_catch b { color: #ff6b6b; }
+.sc-chip.chip-dump   { border-left-color: #ef5350; background: rgba(239,83,80,0.12); }
+.sc-chip.chip-dump   b { color: #ff6b6b; }
+
+/* 💰 籌碼面建議（K線彈窗區塊） */
+.sv-chip-advice { border-left: 3px solid #6b7280; padding: 4px 9px; border-radius: 6px;
+  background: rgba(255,255,255,0.035); margin-bottom: 5px; }
+.sv-chip-advice .sca-verdict { font-size: 13.5px; }
+.sv-chip-advice .sca-advice { font-size: 12px; color: #cfe1ff; margin-top: 1px; }
+.sv-chip-advice .sca-detail { font-size: 11.5px; margin-top: 2px; }
+.sv-chip-advice.chip-concentrating { border-left-color: #22c55e; background: rgba(34,197,94,0.16); }
+.sv-chip-advice.chip-concentrating b { color: #4ade80; }
+.sv-chip-advice.chip-strong { border-left-color: #22c55e; background: rgba(34,197,94,0.12); }
+.sv-chip-advice.chip-strong b { color: #4ade80; }
+.sv-chip-advice.chip-bull   { border-left-color: #22c55e; }
+.sv-chip-advice.chip-bull   b { color: #22c55e; }
+.sv-chip-advice.chip-bull_loose { border-left-color: #f5b942; }
+.sv-chip-advice.chip-bull_loose b { color: #f5b942; }
+.sv-chip-advice.chip-retail_hot { border-left-color: #f5b942; }
+.sv-chip-advice.chip-retail_hot b { color: #f5b942; }
+.sv-chip-advice.chip-split  { border-left-color: #f5b942; }
+.sv-chip-advice.chip-split  b { color: #f5b942; }
+.sv-chip-advice.chip-flat   b { color: #9aa4b5; }
+.sv-chip-advice.chip-bear   { border-left-color: #ef5350; }
+.sv-chip-advice.chip-bear   b { color: #ef5350; }
+.sv-chip-advice.chip-retail_catch { border-left-color: #ef5350; background: rgba(239,83,80,0.16); }
+.sv-chip-advice.chip-retail_catch b { color: #ff6b6b; }
+.sv-chip-advice.chip-dump   { border-left-color: #ef5350; background: rgba(239,83,80,0.12); }
+.sv-chip-advice.chip-dump   b { color: #ff6b6b; }
+/* 籌碼資料鮮度標註（分點籌碼停更中，務必標示資料日期） */
+.sv-chip-asof { font-size: 11px; color: #ffb74d; margin-top: 3px; }
 
 /* 完整模式：卡片展開細節格 */
 .sc-detail { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 2px;

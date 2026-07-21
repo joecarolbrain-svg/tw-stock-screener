@@ -83,6 +83,7 @@ async function onDateChange(ev) {
     const data = await loadData();
     state.data = data;
     await mergeInstNet(data);
+    await loadMarginMaint();
     data._catColor = {};
     data.categories.forEach(c => { data._catColor[c.code] = c.color; });
     buildTickerIndustry(data);
@@ -146,6 +147,7 @@ const state = {
   onlyInstBuy: false,
   // 只看籌碼面偏多（chipAdvice 判定 法人強力同買 / 法人偏買）
   onlyChipBull: false,
+  onlyMaintAlert: false,
   // 卡片分組檢視是否展開「未上榜」段（有搜尋字串時自動展開，不動此旗標）
   showUnlisted: false,
   // 只看有個股期貨（大型或小型）
@@ -357,6 +359,50 @@ const rankState = {
 // ── 1. 載入 JSON ────────────────────────────────────
 async function loadData() {
   return await fetchJsonGz(dailyPath('latest'));
+}
+
+// ── 融資維持率雷達 ──────────────────────────────────
+// 維持率 = 收盤 ÷ (推估平均融資成本 × 0.6)。跟「各股自己在 2025-04-09 關稅崩盤
+// 低點的維持率」比，不是統一門檻（137 那種數字只對台積電成立，國巨的地板是 107）。
+const maintState = { map: {}, detail: {}, newToday: [], baseDate: '', counts: {} };
+
+async function loadMarginMaint() {
+  maintState.map = {}; maintState.detail = {}; maintState.newToday = [];
+  try {
+    const d = await fetchJsonGz(dailyPath('margin_maint'));
+    ['broken', 'reached', 'approaching', 'extreme'].forEach(k => {
+      (d[k] || []).forEach(v => { maintState.map[String(v.ticker)] = v; });
+    });
+    (d.new_today || []).forEach(v => {
+      const e = maintState.map[String(v.ticker)];
+      if (e) e.isNew = true; else maintState.map[String(v.ticker)] = { ...v, isNew: true };
+    });
+    maintState.detail = d.detail || {};
+    maintState.newToday = d.new_today || [];
+    maintState.baseDate = d.base_date || '';
+    maintState.counts = d.counts || {};
+    maintState.note = d.note || '';
+  } catch (_) { /* 沒有當日檔就整個功能靜默停用 */ }
+}
+
+// gap_base_pct：還要漲/跌幾% 才回到基準日水位。>0＝已比關稅時更痛。
+function maintTone(m) {
+  if (!m) return null;
+  if (m.state === 'broken') return { cls: 'mt-broken', ico: '🔴', txt: '已破關稅低點' };
+  if (m.state === 'reached') return { cls: 'mt-reached', ico: '🩸', txt: '已達關稅低點' };
+  return { cls: 'mt-near', ico: '🟠', txt: `距關稅低點 ${Math.abs(m.gap_base_pct).toFixed(0)}%` };
+}
+
+function maintLineHtml(r) {
+  const m = maintState.map[String(r.ticker)];
+  if (!m) return '';
+  const t = maintTone(m);
+  const tip = `融資維持率 ${m.mr}%（基準日 ${maintState.baseDate} 為 ${m.mr_base}%）`
+    + `｜歷史危機地板 ${m.floor_mr}% ≈ ${m.floor_px} 元｜全期百分位 ${m.pctile}%`;
+  return `<div class="sc-maint ${t.cls}" title="${tip}">`
+    + `<span class="sc-maint-ico">${t.ico}</span><b>融資維持率 ${m.mr}%</b>`
+    + `<span class="sc-maint-detail">${t.txt}${m.floor_px ? `｜地板 ${m.floor_px}` : ''}</span>`
+    + (m.isNew ? '<span class="sc-maint-new">⚡今日新進</span>' : '') + `</div>`;
 }
 
 // 把當日法人買賣超(inst_rank)的外資/投信/自營淨額 join 進主表 rows（P3 看板整合）
@@ -992,6 +1038,7 @@ function applyFilters() {
     if (state.onlyInstBuy && !((row.foreign_streak || 0) >= 1 || (row.trust_streak || 0) >= 1)) return false;
     // 只看籌碼面偏多（連買天數＋5日累計綜合，見 chipAdvice）
     if (state.onlyChipBull && !chipAdvice(row).bullish) return false;
+    if (state.onlyMaintAlert && !maintState.map[String(row.ticker)]) return false;
     // 只看有個股期貨（大型或小型）
     if (state.onlyStf && !row.stf && !row.stf_mini) return false;
     // 只看今日收紅K（陽線：收盤>開盤，或漲停）
@@ -1120,6 +1167,7 @@ function renderActiveFilters() {
   if (state.onlyHotGroup) add('onlyHotGroup', '族群z≥1');
   if (state.onlyInstBuy) add('onlyInstBuy', '🏦法人買超');
   if (state.onlyChipBull) add('onlyChipBull', '💰籌碼偏多');
+  if (state.onlyMaintAlert) add('onlyMaintAlert', '🩸融資斷頭級');
   if (state.onlyStf) add('onlyStf', '📈有股期');
   if (state.onlyRedK) add('onlyRedK', '🔴收紅K');
   if (state.onlyVolUp) add('onlyVolUp', '🔊量能跟上');
@@ -1190,6 +1238,7 @@ function removeFilter(key) {
     case 'onlyHotGroup': state.onlyHotGroup = false; document.getElementById('only-hot-group').checked = false; break;
     case 'onlyInstBuy': state.onlyInstBuy = false; { const e = document.getElementById('only-inst-buy'); if (e) e.checked = false; } break;
     case 'onlyChipBull': state.onlyChipBull = false; { const e = document.getElementById('only-chip-bull'); if (e) e.checked = false; } break;
+    case 'onlyMaintAlert': state.onlyMaintAlert = false; { const e = document.getElementById('only-maint-alert'); if (e) e.checked = false; } break;
     case 'onlyStf': state.onlyStf = false; { const e = document.getElementById('only-stf'); if (e) e.checked = false; } break;
     case 'onlyRedK': state.onlyRedK = false; { const e = document.getElementById('only-red-k'); if (e) e.checked = false; } break;
     case 'onlyVolUp': state.onlyVolUp = false; { const e = document.getElementById('only-vol-up'); if (e) e.checked = false; } break;
@@ -1338,6 +1387,14 @@ function bindControls() {
   if (chipBullChk) {
     chipBullChk.addEventListener('change', e => {
       state.onlyChipBull = e.target.checked;
+      applyFilters();
+    });
+  }
+
+  const maintChk = document.getElementById('only-maint-alert');
+  if (maintChk) {
+    maintChk.addEventListener('change', e => {
+      state.onlyMaintAlert = e.target.checked;
       applyFilters();
     });
   }
@@ -2561,6 +2618,7 @@ function renderThemeHistory() {
     const data = await loadData();
     state.data = data;
     await mergeInstNet(data);
+    await loadMarginMaint();
 
     // 建分類顏色 lookup（供命中策略欄渲染色塊用）
     data._catColor = {};
@@ -3013,6 +3071,7 @@ function mainCardHtml(r, grouped = false) {
     ${persistHtml}
     <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span><span class="sc-vol">量 ${_cardNum(r.vol_ratio, 1)}x</span></div>
     ${chipLine}
+    ${maintLineHtml(r)}
     <div class="sc-trade">
       <span><i>進場</i>${entry}</span>
       <span><i>目標</i>${_cardNum(r.target)}</span>
@@ -3623,7 +3682,7 @@ function renderStockSummary(ticker, name, market, row) {
     ${svRow('📈', '延續', persistPanel)}
     ${svRow('📌', '訊號', sig.join('　·　'))}
     ${svRow('🏭', '題材族群', th.join('　｜　'))}
-    ${svRow('💰', '籌碼', chipAdviceBlockHtml(row) + `<div id="sv-chip" class="sv-mut">融資/明細載入中…</div>`)}
+    ${svRow('💰', '籌碼', chipAdviceBlockHtml(row) + maintBlockHtml(row) + `<div id="sv-chip" class="sv-mut">融資/明細載入中…</div>`)}
     ${svRow('🧮', '個股期貨', futHtml)}
     ${svRow('📐', '關鍵價位', px.length ? px.join('　｜　') + pxNote : '')}
     <div class="sv-foot">訊號為策略輔助、非投資建議 — 進出場請至 TradingView 自行判斷。</div>
@@ -3643,6 +3702,27 @@ function chipAdviceBlockHtml(row) {
     ${ca.advice ? `<div class="sca-advice">${svEsc(ca.advice)}</div>` : ''}
     ${ca.detail ? `<div class="sca-detail sv-mut">${svEsc(ca.detail)}</div>` : ''}
     ${stale}
+  </div>`;
+}
+
+// 彈窗融資維持率區塊：全歷史危機表（每檔跟自己的四次危機比，不是統一門檻）
+function maintBlockHtml(row) {
+  if (!row) return '';
+  const m = maintState.map[String(row.ticker)];
+  if (!m) return '';
+  const d = maintState.detail[String(m.ticker)] || {};
+  const t = maintTone(m);
+  const rows = (d.crisis || []).map(c =>
+    `<tr class="${c.is_base ? 'mt-base' : ''}"><td>${c.label}${c.is_base ? ' 關稅' : ''}</td>`
+    + `<td class="mt-num">${c.mr}%</td><td class="mt-num">${c.px}</td>`
+    + `<td class="mt-num ${c.gap_pct >= 0 ? 'neg' : ''}">${c.gap_pct >= 0 ? '+' : ''}${c.gap_pct}%</td></tr>`
+  ).join('');
+  return `<div class="sv-maint ${t.cls}">
+    <div class="svm-verdict">${t.ico} <b>融資維持率 ${m.mr}%</b>
+      <span class="sv-mut">（推估平均融資成本 ${d.cost ?? '--'}，餘額 ${m.bal.toLocaleString()} 張，全期百分位 ${m.pctile}%）</span></div>
+    <table class="svm-table"><thead><tr><th>事件</th><th>當時最低</th><th>今日對應價</th><th>距今</th></tr></thead>
+    <tbody>${rows}<tr class="mt-now"><td>今天</td><td class="mt-num">${m.mr}%</td><td class="mt-num">${m.close}</td><td class="mt-num">—</td></tr></tbody></table>
+    <div class="svm-note sv-mut">維持率到位是<b>必要非充分條件</b>：2018 年國巨到達後仍磨了 48 個交易日才落底。這是風險溫度計，不是買進訊號。</div>
   </div>`;
 }
 

@@ -1214,3 +1214,37 @@ footer {
 .sr-n { font-size: 10.5px; color: #666; margin-top: 1px; }
 .sr-foot { padding: 12px; font-size: 11px; line-height: 1.5; }
 
+
+/* ── 融資維持率雷達（卡片一行 + 彈窗危機表）───────────────────
+   風格刻意沿用 .sc-chip：同屬「籌碼」語意，色階只用紅/橘（這是風險溫度計，
+   不是買訊，所以不給綠色）。 */
+.sc-maint { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+  font-size: 11.5px; border-radius: 6px; padding: 3px 7px;
+  background: rgba(255,255,255,0.04); border-left: 2px solid #6b7280; }
+.sc-maint b { font-weight: 700; }
+.sc-maint .sc-maint-detail { color: #8b93a3; font-size: 11px; }
+.sc-maint .sc-maint-new { color: #fbbf24; font-size: 10.5px; font-weight: 700; }
+.sc-maint.mt-broken { border-left-color: #ef5350; background: rgba(239,83,80,0.16);
+  box-shadow: 0 0 0 1px rgba(239,83,80,0.25) inset; }
+.sc-maint.mt-broken b { color: #ff6b6b; }
+.sc-maint.mt-reached { border-left-color: #ef5350; background: rgba(239,83,80,0.10); }
+.sc-maint.mt-reached b { color: #ff8a80; }
+.sc-maint.mt-near { border-left-color: #f5b942; }
+.sc-maint.mt-near b { color: #f5b942; }
+
+.sv-maint { margin-top: 8px; padding: 8px 10px; border-radius: 8px;
+  background: rgba(255,255,255,0.03); border-left: 3px solid #6b7280; }
+.sv-maint.mt-broken { border-left-color: #ef5350; }
+.sv-maint.mt-reached { border-left-color: #ff8a80; }
+.sv-maint.mt-near { border-left-color: #f5b942; }
+.sv-maint .svm-verdict { font-size: 12.5px; margin-bottom: 6px; }
+.sv-maint .svm-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.sv-maint .svm-table th { text-align: left; color: #8b93a3; font-weight: 600;
+  padding: 2px 6px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.sv-maint .svm-table td { padding: 2px 6px; }
+.sv-maint .svm-table .mt-num { text-align: right; font-variant-numeric: tabular-nums; }
+.sv-maint .svm-table .neg { color: #ff6b6b; }
+.sv-maint .svm-table tr.mt-base td { color: #ffd580; font-weight: 600; }
+.sv-maint .svm-table tr.mt-now td { border-top: 1px solid rgba(255,255,255,0.12);
+  font-weight: 700; }
+.sv-maint .svm-note { margin-top: 6px; font-size: 11px; line-height: 1.5; }

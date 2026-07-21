@@ -390,7 +390,10 @@ function maintTone(m) {
   if (!m) return null;
   if (m.state === 'broken') return { cls: 'mt-broken', ico: '🔴', txt: '已破關稅低點' };
   if (m.state === 'reached') return { cls: 'mt-reached', ico: '🩸', txt: '已達關稅低點' };
-  return { cls: 'mt-near', ico: '🟠', txt: `距關稅低點 ${Math.abs(m.gap_base_pct).toFixed(0)}%` };
+  const gap = `距關稅低點 ${Math.abs(m.gap_base_pct).toFixed(0)}%`;
+  if (m.state === 'approaching') return { cls: 'mt-near', ico: '🟠', txt: gap };
+  if (m.state === 'loose') return { cls: 'mt-loose', ico: '🟡', txt: gap };
+  return { cls: 'mt-safe', ico: '⚪', txt: gap };
 }
 
 function maintLineHtml(r) {
@@ -3708,9 +3711,11 @@ function chipAdviceBlockHtml(row) {
 // 彈窗融資維持率區塊：全歷史危機表（每檔跟自己的四次危機比，不是統一門檻）
 function maintBlockHtml(row) {
   if (!row) return '';
-  const m = maintState.map[String(row.ticker)];
-  if (!m) return '';
-  const d = maintState.detail[String(m.ticker)] || {};
+  // 彈窗吃 detail（全部通過 gate 的 ~1,000 檔），不是只吃進榜桶 —— 查個股時
+  // 🟡鬆動/⚪安全 的股票也要看得到自己的危機表。
+  const d = maintState.detail[String(row.ticker)];
+  if (!d) return '';
+  const m = d;
   const t = maintTone(m);
   const rows = (d.crisis || []).map(c =>
     `<tr class="${c.is_base ? 'mt-base' : ''}"><td>${c.label}${c.is_base ? ' 關稅' : ''}</td>`

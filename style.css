@@ -1248,3 +1248,8 @@ footer {
 .sv-maint .svm-table tr.mt-now td { border-top: 1px solid rgba(255,255,255,0.12);
   font-weight: 700; }
 .sv-maint .svm-note { margin-top: 6px; font-size: 11px; line-height: 1.5; }
+.sc-maint.mt-loose { border-left-color: #9aa4b5; }
+.sc-maint.mt-loose b { color: #c3cad6; }
+.sc-maint.mt-safe  { border-left-color: #6b7280; }
+.sv-maint.mt-loose { border-left-color: #9aa4b5; }
+.sv-maint.mt-safe  { border-left-color: #6b7280; }

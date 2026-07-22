@@ -168,6 +168,10 @@ const state = {
   deductTurn: false,      // 扣抵轉揚↑（三線皆將上彎，實證edge+1.2）；任何模式皆生效
   deductUp2: false,       // 扣抵上彎≥2條（較寬）；任何模式皆生效
   deductExclWarn: false,  // 排除陰跌警訊（月/季線將下彎）；任何模式皆生效
+  weeklyLit: false,       // 🌱週線亮燈（週爆量∩週多排）
+  instStreak3: false,     // 🌱法人連買≥3日
+  boGood: false,          // 🚀✅真突破（強K非爆量/回測撐住；bt_breakout 校準）
+  exclSrBreak: false,     // 📈排除跌破支撐⛔
   // 島狀反轉：off|top|bottom|any（後端已判定缺口孤立，前端只篩 island_top/island_bottom 是否有值）
   islandMode: 'off',
   // 型態訊號（ep10缺口/ep11 N字/ep14圓弧/ep15黃金分割 新欄；勾選任一即入選=群內 OR）
@@ -561,12 +565,14 @@ function renderMeta(d) {
 
 // ── 3. 渲染分類 chips（依「突破生命週期」分 5 區塊） ──
 //   參考 aistockmap 結構頁：分層+分區標題，而非平鋪一整排。
+// 2026-07-22 重設計：三階段(時間軸)+風險。「籌碼/族群」不是階段是證據——
+// M_Accumulate 歸醞釀、GroupResonance 跨階段(落到🏷其他,卡片上有🔥族群標)。
+// 每階段該看的確認/否決訊號集中在對應的階段區塊(index.html stage-blk)。
 const CAT_GROUPS = [
-  { title: '🌀 醞釀蓄勢', hint: '還沒突破、潛伏蓄力', codes: ['A_VCP', 'A_Coil', 'N_NearHigh', 'R_Neckline'] },
-  { title: '🚀 突破發動', hint: '剛突破、發動點',   codes: ['B_Day0', 'B_Recent', 'R_Breakout'] },
-  { title: '⚡ 續攻動能', hint: '突破後沿均線走',   codes: ['S_MA3Rider', 'S_MA5Rider'] },
-  { title: '💰 籌碼/族群', hint: '主力/族群撐腰',   codes: ['M_Accumulate', 'GroupResonance'] },
-  { title: '👁 觀察/風險', hint: '謹慎、別追',       codes: ['P_Watch', 'P_PunishExit', 'P_PostExit'] },
+  { title: '🌱 醞釀(還沒突破)', hint: '蓄勢打底+主力吸籌', codes: ['A_VCP', 'A_Coil', 'N_NearHigh', 'R_Neckline', 'M_Accumulate'] },
+  { title: '🚀 發動(突破中)',   hint: '剛突破、發動點',     codes: ['B_Day0', 'B_Recent', 'R_Breakout'] },
+  { title: '📈 趨勢(突破後持有)', hint: '沿均線續攻、持有管理', codes: ['S_MA3Rider', 'S_MA5Rider'] },
+  { title: '👁 風險/觀察',      hint: '謹慎、別追',         codes: ['P_Watch', 'P_PunishExit', 'P_PostExit'] },
 ];
 
 function _makeCatChip(c) {
@@ -1104,6 +1110,10 @@ function applyFilters() {
     if (state.deductTurn && row.deduct_turn !== 1) return false;   // 扣抵轉揚↑（前瞻均線方向）
     if (state.deductUp2 && !((row.deduct_up_n ?? 0) >= 2)) return false;   // 扣抵上彎≥2條
     if (state.deductExclWarn && row.deduct_warn) return false;     // 排除陰跌警訊
+    if (state.weeklyLit && row.weekly_lit !== 1) return false;     // 🌱週線亮燈
+    if (state.instStreak3 && !((row.inst_streak ?? 0) >= 3)) return false; // 🌱法人連買≥3日
+    if (state.boGood && !(row.bo_state && String(row.bo_state).startsWith('✅'))) return false; // 🚀✅真突破
+    if (state.exclSrBreak && row.sr_state && String(row.sr_state).includes('⛔')) return false; // 📈排除破支撐
 
     // 島狀反轉：top=頂部(出場/做空)｜bottom=底部(進場/做多)｜any=任一
     if (state.islandMode === 'top' && !row.island_top) return false;
@@ -1167,6 +1177,10 @@ function renderActiveFilters() {
   if (state.deductTurn) add('deductTurn', '扣抵轉揚↑');
   if (state.deductUp2) add('deductUp2', '扣抵上彎≥2');
   if (state.deductExclWarn) add('deductExclWarn', '排除陰跌');
+  if (state.weeklyLit) add('weeklyLit', '週線亮燈');
+  if (state.instStreak3) add('instStreak3', '法人連買≥3');
+  if (state.boGood) add('boGood', '✅真突破');
+  if (state.exclSrBreak) add('exclSrBreak', '排除破支撐');
   if (state.islandMode !== 'off') add('island', `島狀:${ISLAND_MODE_LABEL[state.islandMode]}`);
   if (state.patternSignals.size) add('pattern', `型態:${state.patternSignals.size}訊號`);
   if (state.dimSelected.size) add('dim', `${DIM_LABEL[state.dim]}:${state.dimSelected.size}`);
@@ -1203,6 +1217,8 @@ function updateGroupCounts() {
   set('fgc-mainup', (state.mainupMode !== 'off' ? 1 : 0) +
                     (state.mainupEntry ? 1 : 0) + (state.mainupExclDist ? 1 : 0) +
                     (state.deductTurn ? 1 : 0) + (state.deductUp2 ? 1 : 0) + (state.deductExclWarn ? 1 : 0) +
+                    (state.weeklyLit ? 1 : 0) + (state.instStreak3 ? 1 : 0) +
+                    (state.boGood ? 1 : 0) + (state.exclSrBreak ? 1 : 0) +
                     (state.islandMode !== 'off' ? 1 : 0) +
                     (state.patternSignals.size ? 1 : 0));
   set('fgc-dim', state.dimSelected.size);
@@ -1235,6 +1251,18 @@ function removeFilter(key) {
       break;
     case 'deductExclWarn':
       state.deductExclWarn = false; { const e = document.getElementById('deduct-excl-warn'); if (e) e.checked = false; }
+      break;
+    case 'weeklyLit':
+      state.weeklyLit = false; { const e = document.getElementById('weekly-lit'); if (e) e.checked = false; }
+      break;
+    case 'instStreak3':
+      state.instStreak3 = false; { const e = document.getElementById('inst-streak3'); if (e) e.checked = false; }
+      break;
+    case 'boGood':
+      state.boGood = false; { const e = document.getElementById('bo-good'); if (e) e.checked = false; }
+      break;
+    case 'exclSrBreak':
+      state.exclSrBreak = false; { const e = document.getElementById('excl-srbreak'); if (e) e.checked = false; }
       break;
     case 'island':
       state.islandMode = 'off';
@@ -1334,6 +1362,16 @@ function bindControls() {
   if (dedUp2) dedUp2.addEventListener('change', e => { state.deductUp2 = e.target.checked; applyFilters(); });
   const dedExW = document.getElementById('deduct-excl-warn');
   if (dedExW) dedExW.addEventListener('change', e => { state.deductExclWarn = e.target.checked; applyFilters(); });
+  // 三階段訊號區：新增 4 個 AND 濾網 + 3 顆一鍵精選
+  [['weekly-lit', 'weeklyLit'], ['inst-streak3', 'instStreak3'],
+   ['bo-good', 'boGood'], ['excl-srbreak', 'exclSrBreak']].forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', e => { state[key] = e.target.checked; applyFilters(); });
+  });
+  ['brew', 'launch', 'trend'].forEach(k => {
+    const b = document.getElementById('preset-' + k);
+    if (b) b.addEventListener('click', () => applyStagePreset(k));
+  });
 
   // 島狀反轉模式 radio
   document.querySelectorAll('input[name="island-mode"]').forEach(r => {
@@ -1497,6 +1535,35 @@ function bindControls() {
   });
 }
 
+// ── 階段精選：一鍵套用「該階段分類 + 該階段訊號」（先清空全部條件再上組合，結果可預期）──
+//   單項濾網皆有實證（扣抵edge+1.2/突破濾網/法人連買），組合本身待bt驗證（見按鈕title註記）。
+const STAGE_PRESETS = {
+  brew:   { cats: ['A_VCP', 'A_Coil', 'N_NearHigh', 'R_Neckline', 'M_Accumulate'],
+            set: () => { state.deductTurn = true; state.instStreak3 = true; },
+            boxes: ['deduct-turn-up', 'inst-streak3'] },
+  launch: { cats: ['B_Day0', 'B_Recent', 'R_Breakout'],
+            set: () => { state.boGood = true; },
+            boxes: ['bo-good'] },
+  trend:  { cats: ['S_MA3Rider', 'S_MA5Rider'],
+            set: () => { state.deductExclWarn = true; state.mainupExclDist = true; state.exclSrBreak = true; },
+            boxes: ['deduct-excl-warn', 'mainup-excl-dist', 'excl-srbreak'] },
+};
+
+function applyStagePreset(key) {
+  const p = STAGE_PRESETS[key];
+  if (!p) return;
+  clearAllFilters();
+  state.selectedCats = new Set(p.cats);
+  document.querySelectorAll('.cat-chip').forEach(chip => {
+    const on = state.selectedCats.has(chip.dataset.code);
+    chip.classList.toggle('checked', on);
+    const cb = chip.querySelector('input'); if (cb) cb.checked = on;
+  });
+  p.set();
+  p.boxes.forEach(id => { const e = document.getElementById(id); if (e) e.checked = true; });
+  applyFilters();
+}
+
 function clearAllFilters() {
   state.selectedCats.clear();
   state.mode = 'OR';
@@ -1515,6 +1582,10 @@ function clearAllFilters() {
   state.deductTurn = false;
   state.deductUp2 = false;
   state.deductExclWarn = false;
+  state.weeklyLit = false;
+  state.instStreak3 = false;
+  state.boGood = false;
+  state.exclSrBreak = false;
   state.islandMode = 'off';
   clearPersistView();
   state.patternSignals.clear();
@@ -1531,6 +1602,9 @@ function clearAllFilters() {
   const dedT = document.getElementById('deduct-turn-up'); if (dedT) dedT.checked = false;
   const dedU = document.getElementById('deduct-up2'); if (dedU) dedU.checked = false;
   const dedW = document.getElementById('deduct-excl-warn'); if (dedW) dedW.checked = false;
+  ['weekly-lit', 'inst-streak3', 'bo-good', 'excl-srbreak'].forEach(id => {
+    const e = document.getElementById(id); if (e) e.checked = false;
+  });
   const islOff = document.querySelector('input[name="island-mode"][value="off"]'); if (islOff) islOff.checked = true;
   document.querySelector('input[name="dim"][value="industry"]').checked = true;
   document.getElementById('dim-search').value = '';
@@ -3099,6 +3173,28 @@ function mainCardHtml(r, grouped = false) {
       + `</div>`
     : '';
 
+  // 階段徽章＋證據計數：主分類定階段，數「該階段該看的訊號」亮了幾個（hover 看明細）
+  const _STAGE_IDX = { A_VCP: 0, A_Coil: 0, N_NearHigh: 0, R_Neckline: 0, M_Accumulate: 0,
+                       B_Day0: 1, B_Recent: 1, R_Breakout: 1, S_MA3Rider: 2, S_MA5Rider: 2 };
+  let stageBadge = '';
+  const _si = _STAGE_IDX[r.category_main];
+  if (_si != null) {
+    const _defs = [
+      ['🌱醞釀', [[r.deduct_turn === 1, '扣抵轉揚'], [(r.inst_streak ?? 0) >= 3, '法人連買≥3'],
+                  [r.weekly_lit === 1, '週線亮燈'], [!!(r.sr_overhead && String(r.sr_overhead).includes('✅')), '上檔無壓']]],
+      ['🚀發動', [[!!(r.bo_state && String(r.bo_state).startsWith('✅')), '真突破(強K非爆量)'],
+                  [!!(r.gap_state && String(r.gap_state).includes('未補')), '缺口未補'],
+                  [!!r.mainup_entry && r.mainup_entry !== '⚠過高勿追', '有進場型態']]],
+      ['📈趨勢', [[!r.deduct_warn, '無陰跌'], [r.mainup_dist !== 1, '無出貨警訊'],
+                  [!(r.sr_state && String(r.sr_state).includes('⛔')), '未破支撐']]],
+    ];
+    const [_nm, _checks] = _defs[_si];
+    const _n = _checks.filter(c => c[0]).length;
+    const _tip = _checks.map(c => `${c[0] ? '✅' : '▢'}${c[1]}`).join('　');
+    const _c = _n === _checks.length ? '#3ddc84' : (_n >= _checks.length - 1 ? '#ffd166' : '#8899aa');
+    stageBadge = `<span class="q-stage" style="color:${_c};font-weight:700" title="${_nm}階段證據：${_tip}">${_nm} ${_n}/${_checks.length}</span>`;
+  }
+
   // 跨策略共振徽章
   const hk = resonance.hanku[r.ticker];
   const resoN = _resoCount(r);
@@ -3116,6 +3212,7 @@ function mainCardHtml(r, grouped = false) {
       <span class="q-hit">命中×${r.hits || 0}</span>
       <span class="q-score">分 ${r.score != null ? Math.round(r.score) : '--'}</span>
       <span class="q-rs">RS ${_cardNum(r.rs, 0)}</span>
+      ${stageBadge}
     </div>
     ${persistHtml}
     <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span><span class="sc-vol">量 ${_cardNum(r.vol_ratio, 1)}x</span></div>

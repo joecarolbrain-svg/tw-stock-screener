@@ -196,26 +196,42 @@
           <label title="收盤跌破最近支撐(MA20/60/大量紅K低/箱下緣最近者)＝風險路徑警示，用於剔除或觀察"><input type="checkbox" name="pattern-sig" value="sr_break" /> ⛔跌破支撐</label>
         </div>
       </div>
-      <div class="mu-block">
-        <div class="mu-head">🧭 扣抵值 <span class="mu-hint">前瞻均線方向：看「即將被扣掉的舊價」預判均線彎向，領先斜率；任何模式皆生效</span></div>
+      <!-- 2026-07-22 三階段訊號區：每階段配「該階段該看的訊號」+一鍵精選；全部 AND 疊加、任何模式皆生效 -->
+      <div class="mu-block stage-blk">
+        <div class="mu-head">🌱 醞釀(還沒突破) <span class="mu-hint">蓄勢期確認訊號</span>
+          <button type="button" id="preset-brew" class="btn btn-ghost" style="font-size:11px;margin-left:8px" title="一鍵＝醞釀分類 ∩ 扣抵轉揚 ∩ 法人連買≥3（單項已實證、組合待驗）">⚡醞釀精選</button></div>
         <div class="mu-flow" style="flex-wrap:wrap">
           <label title="MA5/20/60 三線明日皆將上彎＝領先版均線多頭排列（全市場11年實證 fwd20 +2.42%／edge +1.2）"><input type="checkbox" id="deduct-turn-up" /> 🔥扣抵轉揚↑</label>
-          <label title="MA5/20/60 至少兩條明日上彎（較寬條件，實證 edge +0.19 起單調遞增）"><input type="checkbox" id="deduct-up2" /> 上彎≥2條</label>
-          <label title="剔除「價未跌但月線/季線將下彎」的陰跌股（實證同級多頭中 fwd20 少約1個百分點，持股警示用）"><input type="checkbox" id="deduct-excl-warn" /> 排除陰跌⚠</label>
+          <label title="MA5/20/60 至少兩條明日上彎（較寬條件，實證 edge 0→3 條單調遞增）"><input type="checkbox" id="deduct-up2" /> 上彎≥2條</label>
+          <label title="週爆量∩週多排（B1 週線版訊號，波段視角）"><input type="checkbox" id="weekly-lit" /> 週線亮燈</label>
+          <label title="三大法人合計連續買超 ≥3 天（雜訊過濾門檻）"><input type="checkbox" id="inst-streak3" /> 法人連買≥3日</label>
         </div>
       </div>
-      <div class="mainup-extra">
-        <label>進場型態
-          <select id="mainup-entry">
-            <option value="">不限</option>
-            <option value="回後買上漲">回後買上漲</option>
-            <option value="盤整突破">盤整突破</option>
-            <option value="⚠過高勿追">⚠過高勿追</option>
-          </select>
-        </label>
-        <label><input type="checkbox" id="mainup-excl-dist" /> 排除出貨警訊</label>
+      <div class="mu-block stage-blk">
+        <div class="mu-head">🚀 發動(突破中) <span class="mu-hint">突破品質濾網（實證：強K+濾爆量，不是放量）</span>
+          <button type="button" id="preset-launch" class="btn btn-ghost" style="font-size:11px;margin-left:8px" title="一鍵＝發動分類 ∩ ✅真突破（bt_breakout 11年2367檔校準）">⚡發動精選</button></div>
+        <div class="mu-flow" style="flex-wrap:wrap">
+          <label title="突破狀態=✅（強K非爆量的當日突破，或回測前高撐住確認）；⚠訊號弱／⛔假突破不入選"><input type="checkbox" id="bo-good" /> ✅真突破(強K非爆量)</label>
+          <label>進場型態
+            <select id="mainup-entry">
+              <option value="">不限</option>
+              <option value="回後買上漲">回後買上漲</option>
+              <option value="盤整突破">盤整突破</option>
+              <option value="⚠過高勿追">⚠過高勿追</option>
+            </select>
+          </label>
+        </div>
       </div>
-      <span class="muted" style="font-size:11px">自訂模式：勾選旗標全中才留（S1×S4/C1 互斥，建議取消）；進場型態/排除出貨任何模式皆生效</span>
+      <div class="mu-block stage-blk">
+        <div class="mu-head">📈 趨勢(突破後持有) <span class="mu-hint">持有體檢：三個否決訊號，複盤手上部位用</span>
+          <button type="button" id="preset-trend" class="btn btn-ghost" style="font-size:11px;margin-left:8px" title="一鍵＝趨勢分類 ∩ 無陰跌 ∩ 無出貨 ∩ 未破支撐">⚡持有體檢</button></div>
+        <div class="mu-flow" style="flex-wrap:wrap">
+          <label title="剔除「價未跌但月/季線將下彎」的陰跌股（實證同級多頭中 fwd20 少約1pp）"><input type="checkbox" id="deduct-excl-warn" /> 排除陰跌⚠</label>
+          <label title="剔除高檔爆量收弱的出貨警訊股"><input type="checkbox" id="mainup-excl-dist" /> 排除出貨⚠</label>
+          <label title="剔除收盤跌破最近支撐(⛔)的股票"><input type="checkbox" id="excl-srbreak" /> 排除破支撐⛔</label>
+        </div>
+      </div>
+      <span class="muted" style="font-size:11px">自訂模式：勾選旗標全中才留（S1×S4/C1 互斥，建議取消）；三階段訊號區全部 AND 疊加、任何模式皆生效，⚡精選鈕＝一鍵套用該階段分類+訊號組合</span>
     </div>
 
     <!-- 維度 -->

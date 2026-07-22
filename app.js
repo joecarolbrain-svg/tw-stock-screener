@@ -1127,6 +1127,11 @@ function applyFilters() {
       if (row.mainup_dist === 1) return false;
     } else if (state.mainupMode === 'B') {
       if (!(row.mainup_tag && String(row.mainup_tag).includes('飆股'))) return false;
+    } else if (state.mainupMode === 'AB') {
+      // 朱家泓聯集（2026-07-22 user 要求合併）：穩健A ∪ 獵飆B，符合任一即入選
+      const okA = (row.win_n ?? 0) >= 3 && row.mainup_dist !== 1;
+      const okB = !!(row.mainup_tag && String(row.mainup_tag).includes('飆股'));
+      if (!okA && !okB) return false;
     }
     // 進場型態 / 排除出貨：任何模式皆生效（獨立精修）
     if (state.mainupEntry && row.mainup_entry !== state.mainupEntry) return false;
@@ -1176,7 +1181,7 @@ function applyFilters() {
 
 // ── 6b. 已選條件 chip 列 / 分組徽章 / 收合 ───────────────
 const DIM_LABEL = { industry: '產業', sector: '類股', concept: '題材' };
-const MAINUP_MODE_LABEL = { sig: '自訂', A: '穩健A', B: '獵飆B' };
+const MAINUP_MODE_LABEL = { sig: '自訂', A: '穩健A', B: '獵飆B', AB: '朱家泓A∪B' };
 const ISLAND_MODE_LABEL = { top: '頂部', bottom: '底部', any: '任一' };
 const PV_LABEL = { new: '🆕今日上榜', surge: '🔥延續加溫', fade: '⚠️延續轉弱' };
 
@@ -1410,11 +1415,9 @@ function bindControls() {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', e => { state[key] = e.target.checked; applyFilters(); });
   });
-  // 朱家泓一鍵（原主升 A/B 模式，radios 已移除、狀態機保留）
-  const pA = document.getElementById('preset-modeA');
-  if (pA) pA.addEventListener('click', () => { clearAllFilters(); state.mainupMode = 'A'; applyFilters(); });
-  const pB = document.getElementById('preset-modeB');
-  if (pB) pB.addEventListener('click', () => { clearAllFilters(); state.mainupMode = 'B'; applyFilters(); });
+  // 朱家泓一鍵（原主升 A/B 模式合併為聯集，radios 已移除、狀態機保留）
+  const pAB = document.getElementById('preset-modeAB');
+  if (pAB) pAB.addEventListener('click', () => { clearAllFilters(); state.mainupMode = 'AB'; applyFilters(); });
 
   // 島狀反轉模式 radio
   document.querySelectorAll('input[name="island-mode"]').forEach(r => {

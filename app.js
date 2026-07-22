@@ -166,6 +166,8 @@ const state = {
   mainupEntry: '',        // 進場型態篩選（空=不限）；任何模式皆生效
   mainupExclDist: false,  // 排除出貨警訊；任何模式皆生效
   deductTurn: false,      // 扣抵轉揚↑（三線皆將上彎，實證edge+1.2）；任何模式皆生效
+  deductUp2: false,       // 扣抵上彎≥2條（較寬）；任何模式皆生效
+  deductExclWarn: false,  // 排除陰跌警訊（月/季線將下彎）；任何模式皆生效
   // 島狀反轉：off|top|bottom|any（後端已判定缺口孤立，前端只篩 island_top/island_bottom 是否有值）
   islandMode: 'off',
   // 型態訊號（ep10缺口/ep11 N字/ep14圓弧/ep15黃金分割 新欄；勾選任一即入選=群內 OR）
@@ -1100,6 +1102,8 @@ function applyFilters() {
     if (state.mainupEntry && row.mainup_entry !== state.mainupEntry) return false;
     if (state.mainupExclDist && row.mainup_dist === 1) return false;
     if (state.deductTurn && row.deduct_turn !== 1) return false;   // 扣抵轉揚↑（前瞻均線方向）
+    if (state.deductUp2 && !((row.deduct_up_n ?? 0) >= 2)) return false;   // 扣抵上彎≥2條
+    if (state.deductExclWarn && row.deduct_warn) return false;     // 排除陰跌警訊
 
     // 島狀反轉：top=頂部(出場/做空)｜bottom=底部(進場/做多)｜any=任一
     if (state.islandMode === 'top' && !row.island_top) return false;
@@ -1161,6 +1165,8 @@ function renderActiveFilters() {
   if (state.mainupEntry) add('mainupEntry', `進場:${state.mainupEntry}`);
   if (state.mainupExclDist) add('mainupExcl', '排除出貨');
   if (state.deductTurn) add('deductTurn', '扣抵轉揚↑');
+  if (state.deductUp2) add('deductUp2', '扣抵上彎≥2');
+  if (state.deductExclWarn) add('deductExclWarn', '排除陰跌');
   if (state.islandMode !== 'off') add('island', `島狀:${ISLAND_MODE_LABEL[state.islandMode]}`);
   if (state.patternSignals.size) add('pattern', `型態:${state.patternSignals.size}訊號`);
   if (state.dimSelected.size) add('dim', `${DIM_LABEL[state.dim]}:${state.dimSelected.size}`);
@@ -1196,7 +1202,7 @@ function updateGroupCounts() {
   set('fgc-cat', state.selectedCats.size);
   set('fgc-mainup', (state.mainupMode !== 'off' ? 1 : 0) +
                     (state.mainupEntry ? 1 : 0) + (state.mainupExclDist ? 1 : 0) +
-                    (state.deductTurn ? 1 : 0) +
+                    (state.deductTurn ? 1 : 0) + (state.deductUp2 ? 1 : 0) + (state.deductExclWarn ? 1 : 0) +
                     (state.islandMode !== 'off' ? 1 : 0) +
                     (state.patternSignals.size ? 1 : 0));
   set('fgc-dim', state.dimSelected.size);
@@ -1223,6 +1229,12 @@ function removeFilter(key) {
       break;
     case 'deductTurn':
       state.deductTurn = false; { const e = document.getElementById('deduct-turn-up'); if (e) e.checked = false; }
+      break;
+    case 'deductUp2':
+      state.deductUp2 = false; { const e = document.getElementById('deduct-up2'); if (e) e.checked = false; }
+      break;
+    case 'deductExclWarn':
+      state.deductExclWarn = false; { const e = document.getElementById('deduct-excl-warn'); if (e) e.checked = false; }
       break;
     case 'island':
       state.islandMode = 'off';
@@ -1318,6 +1330,10 @@ function bindControls() {
   if (muExcl) muExcl.addEventListener('change', e => { state.mainupExclDist = e.target.checked; applyFilters(); });
   const dedTurn = document.getElementById('deduct-turn-up');
   if (dedTurn) dedTurn.addEventListener('change', e => { state.deductTurn = e.target.checked; applyFilters(); });
+  const dedUp2 = document.getElementById('deduct-up2');
+  if (dedUp2) dedUp2.addEventListener('change', e => { state.deductUp2 = e.target.checked; applyFilters(); });
+  const dedExW = document.getElementById('deduct-excl-warn');
+  if (dedExW) dedExW.addEventListener('change', e => { state.deductExclWarn = e.target.checked; applyFilters(); });
 
   // 島狀反轉模式 radio
   document.querySelectorAll('input[name="island-mode"]').forEach(r => {
@@ -1497,6 +1513,8 @@ function clearAllFilters() {
   state.mainupEntry = '';
   state.mainupExclDist = false;
   state.deductTurn = false;
+  state.deductUp2 = false;
+  state.deductExclWarn = false;
   state.islandMode = 'off';
   clearPersistView();
   state.patternSignals.clear();
@@ -1511,6 +1529,8 @@ function clearAllFilters() {
   const muE = document.getElementById('mainup-entry'); if (muE) muE.value = '';
   const muD = document.getElementById('mainup-excl-dist'); if (muD) muD.checked = false;
   const dedT = document.getElementById('deduct-turn-up'); if (dedT) dedT.checked = false;
+  const dedU = document.getElementById('deduct-up2'); if (dedU) dedU.checked = false;
+  const dedW = document.getElementById('deduct-excl-warn'); if (dedW) dedW.checked = false;
   const islOff = document.querySelector('input[name="island-mode"][value="off"]'); if (islOff) islOff.checked = true;
   document.querySelector('input[name="dim"][value="industry"]').checked = true;
   document.getElementById('dim-search').value = '';
@@ -3068,6 +3088,17 @@ function mainCardHtml(r, grouped = false) {
     }
   }
 
+  // 扣抵值一行（前瞻均線方向；有資料的卡片常駐顯示，不藏在細節）
+  const dedLine = r.deduct_dir
+    ? `<div class="sc-deduct" style="font-size:12px;margin:2px 0;color:#9fb4cc"`
+      + ` title="扣抵值＝看「明天要被扣掉的舊價」預判均線彎向（領先斜率）；三線皆上彎=扣抵轉揚，實證fwd20+2.42%/edge+1.2">`
+      + `🧭 <b style="letter-spacing:1px">${r.deduct_dir}</b>`
+      + (r.deduct_ma60_out ? `｜季線${r.deduct_ma60_out}` : '')
+      + (r.deduct_turn === 1 ? ' <span style="color:#3ddc84;font-weight:700">轉揚</span>' : '')
+      + (r.deduct_warn ? ` <span style="color:#ff6b6b">${String(r.deduct_warn).split('(')[0]}</span>` : '')
+      + `</div>`
+    : '';
+
   // 跨策略共振徽章
   const hk = resonance.hanku[r.ticker];
   const resoN = _resoCount(r);
@@ -3090,6 +3121,7 @@ function mainCardHtml(r, grouped = false) {
     <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span><span class="sc-vol">量 ${_cardNum(r.vol_ratio, 1)}x</span></div>
     ${chipLine}
     ${maintLineHtml(r)}
+    ${dedLine}
     <div class="sc-trade">
       <span><i>進場</i>${entry}</span>
       <span><i>目標</i>${_cardNum(r.target)}</span>

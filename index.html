@@ -197,6 +197,12 @@
           <label title="收盤跌破最近支撐(MA20/60/大量紅K低/箱下緣最近者)＝風險路徑警示，用於剔除或觀察"><input type="checkbox" name="pattern-sig" value="sr_break" /> ⛔跌破支撐</label>
         </div>
       </div>
+      <div class="mu-block">
+        <div class="mu-head">🧭 扣抵值 <span class="mu-hint">前瞻均線方向：看「即將被扣掉的舊價」預判均線彎向，領先斜率；任何模式皆生效</span></div>
+        <div class="mu-flow" style="flex-wrap:wrap">
+          <label title="MA5/20/60 三線明日皆將上彎＝領先版均線多頭排列（全市場11年實證 fwd20 +2.42%／edge +1.2）"><input type="checkbox" id="deduct-turn-up" /> 🔥扣抵轉揚↑</label>
+        </div>
+      </div>
       <div class="mainup-extra">
         <label>進場型態
           <select id="mainup-entry">
@@ -207,7 +213,6 @@
           </select>
         </label>
         <label><input type="checkbox" id="mainup-excl-dist" /> 排除出貨警訊</label>
-        <label title="三線均線皆將上彎（前瞻方向，實證 fwd20 +2.4%/edge +1.2）"><input type="checkbox" id="deduct-turn-up" /> 扣抵轉揚↑</label>
       </div>
       <span class="muted" style="font-size:11px">自訂模式：勾選旗標全中才留（S1×S4/C1 互斥，建議取消）；進場型態/排除出貨任何模式皆生效</span>
     </div>

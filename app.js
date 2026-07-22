@@ -690,11 +690,19 @@ function renderDimensionOptions() {
     });
   });
 
-  // 卡片：依命中家數排序，顯示 名稱/家數/今日均漲/🔥
+  // 卡片：已選釘最前 → 今日熱度(均漲) → 家數；無搜尋且未展開時只顯示前15（2026-07-22 瘦身）
   const cardsEl = document.getElementById('dim-cards');
   if (cardsEl) {
-    const sorted = opts.slice().sort((a, b) => (b.count || 0) - (a.count || 0));
-    cardsEl.innerHTML = sorted.map(o => {
+    const heat = (o) => { const a = agg[o.name]; return a && a.n ? a.sum / a.n : -999; };
+    const sorted = opts.slice().sort((a, b) =>
+      (state.dimSelected.has(b.name) - state.dimSelected.has(a.name)) ||
+      (heat(b) - heat(a)) || ((b.count || 0) - (a.count || 0)));
+    const LIMIT = 15;
+    const slim = !q && !state.dimExpanded && sorted.length > LIMIT;
+    const shownList = slim
+      ? sorted.filter((o, i) => i < LIMIT || state.dimSelected.has(o.name))
+      : sorted;
+    cardsEl.innerHTML = shownList.map(o => {
       const a = agg[o.name];
       const avg = a && a.n ? a.sum / a.n : null;
       const chgCls = avg == null ? '' : (avg > 0 ? 'pos' : (avg < 0 ? 'neg' : ''));
@@ -707,7 +715,19 @@ function renderDimensionOptions() {
         <span class="dim-chg ${chgCls}">${chgTxt}</span>
       </button>`;
     }).join('') || '<span class="muted" style="padding:6px">無符合項目</span>';
-    cardsEl.querySelectorAll('.dim-chip').forEach(btn => {
+    // 展開/收合鈕（只在無搜尋且超過 LIMIT 時出現）
+    if (!q && sorted.length > LIMIT) {
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'dim-chip dim-expand';
+      more.textContent = slim ? `展開全部 ${sorted.length} 項 ▾` : '收合 ▴';
+      more.addEventListener('click', () => {
+        state.dimExpanded = !state.dimExpanded;
+        renderDimensionOptions();
+      });
+      cardsEl.appendChild(more);
+    }
+    cardsEl.querySelectorAll('.dim-chip[data-name]').forEach(btn => {
       btn.addEventListener('click', () => {
         const name = btn.dataset.name;
         if (state.dimSelected.has(name)) state.dimSelected.delete(name);
@@ -1252,10 +1272,10 @@ function updateGroupCounts() {
                  (state.weeklyLit ? 1 : 0) + (state.instStreak3 ? 1 : 0) +
                  (state.boGood ? 1 : 0) + (state.exclSrBreak ? 1 : 0) +
                  (state.patternSignals.size ? 1 : 0) +
-                 STAGE_FLAGS.filter(f => state[f[1]]).length);
-  set('fgc-dim', state.dimSelected.size);
-  set('fgc-thresh', (state.scoreMin > 0 ? 1 : 0) + (state.rsMin > 0 ? 1 : 0) +
-                    (state.distRiskMax != null ? 1 : 0) + (state.groupZMin != null ? 1 : 0));
+                 STAGE_FLAGS.filter(f => state[f[1]]).length +
+                 state.dimSelected.size +                                   // 維度已併入三階段面板
+                 (state.scoreMin > 0 ? 1 : 0) + (state.rsMin > 0 ? 1 : 0) + // 門檻已併入
+                 (state.distRiskMax != null ? 1 : 0) + (state.groupZMin != null ? 1 : 0));
 }
 
 function removeFilter(key) {

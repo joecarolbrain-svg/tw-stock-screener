@@ -108,9 +108,8 @@
     <!-- 第二層：進階條件與管理 -->
     <div class="filter-row group-bar group-bar-2nd">
       <button class="fg-toggle" data-group="cat">三階段<span class="fg-count" id="fgc-cat"></span></button>
-      <button class="fg-toggle" data-group="dim">維度<span class="fg-count" id="fgc-dim"></span></button>
-      <button class="fg-toggle" data-group="thresh">門檻<span class="fg-count" id="fgc-thresh"></span></button>
       <button id="btn-clear" class="btn btn-ghost">清除全部</button>
+      <button type="button" id="preset-modeAB" class="btn btn-ghost" title="兩策略聯集，符合任一即入選：穩健A(高勝率3/3∩排除出貨) ∪ 獵飆B(Z_主升飆股🔥=S2爆量∩S3多排∩S5題材)。按下＝先清空所有條件再套用">🎓 朱家泓(A∪B)</button>
       <span class="filler"></span>
       <button id="btn-save-preset" class="btn btn-ghost">💾 組合</button>
       <select id="preset-select" class="preset-select">
@@ -124,11 +123,6 @@
 
     <!-- 三階段（2026-07-22 直立重設計：階段 × 各自掛證據，一欄=分類+型態+訊號+⚡精選） -->
     <div class="fg-body" data-group="cat" hidden>
-      <div class="stage-oneclick">
-        <span class="stage-mini-t">🎓 朱家泓一鍵</span>
-        <button type="button" id="preset-modeAB" class="btn btn-ghost stage-preset" title="兩策略聯集，符合任一即入選：穩健A(高勝率3/3∩排除出貨) ∪ 獵飆B(Z_主升飆股🔥=S2爆量∩S3多排∩S5題材)">🎓 朱家泓(A∪B)</button>
-        <span class="muted" style="font-size:11px">｜三欄內：型態群內OR、其餘勾選AND疊加；⚡精選＝一鍵套用該階段組合</span>
-      </div>
       <div class="stage-grid">
         <div class="stage-col">
           <div class="stage-head">🌱 醞釀(還沒突破)
@@ -209,10 +203,33 @@
       <div class="stage-bottom">
         <span class="stage-mini-t">👁 風險/觀察</span><div class="stage-chips" id="stage-chips-risk"></div>
         <span class="stage-mini-t" style="margin-left:14px">🏷 其他</span><div class="stage-chips" id="stage-chips-other"></div>
+        <div class="mode-toggle" style="margin-left:auto" title="分類chips的組合方式：OR=任一命中、AND=全部命中；型態群內OR、其餘勾選一律AND疊加">
+          <label><input type="radio" name="mode" value="OR" checked /> OR（聯集）</label>
+          <label><input type="radio" name="mode" value="AND" /> AND（交集）</label>
+        </div>
       </div>
-      <div class="mode-toggle">
-        <label><input type="radio" name="mode" value="OR" checked /> OR（聯集）</label>
-        <label><input type="radio" name="mode" value="AND" /> AND（交集）</label>
+      <!-- 門檻（2026-07-22 併入：數值底線，AND 疊加；原獨立面板已移除） -->
+      <div class="stage-botrow">
+        <span class="stage-mini-t">🚧 門檻</span>
+        <div class="filter-group small"><label class="filter-label">分數 ≥</label><input type="number" id="score-min" step="1" value="0" /></div>
+        <div class="filter-group small"><label class="filter-label">RS ≥</label><input type="number" id="rs-min" step="1" value="0" /></div>
+        <div class="filter-group small"><label class="filter-label">出貨風險 ≤</label><input type="number" id="dist-risk-max" step="1" placeholder="不限" /></div>
+        <div class="filter-group small"><label class="filter-label">族群最高z ≥</label><input type="number" id="group-z-min" step="0.1" placeholder="不限" /></div>
+      </div>
+      <!-- 維度（2026-07-22 併入+瘦身：預設只顯示已選+熱度前15，搜尋或展開才看全部） -->
+      <div class="stage-botrow">
+        <span class="stage-mini-t">🎯 族群鎖定</span>
+        <div class="filter-group filter-group-dimension">
+          <div class="dim-radio">
+            <label><input type="radio" name="dim" value="industry" checked /> 產業</label>
+            <label><input type="radio" name="dim" value="sector" /> 類股</label>
+            <label><input type="radio" name="dim" value="concept" /> 題材</label>
+          </div>
+          <input type="text" id="dim-search" placeholder="搜尋產業/類股/題材..." class="dim-search-input" />
+          <select id="dim-select" multiple size="6" style="display:none"></select>
+          <div id="dim-cards" class="dim-cards"></div>
+          <span class="muted" id="dim-source"></span>
+        </div>
       </div>
     </div>
 
@@ -222,39 +239,7 @@
          穩健A/獵飆B→🎓朱家泓一鍵按鈕。mainupMode 狀態機保留(A/B按鈕驅動)。 -->
 
     <!-- 維度 -->
-    <div class="fg-body" data-group="dim" hidden>
-      <div class="filter-group filter-group-dimension">
-        <div class="dim-radio">
-          <label><input type="radio" name="dim" value="industry" checked /> 產業</label>
-          <label><input type="radio" name="dim" value="sector" /> 類股</label>
-          <label><input type="radio" name="dim" value="concept" /> 題材</label>
-        </div>
-        <input type="text" id="dim-search" placeholder="搜尋產業/類股/題材..." class="dim-search-input" />
-        <select id="dim-select" multiple size="6" style="display:none"></select>
-        <div id="dim-cards" class="dim-cards"></div>
-        <span class="muted" id="dim-source"></span>
-      </div>
-    </div>
-
-    <!-- 門檻 -->
-    <div class="fg-body" data-group="thresh" hidden>
-      <div class="filter-group small">
-        <label class="filter-label">分數 ≥</label>
-        <input type="number" id="score-min" step="1" value="0" />
-      </div>
-      <div class="filter-group small">
-        <label class="filter-label">RS ≥</label>
-        <input type="number" id="rs-min" step="1" value="0" />
-      </div>
-      <div class="filter-group small">
-        <label class="filter-label">出貨風險 ≤</label>
-        <input type="number" id="dist-risk-max" step="1" placeholder="不限" />
-      </div>
-      <div class="filter-group small">
-        <label class="filter-label">族群最高z ≥</label>
-        <input type="number" id="group-z-min" step="0.1" placeholder="不限" />
-      </div>
-    </div>
+    <!-- 維度/門檻獨立面板已於 2026-07-22 併入「三階段」面板底列 -->
   </section>
 
   <main>

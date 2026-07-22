@@ -1323,21 +1323,3 @@ footer {
   flex-wrap: wrap;
   margin-bottom: 8px;
 }
-
-/* ── 門檻/維度併入三階段面板（2026-07-22 三刀瘦身）─────────── */
-.stage-botrow {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin: 6px 0;
-  padding-top: 6px;
-  border-top: 1px dashed var(--border);
-}
-.stage-botrow .stage-mini-t { padding-top: 4px; white-space: nowrap; }
-.stage-botrow .filter-group-dimension { flex: 1; min-width: 0; }
-.dim-chip.dim-expand {
-  color: #00d4aa;
-  border-style: dashed;
-  font-weight: 700;
-}

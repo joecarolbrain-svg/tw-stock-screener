@@ -562,6 +562,14 @@ function renderMeta(d) {
   const badge = document.getElementById('regime-badge');
   badge.textContent = `市況: ${r.label || '--'}`;
   badge.className = `badge regime-${r.color || 'unknown'}`;
+  // BEAR 連動三階段（2026-07-22）：空頭時提示發動欄降權（BEAR實驗:空頭追右側edge縮水,深跌低接 +1.78→+2.90）
+  const bh = document.getElementById('bear-hint');
+  if (bh) {
+    const isBear = /BEAR|空/.test(String(r.label || '')) || String(r.color || '') === 'bear';
+    bh.style.display = isBear ? '' : 'none';
+    bh.textContent = isBear
+      ? '⚠ 市況空頭：實證空頭段追右側突破 edge 縮水、深跌低接較優 — 發動訊號降權參考' : '';
+  }
 }
 
 // ── 3. 渲染分類 chips（依「突破生命週期」分 5 區塊） ──

@@ -73,6 +73,7 @@
         <option value="foreign">↕ 外資連買</option>
         <option value="trust">↕ 投信連買</option>
       </select>
+      <span class="qt-sep"></span>
       <label class="check-toggle" title="只看同時被 ≥2 策略看好的股（突破命中＋Hanku）">
         <input type="checkbox" id="only-resonance" /> ⚡ 只看共振
       </label>
@@ -85,12 +86,14 @@
       <label class="check-toggle" title="只看籌碼面偏多：外資＋投信「連買天數」與「5日累計」綜合判定為 法人偏買／法人強力同買（卡片上💰那一行）">
         <input type="checkbox" id="only-chip-bull" /> 💰 籌碼偏多
       </label>
+      <span class="qt-sep"></span>
       <label class="check-toggle" title="只看融資維持率已達/逼近該股自己在 2025-04-09 關稅崩盤低點的水位（且全期百分位≤10%）。這是風險溫度計不是買訊——維持率到位是必要非充分條件。">
         <input type="checkbox" id="only-maint-alert" /> 🩸 融資斷頭級
       </label>
       <label class="check-toggle" title="只看有個股期貨（大型每口2000股／小型每口100股）的標的，可用期貨操作">
         <input type="checkbox" id="only-stf" /> 📈 有股期
       </label>
+      <span class="qt-sep"></span>
       <label class="check-toggle" title="只看今日收紅K（陽線：收盤>開盤；或漲停），對應朱家泓「買紅K不買大量黑K」">
         <input type="checkbox" id="only-red-k" /> 🔴 收紅K
       </label>
@@ -156,6 +159,7 @@
           <div class="stage-head">🚀 發動(突破中)
             <button type="button" id="preset-launch" class="btn btn-ghost stage-preset" title="一鍵＝發動分類 ∩ ✅真突破｜11年bt:突破RAW edge+2.51→∩強K非爆量+3.11、勝率50→55%">⚡精選</button></div>
           <div class="stage-hint muted">突破品質濾網：強K+濾爆量（不是放量）</div>
+          <div id="bear-hint" class="stage-hint" style="display:none;color:#ff9d00"></div>
           <div class="stage-chips" id="stage-chips-launch"></div>
           <div class="stage-sigs stage-pats">
             <span class="stage-sub">型態 setup（勾任一即入選，群內OR）</span>

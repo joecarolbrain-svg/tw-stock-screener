@@ -3010,6 +3010,9 @@ function mainCardHtml(r, grouped = false) {
   else if (r.mainup_entry) flags.push([r.mainup_entry, 'f-good']);
   if (r.dist_signal && /盤頭|出貨/.test(r.dist_signal)) flags.push(['⚠' + r.dist_signal, 'f-red']);
   if (r.overhead && /壓力|套牢|重/.test(r.overhead)) flags.push(['⚠上方套牢', 'f-warn']);
+  // 扣抵值（前瞻均線方向）：轉揚=綠旗、陰跌警訊=紅旗（實證 edge+1.2 / 陰跌同級中較弱）
+  if (r.deduct_turn === 1) flags.push(['🔥扣抵轉揚', 'f-good']);
+  if (r.deduct_warn) flags.push([String(r.deduct_warn).split('(')[0], 'f-warn']);
   const flagHtml = flags.map(([t, c]) => `<span class="tag ${c}">${t}</span>`).join('');
 
   const hot = (r.max_group_z != null && r.max_group_z >= 1)
@@ -3047,6 +3050,7 @@ function mainCardHtml(r, grouped = false) {
     addN('防守', r.defense); addN('停損', r.stop_loss);
     addN('風險', r.risk_pct, 1, '%'); addN('部位', r.position_pct, 1, '%');
     addN('出貨風險', r.dist_risk, 0);
+    addT('扣抵', r.deduct_dir); addT('季線展望', r.deduct_ma60_out);
     // 主力買超（券商分點 rank1）：來源已停更，一律帶資料日期避免被當成當日籌碼
     const bkAsof = (state.data && state.data.chip_asof && state.data.chip_asof.broker) || '';
     const bkSuf = bkAsof ? `<span class="sv-mut">（至${bkAsof}）</span>` : '';

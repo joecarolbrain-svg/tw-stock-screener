@@ -189,6 +189,7 @@ const PATTERN_SIG_TEST = {
   round_lock:  (row) => /鎖股/.test(row.rounding_state || ''),
   sr_clear:    (row) => /✅/.test(row.sr_overhead || ''),
   sr_break:    (row) => /⛔/.test(row.sr_state || ''),
+  island_bottom: (row) => !!row.island_bottom,   // 🏝底部島狀(進場/做多)，2026-07-22 併入發動型態
 };
 
 // 代號→產業 對照表（供 hanku 等資料無產業欄的分頁，借主表 row 的 industry）
@@ -568,6 +569,28 @@ function renderMeta(d) {
 // 2026-07-22 重設計：三階段(時間軸)+風險。「籌碼/族群」不是階段是證據——
 // M_Accumulate 歸醞釀、GroupResonance 跨階段(落到🏷其他,卡片上有🔥族群標)。
 // 每階段該看的確認/否決訊號集中在對應的階段區塊(index.html stage-blk)。
+// ── 三階段 AND 濾網（資料驅動；2026-07-22 飆股5訊號/3條件全數拆散進三階段）──
+//   [checkbox id, state key, chip 標籤, row 檢查(通過=保留)]；勾=必須成立(否決類=必須不成立)。
+const STAGE_FLAGS = [
+  // 🌱醞釀
+  ['sig-s1',         'fS1',          'S1長底',       r => r.s1 === 1],
+  ['sr-clear-and',   'srClear',      '✅上檔無壓',    r => /✅/.test(r.sr_overhead || '')],
+  // 🚀發動
+  ['sig-s2',         'fS2',          'S2爆量',       r => r.s2 === 1],
+  ['sig-s4',         'fS4',          'S4突破',       r => r.s4 === 1],
+  ['sig-s5',         'fS5',          'S5題材',       r => r.s5 === 1],
+  ['sig-c3',         'fC3',          'C3進場點',     r => r.c3 === 1],
+  ['sig-ma60b',      'fMa60B',       '季線突破',     r => r.mainup_ma60 === 1],
+  // 📈趨勢確認
+  ['sig-s3',         'fS3',          'S3多排',       r => r.s3 === 1],
+  ['sig-c1',         'fC1',          'C1多頭',       r => r.c1 === 1],
+  ['sig-c2',         'fC2',          'C2黃金交叉',   r => r.c2 === 1],
+  // 📈持有否決
+  ['excl-gapfill',   'exclGapFill',  '排除缺口被補', r => !/被補|已補/.test(r.gap_state || '')],
+  ['excl-islandtop', 'exclIslandTop', '排除頂島',    r => !r.island_top],
+];
+STAGE_FLAGS.forEach(([, k]) => { state[k] = false; });
+
 // el = 直立三欄面板中該階段的 chips 容器（index.html .stage-col 內）；風險/其他在底列。
 const CAT_GROUPS = [
   { title: '🌱 醞釀(還沒突破)', hint: '蓄勢打底+主力吸籌', el: 'stage-chips-brew',
@@ -1115,6 +1138,7 @@ function applyFilters() {
     if (state.instStreak3 && !((row.inst_streak ?? 0) >= 3)) return false; // 🌱法人連買≥3日
     if (state.boGood && !(row.bo_state && String(row.bo_state).startsWith('✅'))) return false; // 🚀✅真突破
     if (state.exclSrBreak && row.sr_state && String(row.sr_state).includes('⛔')) return false; // 📈排除破支撐
+    for (const [, sk, , sTest] of STAGE_FLAGS) if (state[sk] && !sTest(row)) return false;      // 三階段資料驅動濾網
 
     // 島狀反轉：top=頂部(出場/做空)｜bottom=底部(進場/做多)｜any=任一
     if (state.islandMode === 'top' && !row.island_top) return false;
@@ -1182,6 +1206,7 @@ function renderActiveFilters() {
   if (state.instStreak3) add('instStreak3', '法人連買≥3');
   if (state.boGood) add('boGood', '✅真突破');
   if (state.exclSrBreak) add('exclSrBreak', '排除破支撐');
+  STAGE_FLAGS.forEach(([, k, label]) => { if (state[k]) add('sf:' + k, label); });
   if (state.islandMode !== 'off') add('island', `島狀:${ISLAND_MODE_LABEL[state.islandMode]}`);
   if (state.patternSignals.size) add('pattern', `型態:${state.patternSignals.size}訊號`);
   if (state.dimSelected.size) add('dim', `${DIM_LABEL[state.dim]}:${state.dimSelected.size}`);
@@ -1214,20 +1239,27 @@ function renderActiveFilters() {
 
 function updateGroupCounts() {
   const set = (id, n) => { const e = document.getElementById(id); if (e) e.textContent = n ? ` ${n}` : ''; };
-  set('fgc-cat', state.selectedCats.size);
-  set('fgc-mainup', (state.mainupMode !== 'off' ? 1 : 0) +
-                    (state.mainupEntry ? 1 : 0) + (state.mainupExclDist ? 1 : 0) +
-                    (state.deductTurn ? 1 : 0) + (state.deductUp2 ? 1 : 0) + (state.deductExclWarn ? 1 : 0) +
-                    (state.weeklyLit ? 1 : 0) + (state.instStreak3 ? 1 : 0) +
-                    (state.boGood ? 1 : 0) + (state.exclSrBreak ? 1 : 0) +
-                    (state.islandMode !== 'off' ? 1 : 0) +
-                    (state.patternSignals.size ? 1 : 0));
+  // 主升面板已併入三階段（2026-07-22）：全部條件計入 fgc-cat
+  set('fgc-cat', state.selectedCats.size +
+                 (state.mainupMode !== 'off' ? 1 : 0) +
+                 (state.mainupEntry ? 1 : 0) + (state.mainupExclDist ? 1 : 0) +
+                 (state.deductTurn ? 1 : 0) + (state.deductUp2 ? 1 : 0) + (state.deductExclWarn ? 1 : 0) +
+                 (state.weeklyLit ? 1 : 0) + (state.instStreak3 ? 1 : 0) +
+                 (state.boGood ? 1 : 0) + (state.exclSrBreak ? 1 : 0) +
+                 (state.patternSignals.size ? 1 : 0) +
+                 STAGE_FLAGS.filter(f => state[f[1]]).length);
   set('fgc-dim', state.dimSelected.size);
   set('fgc-thresh', (state.scoreMin > 0 ? 1 : 0) + (state.rsMin > 0 ? 1 : 0) +
                     (state.distRiskMax != null ? 1 : 0) + (state.groupZMin != null ? 1 : 0));
 }
 
 function removeFilter(key) {
+  if (key.startsWith('sf:')) {                 // 三階段資料驅動濾網
+    const f = STAGE_FLAGS.find(x => 'sf:' + x[1] === key);
+    if (f) { state[f[1]] = false; const e = document.getElementById(f[0]); if (e) e.checked = false; }
+    applyFilters();
+    return;
+  }
   switch (key) {
     case 'cat':
       state.selectedCats.clear();
@@ -1235,7 +1267,7 @@ function removeFilter(key) {
       break;
     case 'mainup':
       state.mainupMode = 'off';
-      document.querySelector('input[name="mainup-mode"][value="off"]').checked = true;
+      { const r0 = document.querySelector('input[name="mainup-mode"][value="off"]'); if (r0) r0.checked = true; }  // radios已移除,防呆
       { const s = document.getElementById('mainup-signals'); if (s) s.hidden = true; }
       break;
     case 'mainupEntry':
@@ -1373,6 +1405,16 @@ function bindControls() {
     const b = document.getElementById('preset-' + k);
     if (b) b.addEventListener('click', () => applyStagePreset(k));
   });
+  // 三階段資料驅動濾網勾選
+  STAGE_FLAGS.forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', e => { state[key] = e.target.checked; applyFilters(); });
+  });
+  // 朱家泓一鍵（原主升 A/B 模式，radios 已移除、狀態機保留）
+  const pA = document.getElementById('preset-modeA');
+  if (pA) pA.addEventListener('click', () => { clearAllFilters(); state.mainupMode = 'A'; applyFilters(); });
+  const pB = document.getElementById('preset-modeB');
+  if (pB) pB.addEventListener('click', () => { clearAllFilters(); state.mainupMode = 'B'; applyFilters(); });
 
   // 島狀反轉模式 radio
   document.querySelectorAll('input[name="island-mode"]').forEach(r => {
@@ -1606,6 +1648,8 @@ function clearAllFilters() {
   ['weekly-lit', 'inst-streak3', 'bo-good', 'excl-srbreak'].forEach(id => {
     const e = document.getElementById(id); if (e) e.checked = false;
   });
+  STAGE_FLAGS.forEach(([id, k]) => { state[k] = false;
+    const e = document.getElementById(id); if (e) e.checked = false; });
   const islOff = document.querySelector('input[name="island-mode"][value="off"]'); if (islOff) islOff.checked = true;
   document.querySelector('input[name="dim"][value="industry"]').checked = true;
   document.getElementById('dim-search').value = '';

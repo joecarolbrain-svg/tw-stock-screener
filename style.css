@@ -1307,3 +1307,19 @@ footer {
 @media (max-width: 900px) {
   .stage-grid { grid-template-columns: 1fr; }
 }
+.stage-sub {
+  font-size: 11px;
+  color: #8899aa;
+  font-weight: 700;
+  letter-spacing: .5px;
+}
+.stage-pat-row { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.stage-pat-row label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.stage-pats { margin-bottom: 6px; }
+.stage-oneclick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}

@@ -568,11 +568,16 @@ function renderMeta(d) {
 // 2026-07-22 重設計：三階段(時間軸)+風險。「籌碼/族群」不是階段是證據——
 // M_Accumulate 歸醞釀、GroupResonance 跨階段(落到🏷其他,卡片上有🔥族群標)。
 // 每階段該看的確認/否決訊號集中在對應的階段區塊(index.html stage-blk)。
+// el = 直立三欄面板中該階段的 chips 容器（index.html .stage-col 內）；風險/其他在底列。
 const CAT_GROUPS = [
-  { title: '🌱 醞釀(還沒突破)', hint: '蓄勢打底+主力吸籌', codes: ['A_VCP', 'A_Coil', 'N_NearHigh', 'R_Neckline', 'M_Accumulate'] },
-  { title: '🚀 發動(突破中)',   hint: '剛突破、發動點',     codes: ['B_Day0', 'B_Recent', 'R_Breakout'] },
-  { title: '📈 趨勢(突破後持有)', hint: '沿均線續攻、持有管理', codes: ['S_MA3Rider', 'S_MA5Rider'] },
-  { title: '👁 風險/觀察',      hint: '謹慎、別追',         codes: ['P_Watch', 'P_PunishExit', 'P_PostExit'] },
+  { title: '🌱 醞釀(還沒突破)', hint: '蓄勢打底+主力吸籌', el: 'stage-chips-brew',
+    codes: ['A_VCP', 'A_Coil', 'N_NearHigh', 'R_Neckline', 'M_Accumulate'] },
+  { title: '🚀 發動(突破中)',   hint: '剛突破、發動點',     el: 'stage-chips-launch',
+    codes: ['B_Day0', 'B_Recent', 'R_Breakout'] },
+  { title: '📈 趨勢(突破後持有)', hint: '沿均線續攻、持有管理', el: 'stage-chips-trend',
+    codes: ['S_MA3Rider', 'S_MA5Rider'] },
+  { title: '👁 風險/觀察',      hint: '謹慎、別追',         el: 'stage-chips-risk',
+    codes: ['P_Watch', 'P_PunishExit', 'P_PostExit'] },
 ];
 
 function _makeCatChip(c) {
@@ -599,34 +604,30 @@ function _makeCatChip(c) {
 }
 
 function renderCategoryChips(cats) {
-  const container = document.getElementById('cat-checkboxes');
-  container.innerHTML = '';
+  // 直立三階段面板：每階段的 chips 填進自己的 .stage-col 容器（標題在靜態 HTML），
+  // 只清 chips 容器本身 → 同欄的靜態訊號勾選/精選鈕不受重渲染影響。
   const byCode = {};
   cats.forEach(c => { byCode[c.code] = c; });
   const placed = new Set();
 
-  const renderGroup = (title, hint, items) => {
+  const fill = (elId, items) => {
+    const box = document.getElementById(elId);
+    if (!box) return;
+    box.innerHTML = '';
     const shown = items.filter(c => c && c.count > 0);   // 無命中不顯示
-    if (!shown.length) return;
-    const g = document.createElement('div');
-    g.className = 'cat-group';
-    const head = document.createElement('div');
-    head.className = 'cat-group-head';
-    head.innerHTML = `${title}<span class="cat-group-hint">${hint}</span>`;
-    const chips = document.createElement('div');
-    chips.className = 'cat-group-chips';
-    shown.forEach(c => chips.appendChild(_makeCatChip(c)));
-    g.appendChild(head); g.appendChild(chips);
-    container.appendChild(g);
+    if (!shown.length) {
+      box.innerHTML = '<span class="muted" style="font-size:11px">（今日無命中）</span>';
+      return;
+    }
+    shown.forEach(c => box.appendChild(_makeCatChip(c)));
   };
 
   CAT_GROUPS.forEach(grp => {
     grp.codes.forEach(code => placed.add(code));
-    renderGroup(grp.title, grp.hint, grp.codes.map(code => byCode[code]));
+    fill(grp.el, grp.codes.map(code => byCode[code]));
   });
-  // 未歸類的新代碼 → 其他
-  const others = cats.filter(c => !placed.has(c.code));
-  if (others.length) renderGroup('🏷 其他', '', others);
+  // 未歸類的新代碼 → 其他（底列）
+  fill('stage-chips-other', cats.filter(c => !placed.has(c.code)));
 }
 
 // ── 4. 渲染維度選項（三維度切換 + 搜尋） ─────────────

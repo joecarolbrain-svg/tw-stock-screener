@@ -1253,3 +1253,57 @@ footer {
 .sc-maint.mt-safe  { border-left-color: #6b7280; }
 .sv-maint.mt-loose { border-left-color: #9aa4b5; }
 .sv-maint.mt-safe  { border-left-color: #6b7280; }
+
+/* ── 三階段直立面板（2026-07-22 重設計：階段 × 各自掛證據）─────────── */
+.stage-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.stage-col {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, .02);
+}
+.stage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 13px;
+  color: #00d4aa;
+}
+.stage-preset { font-size: 11px; padding: 2px 8px; }
+.stage-hint { font-size: 11px; margin: 2px 0 6px; }
+.stage-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+  min-height: 22px;
+}
+.stage-sigs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  border-top: 1px dashed var(--border);
+  padding-top: 6px;
+}
+.stage-sigs label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+.stage-sigs select { font-size: 12px; }
+.stage-bottom {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+.stage-mini-t { font-size: 12px; color: #8899aa; font-weight: 700; }
+.stage-bottom .stage-chips { margin-bottom: 0; display: inline-flex; }
+@media (max-width: 900px) {
+  .stage-grid { grid-template-columns: 1fr; }
+}

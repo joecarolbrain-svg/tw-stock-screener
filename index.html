@@ -107,7 +107,7 @@
     </div>
     <!-- 第二層：進階條件與管理 -->
     <div class="filter-row group-bar group-bar-2nd">
-      <button class="fg-toggle" data-group="cat">分類<span class="fg-count" id="fgc-cat"></span></button>
+      <button class="fg-toggle" data-group="cat">三階段<span class="fg-count" id="fgc-cat"></span></button>
       <button class="fg-toggle" data-group="mainup">主升<span class="fg-count" id="fgc-mainup"></span></button>
       <button class="fg-toggle" data-group="dim">維度<span class="fg-count" id="fgc-dim"></span></button>
       <button class="fg-toggle" data-group="thresh">門檻<span class="fg-count" id="fgc-thresh"></span></button>
@@ -123,9 +123,54 @@
       <span id="pin-summary" class="muted"></span>
     </div>
 
-    <!-- 分類 -->
+    <!-- 三階段（2026-07-22 直立重設計：階段 × 各自掛證據，一欄=分類+該階段訊號+⚡精選） -->
     <div class="fg-body" data-group="cat" hidden>
-      <div id="cat-checkboxes" class="cat-grid"></div>
+      <div class="stage-grid">
+        <div class="stage-col">
+          <div class="stage-head">🌱 醞釀(還沒突破)
+            <button type="button" id="preset-brew" class="btn btn-ghost stage-preset" title="一鍵＝醞釀分類 ∩ 扣抵轉揚 ∩ 法人連買≥3（單項已實證、組合待驗）">⚡精選</button></div>
+          <div class="stage-hint muted">蓄勢打底+主力吸籌，等的就是轉多前兆</div>
+          <div class="stage-chips" id="stage-chips-brew"></div>
+          <div class="stage-sigs">
+            <label title="MA5/20/60 三線明日皆將上彎＝領先版均線多頭排列（全市場11年實證 fwd20 +2.42%／edge +1.2）"><input type="checkbox" id="deduct-turn-up" /> 🔥扣抵轉揚↑</label>
+            <label title="MA5/20/60 至少兩條明日上彎（較寬條件，實證 edge 0→3 條單調遞增）"><input type="checkbox" id="deduct-up2" /> 上彎≥2條</label>
+            <label title="週爆量∩週多排（B1 週線版訊號，波段視角）"><input type="checkbox" id="weekly-lit" /> 週線亮燈</label>
+            <label title="三大法人合計連續買超 ≥3 天（雜訊過濾門檻）"><input type="checkbox" id="inst-streak3" /> 法人連買≥3日</label>
+          </div>
+        </div>
+        <div class="stage-col">
+          <div class="stage-head">🚀 發動(突破中)
+            <button type="button" id="preset-launch" class="btn btn-ghost stage-preset" title="一鍵＝發動分類 ∩ ✅真突破（bt_breakout 11年2367檔校準）">⚡精選</button></div>
+          <div class="stage-hint muted">突破品質濾網：強K+濾爆量（不是放量）</div>
+          <div class="stage-chips" id="stage-chips-launch"></div>
+          <div class="stage-sigs">
+            <label title="突破狀態=✅（強K非爆量的當日突破，或回測前高撐住確認）；⚠訊號弱／⛔假突破不入選"><input type="checkbox" id="bo-good" /> ✅真突破(強K非爆量)</label>
+            <label title="朱家泓兩個起漲位置：回後買上漲／盤整突破">進場型態
+              <select id="mainup-entry">
+                <option value="">不限</option>
+                <option value="回後買上漲">回後買上漲</option>
+                <option value="盤整突破">盤整突破</option>
+                <option value="⚠過高勿追">⚠過高勿追</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="stage-col">
+          <div class="stage-head">📈 趨勢(突破後持有)
+            <button type="button" id="preset-trend" class="btn btn-ghost stage-preset" title="一鍵＝趨勢分類 ∩ 無陰跌 ∩ 無出貨 ∩ 未破支撐">⚡體檢</button></div>
+          <div class="stage-hint muted">持有體檢：三個否決訊號，複盤手上部位</div>
+          <div class="stage-chips" id="stage-chips-trend"></div>
+          <div class="stage-sigs">
+            <label title="剔除「價未跌但月/季線將下彎」的陰跌股（實證同級多頭中 fwd20 少約1pp）"><input type="checkbox" id="deduct-excl-warn" /> 排除陰跌⚠</label>
+            <label title="剔除高檔爆量收弱的出貨警訊股"><input type="checkbox" id="mainup-excl-dist" /> 排除出貨⚠</label>
+            <label title="剔除收盤跌破最近支撐(⛔)的股票"><input type="checkbox" id="excl-srbreak" /> 排除破支撐⛔</label>
+          </div>
+        </div>
+      </div>
+      <div class="stage-bottom">
+        <span class="stage-mini-t">👁 風險/觀察</span><div class="stage-chips" id="stage-chips-risk"></div>
+        <span class="stage-mini-t" style="margin-left:14px">🏷 其他</span><div class="stage-chips" id="stage-chips-other"></div>
+      </div>
       <div class="mode-toggle">
         <label><input type="radio" name="mode" value="OR" checked /> OR（聯集）</label>
         <label><input type="radio" name="mode" value="AND" /> AND（交集）</label>
@@ -196,41 +241,8 @@
           <label title="收盤跌破最近支撐(MA20/60/大量紅K低/箱下緣最近者)＝風險路徑警示，用於剔除或觀察"><input type="checkbox" name="pattern-sig" value="sr_break" /> ⛔跌破支撐</label>
         </div>
       </div>
-      <!-- 2026-07-22 三階段訊號區：每階段配「該階段該看的訊號」+一鍵精選；全部 AND 疊加、任何模式皆生效 -->
-      <div class="mu-block stage-blk">
-        <div class="mu-head">🌱 醞釀(還沒突破) <span class="mu-hint">蓄勢期確認訊號</span>
-          <button type="button" id="preset-brew" class="btn btn-ghost" style="font-size:11px;margin-left:8px" title="一鍵＝醞釀分類 ∩ 扣抵轉揚 ∩ 法人連買≥3（單項已實證、組合待驗）">⚡醞釀精選</button></div>
-        <div class="mu-flow" style="flex-wrap:wrap">
-          <label title="MA5/20/60 三線明日皆將上彎＝領先版均線多頭排列（全市場11年實證 fwd20 +2.42%／edge +1.2）"><input type="checkbox" id="deduct-turn-up" /> 🔥扣抵轉揚↑</label>
-          <label title="MA5/20/60 至少兩條明日上彎（較寬條件，實證 edge 0→3 條單調遞增）"><input type="checkbox" id="deduct-up2" /> 上彎≥2條</label>
-          <label title="週爆量∩週多排（B1 週線版訊號，波段視角）"><input type="checkbox" id="weekly-lit" /> 週線亮燈</label>
-          <label title="三大法人合計連續買超 ≥3 天（雜訊過濾門檻）"><input type="checkbox" id="inst-streak3" /> 法人連買≥3日</label>
-        </div>
-      </div>
-      <div class="mu-block stage-blk">
-        <div class="mu-head">🚀 發動(突破中) <span class="mu-hint">突破品質濾網（實證：強K+濾爆量，不是放量）</span>
-          <button type="button" id="preset-launch" class="btn btn-ghost" style="font-size:11px;margin-left:8px" title="一鍵＝發動分類 ∩ ✅真突破（bt_breakout 11年2367檔校準）">⚡發動精選</button></div>
-        <div class="mu-flow" style="flex-wrap:wrap">
-          <label title="突破狀態=✅（強K非爆量的當日突破，或回測前高撐住確認）；⚠訊號弱／⛔假突破不入選"><input type="checkbox" id="bo-good" /> ✅真突破(強K非爆量)</label>
-          <label>進場型態
-            <select id="mainup-entry">
-              <option value="">不限</option>
-              <option value="回後買上漲">回後買上漲</option>
-              <option value="盤整突破">盤整突破</option>
-              <option value="⚠過高勿追">⚠過高勿追</option>
-            </select>
-          </label>
-        </div>
-      </div>
-      <div class="mu-block stage-blk">
-        <div class="mu-head">📈 趨勢(突破後持有) <span class="mu-hint">持有體檢：三個否決訊號，複盤手上部位用</span>
-          <button type="button" id="preset-trend" class="btn btn-ghost" style="font-size:11px;margin-left:8px" title="一鍵＝趨勢分類 ∩ 無陰跌 ∩ 無出貨 ∩ 未破支撐">⚡持有體檢</button></div>
-        <div class="mu-flow" style="flex-wrap:wrap">
-          <label title="剔除「價未跌但月/季線將下彎」的陰跌股（實證同級多頭中 fwd20 少約1pp）"><input type="checkbox" id="deduct-excl-warn" /> 排除陰跌⚠</label>
-          <label title="剔除高檔爆量收弱的出貨警訊股"><input type="checkbox" id="mainup-excl-dist" /> 排除出貨⚠</label>
-          <label title="剔除收盤跌破最近支撐(⛔)的股票"><input type="checkbox" id="excl-srbreak" /> 排除破支撐⛔</label>
-        </div>
-      </div>
+      <!-- 三階段訊號區已移至「三階段」直立面板（fg-body[data-group=cat]），2026-07-22 -->
+
       <span class="muted" style="font-size:11px">自訂模式：勾選旗標全中才留（S1×S4/C1 互斥，建議取消）；三階段訊號區全部 AND 疊加、任何模式皆生效，⚡精選鈕＝一鍵套用該階段分類+訊號組合</span>
     </div>
 

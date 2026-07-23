@@ -1609,3 +1609,24 @@ body.ui-v2 {
 .v2-drawer.v2-gate-on .v2-step[data-key="launch"]::after {
   content: "⚠"; position: absolute; top: -6px; right: -3px; font-size: 12px;
 }
+
+/* ═══ 20260723i：快速鈕 chips 化 + 計數徽章（v2）═══ */
+.ui-v2 .check-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 14px; padding: 3px 11px;
+  font-size: 12px; color: var(--text-dim);
+  cursor: pointer; user-select: none; white-space: nowrap;
+}
+.ui-v2 .check-toggle:hover { border-color: var(--border-hi); color: var(--text); }
+.ui-v2 .check-toggle input { display: none; }
+.ui-v2 .check-toggle:has(input:checked) {
+  background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600;
+}
+.qt-n {
+  font-size: 10px; color: var(--text-mut); font-variant-numeric: tabular-nums;
+  background: rgba(255, 255, 255, .06); border-radius: 8px; padding: 0 5px; margin-left: 2px;
+}
+.ui-v2 .check-toggle:has(input:checked) .qt-n { color: var(--accent); background: rgba(95, 168, 245, .18); }
+.ui-v2 .pv-btn { border-radius: 14px; }
+.ui-v2 .pv-btn .qt-n { margin-left: 4px; }

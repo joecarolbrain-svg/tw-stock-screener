@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260723h';
+const APP_VERSION = '20260723i';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -616,6 +616,7 @@ function updateSnapshotReso() {
   if (!v || !state.data) return;
   const n = (state.data.rows || []).filter(r => _resoCount(r) >= 2).length;
   v.textContent = `${n} 檔`;
+  updateQuickCounts();   // 共振資料到位 → 快速鈕「只看共振」計數才正確
 }
 
 // ── 2. 初始化 Header / Meta ─────────────────────────
@@ -667,6 +668,9 @@ function renderMeta(d) {
 
   // ── P3-⑭ 大盤閘門（v2 版面；v1 沿用 bear-hint）──
   updateV2Gatebar();
+
+  // ── 20260723i 快速鈕計數（法人/融資已載入；共振數等 reso 到位後再刷一次）──
+  updateQuickCounts();
 
   // ── P1-⑨ 今昨 diff（背景載入前一日，算 +上榜/−掉出）──
   loadBoardDiff();
@@ -5090,4 +5094,49 @@ function renderZeroSuggest(visible) {
   const ca = el.querySelector('#zs-clear-all');
   if (ca) ca.addEventListener('click', () => { const b = document.getElementById('btn-clear'); if (b) b.click(); });
   el.hidden = false;
+}
+
+// ═════════════════════════════════════════════════════════
+//  20260723i：快速鈕計數 — 每顆快捷鈕顯示「在榜股中符合該條件的檔數」
+//  （獨立計數、非交集；點下去前先知道會剩多少的量級）
+// ═════════════════════════════════════════════════════════
+const QUICK_COUNT_DEFS = [
+  ['only-resonance',   r => _resoCount(r) >= 2],
+  ['only-hot-group',   r => r.max_group_z != null && r.max_group_z >= 1],
+  ['only-inst-buy',    r => (r.foreign_streak || 0) >= 1 || (r.trust_streak || 0) >= 1],
+  ['only-chip-bull',   r => chipAdvice(r).bullish],
+  ['only-maint-alert', r => !!maintState.map[String(r.ticker)]],
+  ['only-stf',         r => !!(r.stf || r.stf_mini)],
+  ['only-red-k',       r => !!r.is_red_k],
+  ['only-vol-up',      r => (r.vol_ratio || 0) >= 1.2 || !!r.is_limit_locked || !!r.is_disposition],
+];
+
+function _qtTag(host) {
+  let tag = host.querySelector('.qt-n');
+  if (!tag) { tag = document.createElement('span'); tag.className = 'qt-n'; host.appendChild(tag); }
+  return tag;
+}
+
+function updateQuickCounts() {
+  if (!state.data) return;
+  const board = (state.data.rows || []).filter(r => (r.categories || []).length);
+  QUICK_COUNT_DEFS.forEach(([id, test]) => {
+    const input = document.getElementById(id);
+    const lab = input && input.closest('.check-toggle');
+    if (!lab) return;
+    let n = 0;
+    board.forEach(r => { try { if (test(r)) n++; } catch (_) {} });
+    _qtTag(lab).textContent = n;
+  });
+  // 延續快捷（🆕/🔥/⚠️）計數：與 persistBucket 三分段一致
+  const buckets = { new: 0, warm: 0, weak: 0 };
+  board.forEach(r => {
+    const b = persistBucket(r);
+    const sec = (b === 'surge' || b === 'flat') ? 'warm' : (b === 'fade' ? 'weak' : b);
+    if (sec && buckets[sec] != null) buckets[sec]++;
+  });
+  const pvMap = { new: 'new', surge: 'warm', fade: 'weak' };
+  document.querySelectorAll('#persist-views .pv-btn').forEach(b => {
+    _qtTag(b).textContent = buckets[pvMap[b.dataset.pv]] ?? '';
+  });
 }

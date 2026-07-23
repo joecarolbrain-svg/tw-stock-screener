@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260723i';
+const APP_VERSION = '20260723j';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -4855,6 +4855,54 @@ function buildV2Layout() {
   const mode = catBody.querySelector('.mode-toggle');
   if (mode) drawer.appendChild(mode);
   drawer.hidden = false;
+
+  // ── 20260723j：第一排三段分工 + ⚙進階收合 + 卡片密度切換 + 分組小標 ──
+  const bar1 = document.querySelector('.filter-row.group-bar:not(.group-bar-2nd)');
+  const bar2 = document.querySelector('.group-bar-2nd');
+  if (bar1 && bar2) {
+    // ⚙ 進階：第二排（維度/門檻/組合/清除/只看勾選）預設收合
+    bar2.style.display = 'none';
+    const adv = document.createElement('button');
+    adv.type = 'button'; adv.className = 'btn btn-ghost'; adv.id = 'adv-toggle';
+    adv.textContent = '⚙ 進階';
+    adv.title = '維度 / 門檻 / 組合 / 清除全部 / 只看勾選';
+    adv.addEventListener('click', () => {
+      const show = bar2.style.display === 'none';
+      bar2.style.display = show ? '' : 'none';
+      adv.classList.toggle('active', show);
+    });
+    bar1.appendChild(adv);
+
+    // 卡片密度：緊湊(mockup三行) ⇄ 完整；v2 預設緊湊、記憶選擇
+    const dens = document.createElement('button');
+    dens.type = 'button'; dens.className = 'btn btn-ghost'; dens.id = 'density-toggle';
+    const setDens = (compact) => {
+      const mc = document.getElementById('main-cards');
+      if (mc) mc.classList.toggle('compact', compact);
+      dens.textContent = compact ? '▤ 緊湊' : '☰ 完整';
+      dens.classList.toggle('active', compact);
+      localStorage.setItem('cards_density', compact ? 'compact' : 'full');
+    };
+    dens.addEventListener('click', () => {
+      const mc = document.getElementById('main-cards');
+      setDens(!(mc && mc.classList.contains('compact')));
+    });
+    bar1.appendChild(dens);
+    setDens(localStorage.getItem('cards_density') !== 'full');
+
+    // 快速鈕分組小標（取代細分隔線）
+    const cap = (txt, beforeEl) => {
+      if (!beforeEl) return;
+      const s = document.createElement('span');
+      s.className = 'qt-cap'; s.textContent = txt;
+      beforeEl.parentElement.insertBefore(s, beforeEl);
+    };
+    const _byId = (id) => { const e = document.getElementById(id); return e && e.closest('.check-toggle'); };
+    cap('強度', _byId('only-resonance'));
+    cap('風險', _byId('only-maint-alert'));
+    cap('量價', _byId('only-red-k'));
+    cap('延續', document.getElementById('persist-views'));
+  }
 
   v2Built = true;
   refreshV2Stepper();

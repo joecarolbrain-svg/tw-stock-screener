@@ -1630,3 +1630,38 @@ body.ui-v2 {
 .ui-v2 .check-toggle:has(input:checked) .qt-n { color: var(--accent); background: rgba(95, 168, 245, .18); }
 .ui-v2 .pv-btn { border-radius: 14px; }
 .ui-v2 .pv-btn .qt-n { margin-left: 4px; }
+
+/* ═══ 20260723j：五項呈現優化（v2）═══ */
+/* ② 第一排三段分工：搜尋左 / chips 中 / 檢視控制右 */
+.ui-v2 .group-bar { gap: 8px; align-items: center; }
+.ui-v2 .group-bar .filler { order: 50; }
+.ui-v2 .group-bar #main-viewtoggle { order: 90; }
+.ui-v2 .group-bar #main-card-sort { order: 91; }
+.ui-v2 .group-bar #density-toggle { order: 92; }
+.ui-v2 .group-bar #adv-toggle { order: 93; }
+.ui-v2 .group-bar #filter-summary { order: 94; }
+.ui-v2 .group-bar .qt-sep { display: none; }
+/* ⑤ 分組小標 */
+.qt-cap { font-size: 10px; color: var(--text-mut); letter-spacing: 2px; align-self: center; margin: 0 2px 0 6px; }
+.ui-v2 #adv-toggle.active, .ui-v2 #density-toggle.active { color: var(--accent); border-color: var(--accent); }
+
+/* ① 卡片緊湊模式（mockup 三行）：藏重內容，「☰ 完整」一鍵展開 */
+.ui-v2 #main-cards.compact .main-card .sc-chip,
+.ui-v2 #main-cards.compact .main-card .sc-maint,
+.ui-v2 #main-cards.compact .main-card .sc-deduct,
+.ui-v2 #main-cards.compact .main-card .sc-trade,
+.ui-v2 #main-cards.compact .main-card .sc-reso,
+.ui-v2 #main-cards.compact .main-card .sc-detail { display: none; }
+.ui-v2 #main-cards.compact .main-card { padding: 9px 12px; }
+
+/* ③ Tabulator 表格皮膚對齊 v2（覆蓋 midnight 主題） */
+.ui-v2 .tabulator { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
+.ui-v2 .tabulator .tabulator-header,
+.ui-v2 .tabulator .tabulator-header .tabulator-col { background: var(--panel-2); border-color: var(--border); color: var(--text-dim); }
+.ui-v2 .tabulator .tabulator-header .tabulator-col-title { color: var(--text-dim); }
+.ui-v2 .tabulator-row { background: var(--panel); border-color: #1B2436; color: var(--text); }
+.ui-v2 .tabulator-row.tabulator-row-even { background: #141B29; }
+.ui-v2 .tabulator-row.tabulator-selectable:hover { background: var(--panel-3); }
+.ui-v2 .tabulator .tabulator-footer { background: var(--panel-2); border-color: var(--border); color: var(--text-dim); }
+.ui-v2 .tabulator .tabulator-footer .tabulator-page { background: transparent; color: var(--text-dim); border-color: var(--border); }
+.ui-v2 .tabulator .tabulator-footer .tabulator-page.active { color: var(--accent); border-color: var(--accent); }

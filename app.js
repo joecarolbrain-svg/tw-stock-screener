@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260705h';
+const APP_VERSION = '20260723d';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -283,9 +283,35 @@ const watchState = {
 function savePinned() {
   localStorage.setItem('pinnedTickers', JSON.stringify([...state.pinned]));
 }
+
+// ── P3-⑬ 決策對帳：⭐標記時記下「標記日+當日收盤」，之後算至今報酬 ──
+//   基準=標記當下瀏覽的交易日收盤（回看歷史日標記就以那天為基準）。
+//   舊有標記（升級前）無 meta → 顯示「—」，不亂補日期。
+const pinnedMeta = JSON.parse(localStorage.getItem('pinnedMeta') || '{}');
+function savePinnedMeta() { localStorage.setItem('pinnedMeta', JSON.stringify(pinnedMeta)); }
+function clearPinnedMeta() {
+  Object.keys(pinnedMeta).forEach(k => delete pinnedMeta[k]);
+  savePinnedMeta();
+}
+function _pinRetPct(ticker, closeNow) {
+  const pm = pinnedMeta[ticker];
+  if (!pm || pm.c == null || closeNow == null || !(pm.c > 0)) return null;
+  return (closeNow - pm.c) / pm.c * 100;
+}
+
 function togglePin(ticker) {
-  if (state.pinned.has(ticker)) state.pinned.delete(ticker);
-  else state.pinned.add(ticker);
+  if (state.pinned.has(ticker)) {
+    state.pinned.delete(ticker);
+    delete pinnedMeta[ticker];
+  } else {
+    state.pinned.add(ticker);
+    const row = ((state.data && state.data.rows) || []).find(r => String(r.ticker) === String(ticker));
+    pinnedMeta[ticker] = {
+      d: currentDate ? fmtDate8(currentDate) : '',
+      c: row && row.close != null ? Number(row.close) : null,
+    };
+  }
+  savePinnedMeta();
   savePinned();
   updatePinSummary();
   if (state.table) {
@@ -467,7 +493,7 @@ function renderSnapshot(d, mkt) {
   if (cs?.available) {
     const score = cs.composite_score;
     const bull = score != null && score > 0;
-    tiles.push(`<div class="ms-tile ${score != null ? (bull ? 'ms-state-bull' : 'ms-state-bear') : ''}">
+    tiles.push(`<div class="ms-tile ${score != null ? (bull ? 'ms-state-bull' : 'ms-state-bear') : ''}" data-g="anchor">
       <span class="ms-k">🏛 大盤籌碼</span>
       <span class="ms-v">${cs.state || '--'}<small>${score != null ? (score >= 0 ? '+' : '') + Number(score).toFixed(1) : ''}</small></span>
       <span class="ms-sub">現貨 ${cs.equity_date || '--'}｜期貨 ${cs.futures_date || '--'}</span>
@@ -478,7 +504,7 @@ function renderSnapshot(d, mkt) {
   const br = d.breadth;
   if (br && br.total) {
     const upPct = (br.up / br.total * 100).toFixed(0);
-    tiles.push(`<div class="ms-tile">
+    tiles.push(`<div class="ms-tile" data-g="spot">
       <span class="ms-k">📶 漲跌家數</span>
       <span class="ms-v"><span class="pos">${br.up}</span><small>／</small><span class="neg">${br.down}</span></span>
       <div class="ms-bar"><span class="up" style="flex:${br.up}"></span><span class="down" style="flex:${br.down}"></span></div>
@@ -488,24 +514,24 @@ function renderSnapshot(d, mkt) {
 
   // ③④⑤ 法人 z 分數
   if (cs?.available) {
-    tiles.push(`<div class="ms-tile">
+    tiles.push(`<div class="ms-tile" data-g="spot">
       <span class="ms-k">🌏 外資現貨 z</span>
       <span class="ms-v ${_msZCls(cs.fo_z)}">${_msFmtZ(cs.fo_z)}</span>
       <span class="ms-sub">${cs.fo_value != null ? Number(cs.fo_value).toLocaleString() + ' 百萬' : ''}</span>
     </div>`);
-    tiles.push(`<div class="ms-tile">
+    tiles.push(`<div class="ms-tile" data-g="spot">
       <span class="ms-k">🏦 投信現貨 z</span>
       <span class="ms-v ${_msZCls(cs.ic_z)}">${_msFmtZ(cs.ic_z)}</span>
       <span class="ms-sub">${cs.ic_value != null ? Number(cs.ic_value).toLocaleString() + ' 百萬' : ''}</span>
     </div>`);
-    tiles.push(`<div class="ms-tile">
+    tiles.push(`<div class="ms-tile" data-g="deriv">
       <span class="ms-k">📜 外資期貨 z</span>
       <span class="ms-v ${_msZCls(cs.fu_z)}">${_msFmtZ(cs.fu_z)}</span>
       <span class="ms-sub">${cs.fu_value != null ? '淨OI ' + Number(cs.fu_value).toLocaleString() + ' 口' : ''}</span>
     </div>`);
     if (cs.pcr != null) {
       const pcrCls = (cs.pcr > 1.3 || cs.pcr < 0.7) ? 'warn' : '';
-      tiles.push(`<div class="ms-tile">
+      tiles.push(`<div class="ms-tile" data-g="deriv">
         <span class="ms-k">⚖️ PCR</span>
         <span class="ms-v ${pcrCls}">${Number(cs.pcr).toFixed(2)}</span>
         <span class="ms-sub">${cs.pcr > 1.3 ? '偏空保護濃' : cs.pcr < 0.7 ? '過度樂觀' : '中性'}</span>
@@ -516,12 +542,12 @@ function renderSnapshot(d, mkt) {
   // ⑥ 法人連買廣度（export_market 的 inst_breadth；連買/連賣 ≥3 天家數）
   const ib = mkt?.inst_breadth;
   if (ib && ib.universe) {
-    tiles.push(`<div class="ms-tile">
+    tiles.push(`<div class="ms-tile" data-g="breadth">
       <span class="ms-k">🌏 外資連買廣度</span>
       <span class="ms-v"><span class="pos">${ib.foreign_buy3}</span><small>／</small><span class="neg">${ib.foreign_sell3}</span></span>
       <span class="ms-sub">連買≥3天／連賣≥3天（共 ${ib.universe} 檔）</span>
     </div>`);
-    tiles.push(`<div class="ms-tile">
+    tiles.push(`<div class="ms-tile" data-g="breadth">
       <span class="ms-k">🏦 投信連買廣度</span>
       <span class="ms-v"><span class="pos">${ib.trust_buy3}</span><small>／</small><span class="neg">${ib.trust_sell3}</span></span>
       <span class="ms-sub">連買≥3天／連賣≥3天（共 ${ib.universe} 檔）</span>
@@ -529,7 +555,7 @@ function renderSnapshot(d, mkt) {
   }
 
   // ⑦ 共振檔數（等 loadResonanceData 完成後由 updateSnapshotReso 填值）
-  tiles.push(`<div class="ms-tile">
+  tiles.push(`<div class="ms-tile" data-g="breadth">
     <span class="ms-k">⚡ 多策略共振</span>
     <span class="ms-v accent" id="ms-reso-v">--</span>
     <span class="ms-sub">突破＋Hanku命中 ≥2</span>
@@ -541,6 +567,7 @@ function renderSnapshot(d, mkt) {
 
   el.innerHTML = `<div class="ms-tiles">${tiles.join('')}</div>` +
                  (notes ? `<div class="ms-notes">${notes}</div>` : '');
+  if (UI_V2) v2RestyleSnapshot(el);   // P2-①②：定調錨點+KPI分組、訊號依嚴重度排序
   el.hidden = false;
   updateSnapshotReso();
 }
@@ -570,7 +597,126 @@ function renderMeta(d) {
     bh.textContent = isBear
       ? '⚠ 市況空頭：實證空頭段追右側突破 edge 縮水、深跌低接較優 — 發動訊號降權參考' : '';
   }
+
+  // ── P1-⑧ 籌碼資料時效徽章 ────────────────────────────
+  // 防「法人未結算窄檔提前重下」事故（2026-07-17）：日期＋檔數雙重檢查。
+  // 舊快照 chip_asof 沒有 inst 欄位 → 直接隱藏，不顯示誤導性的 ✓。
+  const cf = document.getElementById('chip-fresh');
+  if (cf) {
+    const ca = d.chip_asof || {};
+    if (!ca.inst) {
+      cf.hidden = true;
+    } else {
+      const NARROW_N = 1200;   // 正常法人檔 ~2000 檔；未結算窄檔通常只有數百檔
+      const tips = [`法人 ${ca.inst}${ca.inst_n != null ? `（${ca.inst_n} 檔）` : ''}`];
+      if (ca.margin) tips.push(`融資 ${ca.margin}`);
+      if (ca.broker) tips.push(`分點 ${ca.broker}（已停更）`);
+      let cls = 'chip-ok', txt = '✓ 籌碼已結算';
+      if (ca.inst !== d.trading_date) {
+        cls = 'chip-warn'; txt = `⚠ 法人落後 ${ca.inst.slice(5)}`;
+      } else if (ca.inst_n != null && ca.inst_n < NARROW_N) {
+        cls = 'chip-warn'; txt = `⚠ 法人檔異常窄 ${ca.inst_n} 檔`;
+      } else if (ca.margin && ca.margin !== d.trading_date) {
+        cls = 'chip-warn'; txt = `⚠ 融資落後 ${ca.margin.slice(5)}`;
+      }
+      cf.className = `badge ${cls}`;
+      cf.textContent = txt;
+      cf.title = `籌碼資料鮮度：${tips.join('｜')}`;
+      cf.hidden = false;
+    }
+  }
+
+  // ── P3-⑭ 大盤閘門（v2 版面；v1 沿用 bear-hint）──
+  updateV2Gatebar();
+
+  // ── P1-⑨ 今昨 diff（背景載入前一日，算 +上榜/−掉出）──
+  loadBoardDiff();
 }
+
+// ── P1-⑨ 今昨 diff：較上一交易日的 榜單進出 ─────────────
+// 「在榜」= 命中至少一個策略分類（categories 非空）。掉出名單來自前一日快照，
+// 今天的資料裡沒有它們——這正是它值錢的原因（是洗掉還是壞掉，值得看一眼）。
+let _diffToken = 0;
+
+function _boardMap(rows) {
+  const m = new Map();
+  (rows || []).forEach(r => {
+    if ((r.categories || []).length) m.set(String(r.ticker), r);
+  });
+  return m;
+}
+
+async function loadBoardDiff() {
+  const el = document.getElementById('diff-summary');
+  const panel = document.getElementById('diff-panel');
+  if (!el) return;
+  el.hidden = true;
+  if (panel) panel.hidden = true;
+  const idx = availableDates.indexOf(currentDate);
+  const prevDate = idx >= 0 ? availableDates[idx + 1] : null;  // availableDates 由新到舊
+  if (!prevDate || !state.data) return;
+  const token = ++_diffToken;
+  let prev;
+  try {
+    prev = await fetchJsonGz(`data/daily/${prevDate}/latest.json.gz`);
+  } catch (e) {
+    console.warn('diff: 載入前一日快照失敗', e);
+    return;
+  }
+  if (token !== _diffToken || !state.data) return;  // 期間已切換日期 → 丟棄
+  const today = _boardMap(state.data.rows);
+  const yest = _boardMap(prev.rows);
+  const newIn = [...today.keys()].filter(t => !yest.has(t));
+  const dropped = [...yest.values()]
+    .filter(r => !today.has(String(r.ticker)))
+    .sort((a, b) => (b.score || 0) - (a.score || 0));
+  state.boardDiff = { prevDate, newIn, dropped, prevRows: [...yest.values()] };
+  refreshV2Stepper();   // P2：stepper 計數補 Δ（需要前一日在榜名單）
+  el.innerHTML = `較 ${fmtDate8(prevDate).slice(5)}：`
+    + `<b class="diff-in">+${newIn.length} 上榜</b>・`
+    + `<b class="diff-out">−${dropped.length} 掉出</b> ▾`;
+  el.hidden = false;
+  renderDiffPanel();
+}
+
+function renderDiffPanel() {
+  const panel = document.getElementById('diff-panel');
+  const diff = state.boardDiff;
+  if (!panel || !diff) return;
+  const CAP = 80;
+  const rows = diff.dropped.slice(0, CAP).map(r =>
+    `<div class="diff-row" data-t="${r.ticker}" data-n="${r.name || ''}" data-m="${r.market || ''}">`
+    + `<span>${r.ticker} ${r.name || ''}</span>`
+    + `<span class="ds">昨分數 ${r.score ?? '--'}</span></div>`).join('');
+  panel.innerHTML =
+    `<h5>−${diff.dropped.length} 掉出（${fmtDate8(diff.prevDate).slice(5)} 在榜、今日不在）</h5>`
+    + (rows || '<div class="diff-row">無</div>')
+    + (diff.dropped.length > CAP ? `<div class="diff-row muted">…僅列前 ${CAP} 檔</div>` : '')
+    + `<span class="diff-act" data-act="new">🆕 篩出今日上榜（+${diff.newIn.length}）</span>`;
+  panel.querySelectorAll('.diff-row[data-t]').forEach(row => {
+    row.addEventListener('click', () =>
+      openKlineModal(row.dataset.t, row.dataset.n, row.dataset.m));
+  });
+  const act = panel.querySelector('[data-act="new"]');
+  if (act) act.addEventListener('click', () => {
+    panel.hidden = true;
+    const pv = document.querySelector('.pv-btn[data-pv="new"]');
+    if (pv && !pv.classList.contains('active')) pv.click();
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('diff-summary');
+  const panel = document.getElementById('diff-panel');
+  if (!el || !panel) return;
+  el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    panel.hidden = !panel.hidden;
+  });
+  document.addEventListener('click', (e) => {
+    if (!panel.hidden && !panel.contains(e.target)) panel.hidden = true;
+  });
+});
 
 // ── 3. 渲染分類 chips（依「突破生命週期」分 5 區塊） ──
 //   參考 aistockmap 結構頁：分層+分區標題，而非平鋪一整排。
@@ -659,6 +805,7 @@ function renderCategoryChips(cats) {
   });
   // 未歸類的新代碼 → 其他（底列）
   fill('stage-chips-other', cats.filter(c => !placed.has(c.code)));
+  refreshV2Stepper();   // P2：chips 重渲染（載入/切日期）→ 同步 stepper 計數
 }
 
 // ── 4. 渲染維度選項（三維度切換 + 搜尋） ─────────────
@@ -1059,10 +1206,8 @@ function buildTable(data) {
 }
 
 // ── 6. 篩選邏輯 ─────────────────────────────────────
-function applyFilters() {
-  if (!state.table) return;
-
-  state.table.setFilter((row) => {
+// ── 篩選判定（applyFilters 的 setFilter 與 P3-⑩ 零結果放寬建議共用）──
+function screenRowPass(row) {
     // 搜尋優先：輸入代號/名稱時，直接短路、凌駕所有發現型篩選（分類/維度/快捷鈕/分數門檻）。
     // 明確查某一檔就一定看得到，即使該檔沒命中任何策略（hits=0、categories空、score=null）。
     if (state.search) {
@@ -1169,7 +1314,11 @@ function applyFilters() {
     }
 
     return true;
-  });
+}
+
+function applyFilters() {
+  if (!state.table) return;
+  state.table.setFilter(screenRowPass);
 
   // 主升 sig/B 模式：依量比由大到小排序
   if (state.mainupMode === 'sig' || state.mainupMode === 'B') {
@@ -1184,6 +1333,7 @@ function applyFilters() {
     renderActiveFilters();
     updateGroupCounts();
     refreshMainView();
+    renderZeroSuggest(visible);   // P3-⑩：0 檔時給放寬建議
   }, 0);
 }
 
@@ -1574,6 +1724,7 @@ function bindControls() {
   document.getElementById('btn-clear-pinned').addEventListener('click', () => {
     if (!confirm(`清空全部勾選（${state.pinned.size} 檔）？`)) return;
     state.pinned.clear();
+    clearPinnedMeta();   // P3-⑬ 對帳 meta 一起清
     savePinned();
     updatePinSummary();
     if (state.table) {
@@ -1760,6 +1911,13 @@ function renderWatchlist() {
   const pinned = state.pinned;
   const rows = (state.data.rows || []).filter(r => pinned.has(r.ticker));
 
+  // P3-⑬ 決策對帳欄：標記日 + 至今報酬（基準=標記日收盤，存於 pinnedMeta）
+  rows.forEach(r => {
+    const pm = pinnedMeta[r.ticker];
+    r._pin_date = (pm && pm.d) || '';
+    r._pin_ret = _pinRetPct(r.ticker, r.close != null ? Number(r.close) : null);
+  });
+
   document.getElementById('watchlist-count').textContent = `${rows.length} 檔`;
   const clr = document.getElementById('btn-watch-clear');
   if (clr) clr.disabled = rows.length === 0;
@@ -1814,6 +1972,19 @@ function renderWatchlist() {
           if (v == null) return '';
           const cls = v > 0 ? 'num-pos' : (v < 0 ? 'num-neg' : '');
           return `<span class="${cls}">${v > 0 ? '+' : ''}${v.toFixed(2)}</span>`;
+        },
+      },
+      {
+        title: '標記日', field: '_pin_date', widthGrow: 0.8, sorter: 'string',
+        formatter: (c) => c.getValue() || '<span class="muted">—</span>',
+      },
+      {
+        title: '至今%', field: '_pin_ret', hozAlign: 'right', widthGrow: 0.6, sorter: 'number',
+        formatter: (c) => {
+          const v = c.getValue();
+          if (v == null) return '<span class="muted">—</span>';
+          const cls = v > 0 ? 'num-pos' : (v < 0 ? 'num-neg' : '');
+          return `<span class="${cls}">${v > 0 ? '+' : ''}${v.toFixed(1)}</span>`;
         },
       },
       {
@@ -1888,6 +2059,7 @@ function bindWatchlistControls() {
     clr.addEventListener('click', () => {
       if (!confirm(`清空全部勾選（${state.pinned.size} 檔）？`)) return;
       state.pinned.clear();
+      clearPinnedMeta();   // P3-⑬ 對帳 meta 一起清
       savePinned();
       updatePinSummary();
       renderWatchlist();
@@ -2802,6 +2974,7 @@ function renderThemeHistory() {
     bindWatchlistControls();
     refreshPresetSelect();
     applyFilters();
+    buildV2Layout();   // P2：v2 版面（feature flag ui_v2；未開啟時 no-op）
   } catch (err) {
     document.getElementById('main-table').innerHTML =
       `<div style="padding:30px;color:#ff6b6b">❌ 載入失敗：${err.message}</div>`;
@@ -3879,10 +4052,24 @@ function renderStockSummary(ticker, name, market, row) {
       `<button type="button" class="sv-calc-btn" onclick="openCalcFor('${svEsc(ticker)}',${isMini ? 100 : 2000})">🧮 期貨計算機試算</button>`;
   }
 
+  // P3-⑬ 決策對帳：你標記過這檔嗎？標記日基準收盤 → 至今表現
+  let pinLine = '';
+  const pm = pinnedMeta[ticker];
+  if (state.pinned.has(ticker) && pm && pm.d) {
+    const ret = _pinRetPct(ticker, svNum(G('close')));
+    const retHtml = ret != null
+      ? `→ 至今 <b style="color:${ret >= 0 ? '#ef5350' : '#26a69a'}">${ret >= 0 ? '+' : ''}${ret.toFixed(1)}%</b>`
+      : '';
+    pinLine = `⭐ <b>${pm.d}</b> 標記` +
+      (pm.c != null ? `（當日收盤 ${pm.c}）` : '') + `　${retHtml}` +
+      `<span class="sv-mut">　基準=標記日收盤；檢驗判斷用，非績效</span>`;
+  }
+
   el.innerHTML = `<div class="sv-wrap">
     ${priceRow}
     ${catHtml ? `<div class="sv-cats">${catHtml}</div>` : ''}
     ${svRow('📈', '延續', persistPanel)}
+    ${svRow('⭐', '決策對帳', pinLine)}
     ${svRow('📌', '訊號', sig.join('　·　'))}
     ${svRow('🏭', '題材族群', th.join('　｜　'))}
     ${svRow('💰', '籌碼', chipAdviceBlockHtml(row) + maintBlockHtml(row) + `<div id="sv-chip" class="sv-mut">融資/明細載入中…</div>`)}
@@ -3998,6 +4185,59 @@ function initKlineModal() {
   });
 }
 document.addEventListener('DOMContentLoaded', initKlineModal);
+
+// ── P1-⑮ 鍵盤快速鍵（每日看板）────────────────────────
+//   j / k = 卡片上下移動選取　Enter = 開選取卡的 K 線
+//   T = 表格/卡片切換　/ = 聚焦搜尋　Esc = 關 K 線(既有)/離開輸入框
+let _kbIdx = -1;
+
+function _kbCards() {
+  const el = document.getElementById('main-cards');
+  if (!el || el.style.display === 'none') return [];
+  return [...el.querySelectorAll('.main-card')];
+}
+
+function initHotkeys() {
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const ae = document.activeElement;
+    if (ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) {
+      if (e.key === 'Escape') ae.blur();   // 輸入框內 Esc = 離開輸入框
+      return;
+    }
+    const dashActive =
+      document.querySelector('.tab-btn.active')?.dataset.tab === 'dashboard';
+    if (!dashActive) return;
+    const modalOpen = !document.getElementById('kline-modal').hidden;
+    const k = e.key.toLowerCase();
+    if (e.key === '/') {
+      e.preventDefault();
+      document.getElementById('search-input')?.focus();
+    } else if (k === 'j' || k === 'k') {
+      if (modalOpen) return;
+      const cards = _kbCards();
+      if (!cards.length) return;
+      e.preventDefault();
+      _kbIdx = k === 'j'
+        ? Math.min(cards.length - 1, _kbIdx + 1)
+        : Math.max(0, _kbIdx - 1);
+      cards.forEach((c, i) => c.classList.toggle('kb-sel', i === _kbIdx));
+      cards[_kbIdx].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+      if (modalOpen) return;
+      if (ae && /BUTTON|A/.test(ae.tagName)) return;  // 焦點在按鈕/連結上 → 讓瀏覽器處理
+      const cards = _kbCards();
+      if (_kbIdx >= 0 && cards[_kbIdx]) cards[_kbIdx].click();
+    } else if (k === 't') {
+      const btn = document.querySelector('#main-viewtoggle .vt-btn:not(.active)');
+      if (btn) btn.click();
+    } else if (/^[1-5]$/.test(e.key) && UI_V2 && v2Built) {
+      // P2：1=全部 2=醞釀 3=發動 4=趨勢 5=風險/觀察（v2 版面限定）
+      setV2Stage(V2_STAGES[Number(e.key) - 1].key);
+    }
+  });
+}
+document.addEventListener('DOMContentLoaded', initHotkeys);
 
 // ── 處置雷達：處置股 / 潛在注意股（卡片格線，仿attnup排版）───
 const dispState = { loaded: false, loadedDate: null, data: null };
@@ -4491,4 +4731,282 @@ async function renderDispositionRisk(ticker) {
     ${valHtml}
     ${histHtml}
   </div>`;
+}
+
+// ═════════════════════════════════════════════════════════
+//  P2 (2026-07-23)：v2 版面 — 三階段漏斗 stepper + 左抽屜
+//  feature flag：localStorage.ui_v2 = '1'（topbar 🧪 鈕切換，雙跑驗證期）
+//  作法：不動任何篩選邏輯，只「搬 DOM」——三階段欄位節點移進抽屜，
+//  既有的 checkbox/chips/精選鈕連事件一起帶走；關掉 flag 重整即回舊版。
+// ═════════════════════════════════════════════════════════
+const UI_V2 = localStorage.getItem('ui_v2') === '1';
+let v2Built = false;
+let v2Stage = 'all';
+
+const V2_STAGES = [
+  { key: 'all',    label: '全部',        hint: '不限階段',       codes: null },
+  { key: 'brew',   label: '🌱 醞釀',     hint: '還沒突破・蓄勢', codes: ['A_VCP', 'A_Coil', 'N_NearHigh', 'R_Neckline', 'M_Accumulate'] },
+  { key: 'launch', label: '🚀 發動',     hint: '突破中',         codes: ['B_Day0', 'B_Recent', 'R_Breakout'] },
+  { key: 'trend',  label: '📈 趨勢',     hint: '突破後持有',     codes: ['S_MA3Rider', 'S_MA5Rider'] },
+  { key: 'watch',  label: '👁 風險/觀察', hint: '謹慎、別追',     codes: ['P_Watch', 'P_PunishExit', 'P_PostExit'] },
+];
+
+function _stageCount(codes, rows) {
+  const cs = new Set(codes);
+  return rows.filter(r => (r.categories || []).some(c => cs.has(c))).length;
+}
+
+function initV2Toggle() {
+  const btn = document.getElementById('ui-v2-toggle');
+  if (!btn) return;
+  if (UI_V2) { btn.classList.add('active'); btn.textContent = '🧪 版面 v2'; }
+  btn.addEventListener('click', () => {
+    localStorage.setItem('ui_v2', UI_V2 ? '0' : '1');
+    location.reload();
+  });
+}
+document.addEventListener('DOMContentLoaded', initV2Toggle);
+
+function buildV2Layout() {
+  if (!UI_V2 || v2Built) return;
+  const stepper = document.getElementById('v2-stepper');
+  const drawer = document.getElementById('v2-drawer');
+  const catBody = document.querySelector('.fg-body[data-group="cat"]');
+  const stageGrid = catBody && catBody.querySelector('.stage-grid');
+  if (!stepper || !drawer || !stageGrid) return;
+  document.body.classList.add('ui-v2');
+
+  // ── stepper：全部｜醞釀→發動→趨勢｜風險/觀察 ＋ 朱家泓一鍵 ──
+  stepper.innerHTML = V2_STAGES.map((s, i) => {
+    const sep = i === 0 ? '' : `<span class="v2-arrow">${(i === 2 || i === 3) ? '→' : '｜'}</span>`;
+    return sep + `<button type="button" class="v2-step" data-key="${s.key}">`
+      + `<span class="n" id="v2n-${s.key}">--</span>`
+      + `<span class="t"><b>${s.label}</b><span>${s.hint}</span></span></button>`;
+  }).join('');
+  // 朱家泓一鍵（整塊節點搬過來，按鈕綁定不受影響）
+  const oneclick = catBody.querySelector('.stage-oneclick');
+  if (oneclick) {
+    const hintTxt = oneclick.querySelector('.muted');
+    if (hintTxt) hintTxt.remove();   // 說明文字太長，v2 靠 tooltip
+    stepper.appendChild(oneclick);
+  }
+  stepper.querySelectorAll('.v2-step').forEach(b =>
+    b.addEventListener('click', () => setV2Stage(b.dataset.key)));
+  stepper.hidden = false;
+
+  // ── 抽屜：三階段欄位 + 風險底列 + OR/AND 開關 搬進來 ──
+  const cols = [...stageGrid.querySelectorAll('.stage-col')];   // brew / launch / trend
+  ['brew', 'launch', 'trend'].forEach((k, i) => {
+    if (cols[i]) { cols[i].dataset.v2stage = k; drawer.appendChild(cols[i]); }
+  });
+  const bottom = catBody.querySelector('.stage-bottom');
+  if (bottom) { bottom.dataset.v2stage = 'watch'; drawer.appendChild(bottom); }
+  const mode = catBody.querySelector('.mode-toggle');
+  if (mode) drawer.appendChild(mode);
+  drawer.hidden = false;
+
+  v2Built = true;
+  refreshV2Stepper();
+  setV2Stage('all');
+  updateV2Gatebar();   // P3-⑭：首次建置時 renderMeta 已跑過，這裡補一次
+}
+
+// ── P3-⑭ 大盤閘門：市況空頭 → stepper 上方警示帶 + 發動分頁降權標示 ──
+//   實證依據同 bear-hint（BEAR實驗：空頭追右側 edge 縮水、深跌低接 +1.78→+2.90）。
+//   v1 版面維持原 bear-hint（在發動欄內）；v2 升級成閘門帶 + 一鍵改看醞釀。
+function updateV2Gatebar() {
+  const gb = document.getElementById('v2-gatebar');
+  if (!gb) return;
+  const r = (state.data && state.data.regime) || {};
+  const isBear = /BEAR|空/.test(String(r.label || '')) || String(r.color || '') === 'bear';
+  const stepper = document.getElementById('v2-stepper');
+  if (!UI_V2 || !v2Built || !isBear) {
+    gb.hidden = true;
+    if (stepper) stepper.classList.remove('v2-gate-on');
+    return;
+  }
+  gb.innerHTML =
+    `⚠ <b>大盤閘門：${r.label || '空頭'}</b>` +
+    `　— 實證空頭段追右側突破 edge 縮水、深跌低接較優；「🚀發動」降權參考，先看「🌱醞釀」蓄勢名單` +
+    `<button type="button" class="btn btn-ghost v2-gate-act" id="v2-gate-brew">🌱 改看醞釀</button>`;
+  gb.querySelector('#v2-gate-brew').addEventListener('click', () => setV2Stage('brew'));
+  gb.hidden = false;
+  if (stepper) stepper.classList.add('v2-gate-on');   // CSS 把發動分頁降飽和+⚠
+}
+
+// 階段切換：抽屜只顯示該階段條件；階段本身=該階段全部分類的 OR 濾網
+function setV2Stage(key) {
+  if (!v2Built) return;
+  v2Stage = key;
+  document.querySelectorAll('#v2-stepper .v2-step').forEach(b =>
+    b.classList.toggle('active', b.dataset.key === key));
+  const drawer = document.getElementById('v2-drawer');
+  drawer.querySelectorAll('[data-v2stage]').forEach(el => {
+    el.style.display = (key !== 'all' && el.dataset.v2stage === key) ? '' : 'none';
+  });
+  drawer.classList.toggle('v2-drawer-empty', key === 'all');
+  // 套分類濾網（只選今日有命中的代碼；chips 可再往下細篩）
+  state.selectedCats.clear();
+  const st = V2_STAGES.find(s => s.key === key);
+  if (st && st.codes && state.data) {
+    const avail = new Set((state.data.categories || [])
+      .filter(c => c.count > 0).map(c => c.code));
+    st.codes.forEach(c => { if (avail.has(c)) state.selectedCats.add(c); });
+  }
+  if (state.data) renderCategoryChips(state.data.categories);   // 同步 chips 勾選態
+  applyFilters();
+}
+
+// stepper 計數（今日命中檔數）+ Δ（對前一交易日在榜名單，來源 loadBoardDiff）
+function refreshV2Stepper() {
+  if (!v2Built || !state.data) return;
+  const rows = state.data.rows || [];
+  const prevRows = state.boardDiff && state.boardDiff.prevRows;
+  V2_STAGES.forEach(s => {
+    const el = document.getElementById(`v2n-${s.key}`);
+    if (!el) return;
+    const n = s.codes ? _stageCount(s.codes, rows)
+                      : rows.filter(r => (r.categories || []).length).length;
+    let d = '';
+    if (prevRows) {
+      const p = s.codes ? _stageCount(s.codes, prevRows) : prevRows.length;
+      const diff = n - p;
+      if (diff) d = `<em class="${diff > 0 ? 'pos' : 'neg'}">${diff > 0 ? '+' : ''}${diff}</em>`;
+    }
+    el.innerHTML = `${n}${d}`;
+  });
+}
+
+// P2-①②：大盤快照 v2 重排——定調錨點 + 現貨/期權/廣度分組；訊號偏空排前
+function v2RestyleSnapshot(el) {
+  const wrap = el.querySelector('.ms-tiles');
+  if (wrap && !wrap.classList.contains('ms-tiles-v2')) {
+    const GRPS = [['anchor', ''], ['spot', '現貨'], ['deriv', '期權'], ['breadth', '廣度']];
+    const frag = document.createDocumentFragment();
+    GRPS.forEach(([g, label]) => {
+      const tiles = [...wrap.querySelectorAll(`.ms-tile[data-g="${g}"]`)];
+      if (!tiles.length) return;
+      const box = document.createElement('div');
+      if (g === 'anchor') {
+        box.className = 'ms-anchor';
+        tiles.forEach(t => box.appendChild(t));
+      } else {
+        box.className = 'ms-grp';
+        box.innerHTML = `<span class="ms-grp-label">${label}</span><div class="ms-grp-tiles"></div>`;
+        const inner = box.querySelector('.ms-grp-tiles');
+        tiles.forEach(t => inner.appendChild(t));
+      }
+      frag.appendChild(box);
+    });
+    [...wrap.querySelectorAll('.ms-tile')].forEach(t => frag.appendChild(t));  // 未分組保險
+    wrap.innerHTML = '';
+    wrap.appendChild(frag);
+    wrap.classList.add('ms-tiles-v2');
+  }
+  // 訊號 chips 依嚴重度排序：偏空 → 留意 → 資訊 → 偏多（風險優先）
+  const notesEl = el.querySelector('.ms-notes');
+  if (notesEl) {
+    const rank = { bear: 0, warn: 1, info: 2, bull: 3 };
+    [...notesEl.children]
+      .sort((a, b) => {
+        const lv = n => { const c = [...n.classList].find(x => x in rank); return c != null ? rank[c] : 2; };
+        return lv(a) - lv(b);
+      })
+      .forEach(n => notesEl.appendChild(n));
+  }
+}
+
+// ═════════════════════════════════════════════════════════
+//  P3-⑩ (2026-07-23)：零結果放寬建議
+//  條件疊到 0 檔時，逐一模擬「移除單一條件」重算檔數（用共用判定
+//  screenRowPass，全市場 ~2300 檔 × ~20 條件毫秒級），依救回檔數排序，
+//  點建議鈕=走既有 removeFilter(key)（含 UI checkbox 同步）。
+// ═════════════════════════════════════════════════════════
+function _zeroCands() {
+  const c = [];
+  const boolFlags = [
+    ['onlyResonance', 'onlyResonance', '⚡只看共振'],
+    ['onlyHotGroup', 'onlyHotGroup', '🌊族群z≥1'],
+    ['onlyInstBuy', 'onlyInstBuy', '🏦法人買超'],
+    ['onlyChipBull', 'onlyChipBull', '💰籌碼偏多'],
+    ['onlyMaintAlert', 'onlyMaintAlert', '🩸融資斷頭級'],
+    ['onlyStf', 'onlyStf', '📈有股期'],
+    ['onlyRedK', 'onlyRedK', '🔴收紅K'],
+    ['onlyVolUp', 'onlyVolUp', '🔊量能跟上'],
+    ['onlyPinned', 'onlyPinned', '只看勾選'],
+    ['mainupExclDist', 'mainupExcl', '排除出貨'],
+    ['deductTurn', 'deductTurn', '扣抵轉揚↑'],
+    ['deductUp2', 'deductUp2', '扣抵上彎≥2'],
+    ['deductExclWarn', 'deductExclWarn', '排除陰跌'],
+    ['weeklyLit', 'weeklyLit', '週線亮燈'],
+    ['instStreak3', 'instStreak3', '法人連買≥3'],
+    ['boGood', 'boGood', '✅真突破'],
+    ['exclSrBreak', 'exclSrBreak', '排除破支撐'],
+  ];
+  boolFlags.forEach(([sk, key, label]) => {
+    if (state[sk]) c.push({ key, label, off: () => { state[sk] = false; }, on: () => { state[sk] = true; } });
+  });
+  STAGE_FLAGS.forEach(([, sk, label]) => {
+    if (state[sk]) c.push({ key: 'sf:' + sk, label, off: () => { state[sk] = false; }, on: () => { state[sk] = true; } });
+  });
+  if (state.selectedCats.size) {
+    const s = new Set(state.selectedCats);
+    c.push({ key: 'cat', label: `分類×${s.size}`, off: () => state.selectedCats.clear(), on: () => s.forEach(x => state.selectedCats.add(x)) });
+  }
+  if (state.patternSignals.size) {
+    const s = new Set(state.patternSignals);
+    c.push({ key: 'pattern', label: `型態×${s.size}`, off: () => state.patternSignals.clear(), on: () => s.forEach(x => state.patternSignals.add(x)) });
+  }
+  if (state.dimSelected.size) {
+    const s = new Set(state.dimSelected);
+    c.push({ key: 'dim', label: `${DIM_LABEL[state.dim]}×${s.size}`, off: () => state.dimSelected.clear(), on: () => s.forEach(x => state.dimSelected.add(x)) });
+  }
+  if (state.mainupMode !== 'off') {
+    const m = state.mainupMode;
+    c.push({ key: 'mainup', label: `主升:${MAINUP_MODE_LABEL[m]}`, off: () => { state.mainupMode = 'off'; }, on: () => { state.mainupMode = m; } });
+  }
+  if (state.mainupEntry) {
+    const v = state.mainupEntry;
+    c.push({ key: 'mainupEntry', label: `進場:${v}`, off: () => { state.mainupEntry = ''; }, on: () => { state.mainupEntry = v; } });
+  }
+  if (state.islandMode !== 'off') {
+    const v = state.islandMode;
+    c.push({ key: 'island', label: `島狀:${ISLAND_MODE_LABEL[v]}`, off: () => { state.islandMode = 'off'; }, on: () => { state.islandMode = v; } });
+  }
+  if (state.persistView) {
+    const v = state.persistView;
+    c.push({ key: 'persistView', label: PV_LABEL[v], off: () => { state.persistView = null; }, on: () => { state.persistView = v; } });
+  }
+  if (state.scoreMin > 0) { const v = state.scoreMin; c.push({ key: 'scoreMin', label: `分數≥${v}`, off: () => { state.scoreMin = 0; }, on: () => { state.scoreMin = v; } }); }
+  if (state.rsMin > 0) { const v = state.rsMin; c.push({ key: 'rsMin', label: `RS≥${v}`, off: () => { state.rsMin = 0; }, on: () => { state.rsMin = v; } }); }
+  if (state.distRiskMax != null) { const v = state.distRiskMax; c.push({ key: 'distRiskMax', label: `出貨風險≤${v}`, off: () => { state.distRiskMax = null; }, on: () => { state.distRiskMax = v; } }); }
+  if (state.groupZMin != null) { const v = state.groupZMin; c.push({ key: 'groupZMin', label: `族群z≥${v}`, off: () => { state.groupZMin = null; }, on: () => { state.groupZMin = v; } }); }
+  return c;
+}
+
+function renderZeroSuggest(visible) {
+  const el = document.getElementById('zero-suggest');
+  if (!el) return;
+  // 搜尋 0 檔=查無此股，不給放寬建議（搜尋本來就短路其他條件）
+  if (visible !== 0 || state.search || !state.data) { el.hidden = true; return; }
+  const cands = _zeroCands();
+  if (!cands.length) { el.hidden = true; return; }
+  const rows = state.data.rows || [];
+  const sugg = cands.map(c => {
+    c.off();
+    const n = rows.filter(screenRowPass).length;
+    c.on();
+    return { key: c.key, label: c.label, n };
+  }).filter(s => s.n > 0).sort((a, b) => b.n - a.n).slice(0, 5);
+  const btns = sugg.map(s =>
+    `<button type="button" class="zs-btn" data-key="${s.key}">移除「${s.label}」→ ${s.n} 檔</button>`).join('');
+  el.innerHTML =
+    `<span class="zs-t">🔍 0 檔符合 — 放寬建議（移除單一條件可回到）：</span>` +
+    (btns || '<span class="muted">移除任何單一條件都救不回來（條件間互斥），建議清除全部重來</span>') +
+    `<button type="button" class="zs-btn zs-clear" id="zs-clear-all">清除全部</button>`;
+  el.querySelectorAll('.zs-btn[data-key]').forEach(b =>
+    b.addEventListener('click', () => removeFilter(b.dataset.key)));
+  const ca = el.querySelector('#zs-clear-all');
+  if (ca) ca.addEventListener('click', () => { const b = document.getElementById('btn-clear'); if (b) b.click(); });
+  el.hidden = false;
 }

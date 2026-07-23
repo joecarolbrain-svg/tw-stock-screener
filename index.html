@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260714f" />
+  <link rel="stylesheet" href="style.css?v=20260723d" />
 </head>
 <body>
   <header class="topbar">
@@ -26,8 +26,10 @@
       <select id="date-picker" class="date-picker" title="切換交易日"></select>
       <span id="trading-date" class="badge">--</span>
       <span id="regime-badge" class="badge regime-unknown">市況: --</span>
+      <span id="chip-fresh" class="badge" hidden></span>
       <span id="generated-at" class="muted">--</span>
       <span id="row-count" class="muted">--</span>
+      <button id="ui-v2-toggle" class="btn btn-ghost" title="切換 v2 版面（三階段漏斗 stepper＋左抽屜；雙跑驗證期）">🧪 版面</button>
     </div>
   </header>
 
@@ -105,6 +107,10 @@
         <button type="button" class="pv-btn" data-pv="surge" title="延續加溫：連續在榜≥2日且加分或升階">🔥加溫</button>
         <button type="button" class="pv-btn" data-pv="fade" title="延續轉弱：連續在榜≥2日但掉分或降階">⚠️轉弱</button>
       </div>
+      <span class="diff-wrap">
+        <span id="diff-summary" class="diff-summary" hidden></span>
+        <div id="diff-panel" class="diff-panel" hidden></div>
+      </span>
       <span class="filler"></span>
       <span id="filter-summary" class="muted"></span>
     </div>
@@ -261,10 +267,19 @@
     </div>
   </section>
 
-  <main>
-    <div id="main-table"></div>
-    <div id="main-cards" class="card-grid" style="display:none"></div>
-  </main>
+  <!-- P2 v2 版面：三階段漏斗 stepper（計數+Δ）＋左抽屜（三階段欄位由 JS 搬入） -->
+  <!-- P3 v2 大盤閘門：市況空頭時出現在 stepper 上方，建議只看醞釀 -->
+  <div id="v2-gatebar" class="v2-gatebar" hidden></div>
+  <div id="v2-stepper" class="v2-stepper" hidden></div>
+  <div class="dash-body">
+    <aside id="v2-drawer" class="v2-drawer" hidden></aside>
+    <main>
+      <!-- P3-⑩ 零結果放寬建議：條件疊到 0 檔時顯示「移除哪個條件能救回幾檔」 -->
+      <div id="zero-suggest" class="zero-suggest" hidden></div>
+      <div id="main-table"></div>
+      <div id="main-cards" class="card-grid" style="display:none"></div>
+    </main>
+  </div>
 
   </section><!-- /panel dashboard -->
 
@@ -626,6 +641,7 @@
   <footer>
     <span class="muted">贏窟 · 資料來源：本地 Dash 篩選 / Schema v<span id="schema-version">--</span></span>
     <span class="muted">點代號 → 個股摘要卡 → TradingView</span>
+    <span class="muted">⌨ j / k 選卡 · Enter K線 · Esc 關閉 · T 切表格 · / 搜尋</span>
     <span class="muted">介面版本 <b id="app-version">--</b></span>
   </footer>
 
@@ -647,7 +663,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260715d"></script>
+  <script src="app.js?v=20260723d"></script>
   <script src="calc.js?v=20260715a"></script>
 </body>
 </html>

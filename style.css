@@ -1326,3 +1326,169 @@ footer {
 
 /* 第一排快速鈕視覺分組（2026-07-22：只加分隔線，不動任何項目） */
 .qt-sep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; align-self: center; }
+
+/* ── P1 (2026-07-23)：時效徽章 / 今昨diff / 鍵盤選卡 ───────── */
+/* ⑧ 籌碼資料時效徽章：綠=已結算、琥珀=落後或窄檔(未結算事故防線) */
+.badge.chip-ok   { background: #123a2a; color: #7fe0b8; }
+.badge.chip-warn { background: #4a3410; color: #ffc46b; }
+
+/* ⑨ 今昨 diff：+上榜/−掉出 摘要 + 掉出名單下拉 */
+.diff-wrap    { position: relative; align-self: center; }
+.diff-summary { font-size: 12px; color: #9aa3b8; cursor: pointer; white-space: nowrap; user-select: none; }
+.diff-summary .diff-in  { color: #ffd166; font-weight: 600; }
+.diff-summary .diff-out { color: #ef9a9a; font-weight: 600; }
+.diff-panel {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 80;
+  background: #14141f; border: 1px solid #2c2c44; border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .5);
+  min-width: 300px; max-height: 340px; overflow-y: auto; padding: 8px;
+}
+.diff-panel h5 { margin: 2px 4px 6px; font-size: 12px; color: #c9d2e4; font-weight: 600; }
+.diff-panel .diff-row {
+  display: flex; gap: 8px; align-items: center; padding: 4px 6px;
+  border-radius: 5px; cursor: pointer; font-size: 12.5px; color: #cfd6e4;
+}
+.diff-panel .diff-row:hover { background: #1e2233; }
+.diff-panel .diff-row .ds { margin-left: auto; color: #8b93a7; font-variant-numeric: tabular-nums; }
+.diff-panel .diff-act { display: block; margin: 6px 4px 2px; font-size: 12px; color: var(--accent); cursor: pointer; }
+
+/* ⑮ 鍵盤 j/k 選卡 */
+.main-card.kb-sel { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+/* ═══ P2 (2026-07-23)：v2 版面（🧪雙跑，localStorage.ui_v2=1 時 body.ui-v2）═══ */
+/* v2 下三階段面板殼與其開關鈕隱藏（內容已搬進 stepper/抽屜） */
+.ui-v2 .fg-toggle[data-group="cat"] { display: none; }
+.ui-v2 .fg-body[data-group="cat"] { display: none !important; }
+#ui-v2-toggle.active { color: var(--accent); border-color: var(--accent); }
+
+/* ④ 三階段漏斗 stepper */
+.v2-stepper { display: flex; align-items: center; gap: 2px; padding: 10px 20px 0; flex-wrap: wrap; }
+.v2-step {
+  display: flex; align-items: center; gap: 9px;
+  background: #16162a; border: 1px solid #2c2c44; border-radius: 8px;
+  padding: 5px 12px; cursor: pointer; color: #9aa0b0;
+}
+.v2-step:hover { border-color: #3a3a5e; }
+.v2-step .n { font-size: 16px; font-weight: 700; color: #e0e0e0; font-variant-numeric: tabular-nums; }
+.v2-step .n em { font-style: normal; font-size: 10px; font-weight: 600; vertical-align: super; margin-left: 1px; }
+.v2-step .n em.pos { color: #ef5350; }
+.v2-step .n em.neg { color: #26a69a; }
+.v2-step .t { display: flex; flex-direction: column; line-height: 1.2; text-align: left; }
+.v2-step .t b { font-size: 12.5px; color: #d6dae6; font-weight: 600; }
+.v2-step .t span { font-size: 10.5px; color: #777f92; }
+.v2-step.active { border-color: var(--accent); background: var(--accent-bg); }
+.v2-step.active .t b, .v2-step.active .n { color: var(--accent); }
+.v2-arrow { color: #555e73; padding: 0 3px; font-size: 13px; }
+.v2-stepper .stage-oneclick { margin: 0 0 0 auto; }
+
+/* ④ 左抽屜 + 主區並排 */
+.dash-body { display: block; }
+.ui-v2 .dash-body { display: flex; align-items: flex-start; }
+.ui-v2 .dash-body > main { flex: 1; min-width: 0; }
+.v2-drawer {
+  flex: 0 0 272px;
+  margin: 8px 0 8px 8px;
+  max-height: calc(100vh - 150px);
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px;
+  position: sticky; top: 8px;
+}
+.v2-drawer.v2-drawer-empty { display: none; }
+.v2-drawer .stage-col { background: #14141f; }
+.v2-drawer .stage-bottom {
+  border: 1px solid var(--border); border-radius: 10px; padding: 10px;
+  background: #14141f; margin: 0;
+}
+.v2-drawer .mode-toggle { padding: 0 4px; }
+@media (max-width: 900px) {
+  .ui-v2 .dash-body { display: block; }
+  .v2-drawer { margin: 8px; max-height: none; position: static; }
+}
+
+/* ① 定調錨點 + KPI 分組資料帶（現貨/期權/廣度） */
+.ms-tiles-v2 { display: flex !important; gap: 10px; flex-wrap: wrap; align-items: stretch; }
+.ms-tiles-v2 .ms-anchor { display: flex; }
+.ms-tiles-v2 .ms-anchor .ms-tile { height: 100%; border-width: 2px; padding: 8px 16px; }
+.ms-tiles-v2 .ms-anchor .ms-v { font-size: 26px; }
+.ms-grp {
+  display: flex; border: 1px solid var(--border); border-radius: 10px;
+  background: rgba(255, 255, 255, .015); padding: 4px 8px 4px 2px;
+}
+.ms-grp-label {
+  writing-mode: vertical-rl; font-size: 10px; letter-spacing: 3px; color: #667088;
+  display: flex; align-items: center; padding: 0 3px;
+}
+.ms-grp-tiles { display: flex; gap: 4px; }
+.ms-grp .ms-tile { border: 0; background: transparent; padding: 4px 8px; }
+
+/* ② 訊號 chips：左緣色條語義化（排序在 JS：偏空→留意→資訊→偏多） */
+.ui-v2 .ms-notes { gap: 6px; }
+.ui-v2 .ms-note {
+  background: #14141f; border: 1px solid #26263c; border-left-width: 3px;
+  border-radius: 6px; padding: 3px 10px;
+}
+.ui-v2 .ms-note.bull { border-left-color: #ff8a80; }
+.ui-v2 .ms-note.bear { border-left-color: #4dd0c4; }
+.ui-v2 .ms-note.warn { border-left-color: var(--warn); }
+.ui-v2 .ms-note.info { border-left-color: #7ec0ff; }
+
+/* ③ 焦點卡緊湊化：股名為主角、% 是屬性 */
+.ui-v2 .focus-strip { padding: 10px 20px 0; }
+.ui-v2 .fs-cards { gap: 8px; }
+.ui-v2 .fs-card { display: flex; align-items: center; gap: 10px; padding: 7px 12px; }
+.ui-v2 .fs-card .fs-row { display: contents; }
+.ui-v2 .fs-rank { order: 0; }
+.ui-v2 .fs-id { order: 1; font-size: 15px; white-space: nowrap; }
+.ui-v2 .fs-id .fs-name { color: #e6ecf7; font-weight: 700; }
+.ui-v2 .fs-meta { order: 2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ui-v2 .fs-chg { order: 3; margin-left: auto; font-size: 15px; }
+.ui-v2 .fs-hits { order: 4; white-space: nowrap; }
+
+/* ═══ P3 (2026-07-23)：大盤閘門(v2) + 決策對帳 ═══ */
+/* ⑭ 閘門警示帶：空頭時出現在 stepper 上方 */
+.v2-gatebar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 10px 20px 0; padding: 7px 14px;
+  font-size: 12.5px; color: #ffc46b;
+  background: rgba(232, 163, 61, .12);
+  border: 1px solid rgba(232, 163, 61, .35); border-left-width: 4px;
+  border-radius: 8px;
+}
+.v2-gatebar b { font-weight: 700; }
+.v2-gatebar .v2-gate-act { margin-left: auto; font-size: 12px; color: var(--accent); border-color: var(--accent); }
+/* 閘門開啟時：發動分頁降飽和 + ⚠ 角標 */
+.v2-stepper.v2-gate-on .v2-step[data-key="launch"] { opacity: .55; position: relative; }
+.v2-stepper.v2-gate-on .v2-step[data-key="launch"]::after {
+  content: "⚠"; position: absolute; top: -7px; right: -4px; font-size: 12px;
+}
+
+/* ═══ P3-⑩⑫ (2026-07-23)：零結果放寬建議 + 窄幕摺疊 ═══ */
+/* ⑩ 零結果放寬建議條 */
+.zero-suggest {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 10px 8px; padding: 10px 14px;
+  border: 1px dashed #3a3a5e; border-radius: 8px;
+  font-size: 12.5px; color: #9aa3b8; background: #14141f;
+}
+.zero-suggest .zs-t { color: #c9d2e4; font-weight: 600; }
+.zs-btn {
+  font-size: 12px; color: var(--accent); background: var(--accent-bg);
+  border: 1px solid var(--accent); border-radius: 6px; padding: 4px 10px; cursor: pointer;
+}
+.zs-btn:hover { filter: brightness(1.2); }
+.zs-btn.zs-clear { color: #ff9d9d; background: transparent; border-color: #5a3a3a; }
+
+/* ⑫ 窄幕（手機看推雲頁）：定調置頂全寬、KPI 群可橫捲、stepper 收副標 */
+@media (max-width: 720px) {
+  .topbar .meta { flex-wrap: wrap; }
+  .ms-tiles-v2 { gap: 6px; }
+  .ms-tiles-v2 .ms-anchor { width: 100%; }
+  .ms-tiles-v2 .ms-anchor .ms-tile { width: 100%; }
+  .ms-grp { flex: 1 1 100%; overflow-x: auto; }
+  .v2-stepper { padding: 8px 10px 0; }
+  .v2-step { padding: 4px 8px; gap: 6px; }
+  .v2-step .t span { display: none; }   /* 手機收掉副標，只留階段名+計數 */
+  .v2-arrow { display: none; }
+  .v2-gatebar { margin: 8px 10px 0; }
+  .v2-stepper .stage-oneclick { margin: 0; }
+}

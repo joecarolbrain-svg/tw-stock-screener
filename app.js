@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260723g';
+const APP_VERSION = '20260723h';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -4820,25 +4820,26 @@ function buildV2Layout() {
   if (!stepper || !drawer || !stageGrid) return;
   document.body.classList.add('ui-v2');
 
-  // ── 階段列：醞釀→發動→趨勢｜風險/觀察，一整排可複選勾選（不勾=全部）──
-  stepper.innerHTML = `<span class="v2-cap">階段<small>可複選・不勾=全部</small></span>` +
-    V2_STAGES.map((s, i) => {
-      const sep = i === 0 ? '' : `<span class="v2-arrow">${i === 3 ? '｜' : '→'}</span>`;
-      return sep + `<button type="button" class="v2-step" data-key="${s.key}" role="checkbox" aria-checked="false">`
-        + `<span class="chkbox"></span>`
-        + `<span class="n" id="v2n-${s.key}">--</span>`
-        + `<span class="t"><b>${s.label}</b><span>${s.hint}</span></span></button>`;
-    }).join('');
+  // ── 2026-07-23h：階段勾選「併進」左抽屜頂部（user: ④併⑥），
+  //    不再佔一條橫列；stepper 容器保留但不啟用。
+  const stagebox = document.createElement('div');
+  stagebox.className = 'v2-stagebox';
+  stagebox.innerHTML = `<div class="v2-stagebox-t">階段 <small>可複選・不勾=全部</small></div>` +
+    V2_STAGES.map(s =>
+      `<button type="button" class="v2-step" data-key="${s.key}" role="checkbox" aria-checked="false">`
+      + `<span class="chkbox"></span>`
+      + `<span class="t"><b>${s.label}</b><span>${s.hint}</span></span>`
+      + `<span class="n" id="v2n-${s.key}">--</span></button>`).join('');
+  drawer.appendChild(stagebox);
+  stagebox.querySelectorAll('.v2-step').forEach(b =>
+    b.addEventListener('click', () => toggleV2Stage(b.dataset.key)));
   // 朱家泓一鍵（整塊節點搬過來，按鈕綁定不受影響）
   const oneclick = catBody.querySelector('.stage-oneclick');
   if (oneclick) {
     const hintTxt = oneclick.querySelector('.muted');
     if (hintTxt) hintTxt.remove();   // 說明文字太長，v2 靠 tooltip
-    stepper.appendChild(oneclick);
+    drawer.appendChild(oneclick);
   }
-  stepper.querySelectorAll('.v2-step').forEach(b =>
-    b.addEventListener('click', () => toggleV2Stage(b.dataset.key)));
-  stepper.hidden = false;
 
   // ── 抽屜：三階段欄位 + 風險底列 + OR/AND 開關 搬進來 ──
   const cols = [...stageGrid.querySelectorAll('.stage-col')];   // brew / launch / trend
@@ -4865,10 +4866,10 @@ function updateV2Gatebar() {
   if (!gb) return;
   const r = (state.data && state.data.regime) || {};
   const isBear = /BEAR|空/.test(String(r.label || '')) || String(r.color || '') === 'bear';
-  const stepper = document.getElementById('v2-stepper');
+  const drawer = document.getElementById('v2-drawer');   // ④併⑥後閘門降權標示改掛抽屜
   if (!UI_V2 || !v2Built || !isBear) {
     gb.hidden = true;
-    if (stepper) stepper.classList.remove('v2-gate-on');
+    if (drawer) drawer.classList.remove('v2-gate-on');
     return;
   }
   gb.innerHTML =
@@ -4877,7 +4878,7 @@ function updateV2Gatebar() {
     `<button type="button" class="btn btn-ghost v2-gate-act" id="v2-gate-brew">🌱 改看醞釀</button>`;
   gb.querySelector('#v2-gate-brew').addEventListener('click', () => setV2Stage('brew'));
   gb.hidden = false;
-  if (stepper) stepper.classList.add('v2-gate-on');   // CSS 把發動分頁降飽和+⚠
+  if (drawer) drawer.classList.add('v2-gate-on');   // CSS 把發動階段降飽和+⚠
 }
 
 // 階段勾選（可複選）：勾了哪些階段 → 分類 OR 濾網套那些階段的全部分類，
@@ -4899,7 +4900,7 @@ function setV2Stage(key) { setV2StagesTo(key === 'all' ? [] : [key]); }
 
 function applyV2Stages() {
   if (!v2Built) return;
-  document.querySelectorAll('#v2-stepper .v2-step').forEach(b => {
+  document.querySelectorAll('#v2-drawer .v2-step').forEach(b => {
     const on = v2StageSel.has(b.dataset.key);
     b.classList.toggle('active', on);
     b.setAttribute('aria-checked', on ? 'true' : 'false');
@@ -4908,6 +4909,7 @@ function applyV2Stages() {
   drawer.querySelectorAll('[data-v2stage]').forEach(el => {
     el.style.display = v2StageSel.has(el.dataset.v2stage) ? '' : 'none';
   });
+  // ④併⑥後抽屜常駐（階段勾選就在抽屜裡）；此 class 只當樣式 hook 不再隱藏
   drawer.classList.toggle('v2-drawer-empty', v2StageSel.size === 0);
   // 套分類濾網（只選今日有命中的代碼；chips 可再往下細篩）
   state.selectedCats.clear();

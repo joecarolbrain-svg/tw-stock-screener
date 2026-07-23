@@ -1580,3 +1580,32 @@ body.ui-v2 {
   content: "✓"; position: absolute; inset: 0; color: #0B0F17;
   font-size: 10px; line-height: 14px; text-align: center; font-weight: 700;
 }
+
+/* ═══ 20260723h：④階段勾選併進⑥左抽屜（mockup 比例）═══ */
+/* 抽屜常駐（階段勾選在裡面），全不勾只收條件、不收抽屜 */
+.v2-drawer.v2-drawer-empty { display: flex; }
+.v2-drawer { flex-basis: 252px; }
+
+.v2-stagebox {
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--panel); padding: 8px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.v2-stagebox-t { font-size: 11px; color: var(--text-mut); letter-spacing: .5px; padding: 2px 4px 6px; }
+.v2-stagebox-t small { opacity: .7; font-size: 10px; }
+.v2-stagebox .v2-step {
+  width: 100%; background: transparent; border: 1px solid transparent;
+  border-radius: 8px; padding: 6px 8px; gap: 9px;
+}
+.v2-stagebox .v2-step:hover { background: var(--panel-3); border-color: var(--border); }
+.v2-stagebox .v2-step .n { margin-left: auto; font-size: 17px; }
+.v2-stagebox .v2-step.active { background: var(--accent-bg); border-color: var(--accent); }
+.v2-drawer .stage-oneclick {
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--panel); padding: 8px 10px; margin: 0;
+}
+/* 閘門降權標示（掛抽屜）：發動階段降飽和+⚠ */
+.v2-drawer.v2-gate-on .v2-step[data-key="launch"] { opacity: .55; position: relative; }
+.v2-drawer.v2-gate-on .v2-step[data-key="launch"]::after {
+  content: "⚠"; position: absolute; top: -6px; right: -3px; font-size: 12px;
+}

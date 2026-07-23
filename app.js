@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260723e';
+const APP_VERSION = '20260723f';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -243,6 +243,21 @@ function _resoCount(r) {
 }
 function _stripLeadEmoji(s) { return String(s || '').replace(/^[^一-龥A-Za-z0-9]+/, ''); }
 
+// ── 迷你走勢圖（近10日收盤 → 44×20 SVG 折線+端點；紅漲綠跌看區間首尾）──
+function sparkSvg(closes, w = 64, h = 20) {
+  const v = (closes || []).filter(x => x != null && !isNaN(x)).map(Number);
+  if (v.length < 2) return '';
+  const lo = Math.min(...v), hi = Math.max(...v);
+  const span = (hi - lo) || 1;
+  const pts = v.map((x, i) =>
+    `${(2 + i * (w - 6) / (v.length - 1)).toFixed(1)},${(h - 3 - (x - lo) / span * (h - 6)).toFixed(1)}`);
+  const col = v[v.length - 1] >= v[0] ? 'var(--up)' : 'var(--down)';
+  const [lx, ly] = pts[pts.length - 1].split(',');
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">`
+    + `<polyline points="${pts.join(' ')}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`
+    + `<circle cx="${lx}" cy="${ly}" r="2" fill="${col}"/></svg>`;
+}
+
 // 🔥 今日突破焦點 Top3（借鏡 aistockmap「今日焦點」榜）
 //   排序：命中數(跨策略共振) → 分數；點卡片開站內 K 線。
 function renderFocusStrip(data) {
@@ -262,6 +277,7 @@ function renderFocusStrip(data) {
       const chgTxt = isNaN(chg) ? '--' : `${chg > 0 ? '+' : ''}${chg.toFixed(2)}%`;
       return `<button type="button" class="fs-card ${pos ? 'pos' : 'neg'}">
         <div class="fs-row"><span class="fs-rank">#${i + 1}</span><span class="fs-hits">命中 ${r.hits}</span></div>
+        <span class="fs-spark" data-spark="${r.ticker}">${r.spark ? sparkSvg(r.spark, 72, 24) : ''}</span>
         <div class="fs-chg">${chgTxt}</div>
         <div class="fs-id"><span class="fs-code">${r.ticker}</span> <span class="fs-name">${r.name || ''}</span></div>
         <div class="fs-meta">分數 ${r.score != null ? Math.round(r.score) : '--'}　${r.industry || ''}</div>
@@ -271,6 +287,15 @@ function renderFocusStrip(data) {
   el.querySelectorAll('.fs-card').forEach((card, i) => {
     const r = top[i];
     card.addEventListener('click', () => openKlineModal(r.ticker, r.name, r.market));
+  });
+  // 快照沒有 spark 欄位（舊資料日）→ 補抓該檔 kline 畫近10日走勢
+  top.forEach(r => {
+    if (r.spark) return;
+    fetchJsonGz(`data/kline/${r.ticker}.json.gz`).then(k => {
+      const c = (k.c || []).slice(-10);
+      const slot = el.querySelector(`[data-spark="${r.ticker}"]`);
+      if (slot && c.length >= 2) slot.innerHTML = sparkSvg(c, 72, 24);
+    }).catch(() => {});
   });
 }
 
@@ -3444,7 +3469,7 @@ function mainCardHtml(r, grouped = false) {
       ${stageBadge}
     </div>
     ${persistHtml}
-    <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span><span class="sc-vol">量 ${_cardNum(r.vol_ratio, 1)}x</span></div>
+    <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span><span class="sc-vol">量 ${_cardNum(r.vol_ratio, 1)}x</span>${r.spark ? `<span class="sc-spark">${sparkSvg(r.spark, 60, 18)}</span>` : ''}</div>
     ${chipLine}
     ${maintLineHtml(r)}
     ${dedLine}
@@ -4231,9 +4256,11 @@ function initHotkeys() {
     } else if (k === 't') {
       const btn = document.querySelector('#main-viewtoggle .vt-btn:not(.active)');
       if (btn) btn.click();
-    } else if (/^[1-5]$/.test(e.key) && UI_V2 && v2Built) {
-      // P2：1=全部 2=醞釀 3=發動 4=趨勢 5=風險/觀察（v2 版面限定）
-      setV2Stage(V2_STAGES[Number(e.key) - 1].key);
+    } else if (/^[1-4]$/.test(e.key) && UI_V2 && v2Built) {
+      // 1=醞釀 2=發動 3=趨勢 4=風險/觀察：勾選/取消該階段（可複選；v2 限定）
+      toggleV2Stage(V2_STAGES[Number(e.key) - 1].key);
+    } else if (e.key === '0' && UI_V2 && v2Built) {
+      setV2StagesTo([]);   // 0 = 清空階段勾選（看全部）
     }
   });
 }
@@ -4742,10 +4769,10 @@ async function renderDispositionRisk(ticker) {
 // 2026-07-23e：v2 改預設開啟（user 驗收要求「打開就是新版」）；存 '0' 才回舊版
 const UI_V2 = localStorage.getItem('ui_v2') !== '0';
 let v2Built = false;
-let v2Stage = 'all';
+// 2026-07-23f：user 要求階段「一整排直接勾選、可複選」，不要 tab 切換 → Set 多選
+const v2StageSel = new Set();
 
 const V2_STAGES = [
-  { key: 'all',    label: '全部',        hint: '不限階段',       codes: null },
   { key: 'brew',   label: '🌱 醞釀',     hint: '還沒突破・蓄勢', codes: ['A_VCP', 'A_Coil', 'N_NearHigh', 'R_Neckline', 'M_Accumulate'] },
   { key: 'launch', label: '🚀 發動',     hint: '突破中',         codes: ['B_Day0', 'B_Recent', 'R_Breakout'] },
   { key: 'trend',  label: '📈 趨勢',     hint: '突破後持有',     codes: ['S_MA3Rider', 'S_MA5Rider'] },
@@ -4779,13 +4806,15 @@ function buildV2Layout() {
   if (!stepper || !drawer || !stageGrid) return;
   document.body.classList.add('ui-v2');
 
-  // ── stepper：全部｜醞釀→發動→趨勢｜風險/觀察 ＋ 朱家泓一鍵 ──
-  stepper.innerHTML = V2_STAGES.map((s, i) => {
-    const sep = i === 0 ? '' : `<span class="v2-arrow">${(i === 2 || i === 3) ? '→' : '｜'}</span>`;
-    return sep + `<button type="button" class="v2-step" data-key="${s.key}">`
-      + `<span class="n" id="v2n-${s.key}">--</span>`
-      + `<span class="t"><b>${s.label}</b><span>${s.hint}</span></span></button>`;
-  }).join('');
+  // ── 階段列：醞釀→發動→趨勢｜風險/觀察，一整排可複選勾選（不勾=全部）──
+  stepper.innerHTML = `<span class="v2-cap">階段<small>可複選・不勾=全部</small></span>` +
+    V2_STAGES.map((s, i) => {
+      const sep = i === 0 ? '' : `<span class="v2-arrow">${i === 3 ? '｜' : '→'}</span>`;
+      return sep + `<button type="button" class="v2-step" data-key="${s.key}" role="checkbox" aria-checked="false">`
+        + `<span class="chkbox"></span>`
+        + `<span class="n" id="v2n-${s.key}">--</span>`
+        + `<span class="t"><b>${s.label}</b><span>${s.hint}</span></span></button>`;
+    }).join('');
   // 朱家泓一鍵（整塊節點搬過來，按鈕綁定不受影響）
   const oneclick = catBody.querySelector('.stage-oneclick');
   if (oneclick) {
@@ -4794,7 +4823,7 @@ function buildV2Layout() {
     stepper.appendChild(oneclick);
   }
   stepper.querySelectorAll('.v2-step').forEach(b =>
-    b.addEventListener('click', () => setV2Stage(b.dataset.key)));
+    b.addEventListener('click', () => toggleV2Stage(b.dataset.key)));
   stepper.hidden = false;
 
   // ── 抽屜：三階段欄位 + 風險底列 + OR/AND 開關 搬進來 ──
@@ -4810,7 +4839,7 @@ function buildV2Layout() {
 
   v2Built = true;
   refreshV2Stepper();
-  setV2Stage('all');
+  applyV2Stages();     // 預設全不勾=看全部
   updateV2Gatebar();   // P3-⑭：首次建置時 renderMeta 已跑過，這裡補一次
 }
 
@@ -4837,26 +4866,46 @@ function updateV2Gatebar() {
   if (stepper) stepper.classList.add('v2-gate-on');   // CSS 把發動分頁降飽和+⚠
 }
 
-// 階段切換：抽屜只顯示該階段條件；階段本身=該階段全部分類的 OR 濾網
-function setV2Stage(key) {
+// 階段勾選（可複選）：勾了哪些階段 → 分類 OR 濾網套那些階段的全部分類，
+// 抽屜同時顯示所有勾選階段的條件；全不勾 = 不限階段、抽屜收起。
+function toggleV2Stage(key) {
+  if (v2StageSel.has(key)) v2StageSel.delete(key);
+  else v2StageSel.add(key);
+  applyV2Stages();
+}
+
+function setV2StagesTo(keys) {
+  v2StageSel.clear();
+  (keys || []).forEach(k => v2StageSel.add(k));
+  applyV2Stages();
+}
+
+// 相容舊呼叫（大盤閘門「改看醞釀」等）：單一階段=只勾那個
+function setV2Stage(key) { setV2StagesTo(key === 'all' ? [] : [key]); }
+
+function applyV2Stages() {
   if (!v2Built) return;
-  v2Stage = key;
-  document.querySelectorAll('#v2-stepper .v2-step').forEach(b =>
-    b.classList.toggle('active', b.dataset.key === key));
+  document.querySelectorAll('#v2-stepper .v2-step').forEach(b => {
+    const on = v2StageSel.has(b.dataset.key);
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+  });
   const drawer = document.getElementById('v2-drawer');
   drawer.querySelectorAll('[data-v2stage]').forEach(el => {
-    el.style.display = (key !== 'all' && el.dataset.v2stage === key) ? '' : 'none';
+    el.style.display = v2StageSel.has(el.dataset.v2stage) ? '' : 'none';
   });
-  drawer.classList.toggle('v2-drawer-empty', key === 'all');
+  drawer.classList.toggle('v2-drawer-empty', v2StageSel.size === 0);
   // 套分類濾網（只選今日有命中的代碼；chips 可再往下細篩）
   state.selectedCats.clear();
-  const st = V2_STAGES.find(s => s.key === key);
-  if (st && st.codes && state.data) {
+  if (state.data) {
     const avail = new Set((state.data.categories || [])
       .filter(c => c.count > 0).map(c => c.code));
-    st.codes.forEach(c => { if (avail.has(c)) state.selectedCats.add(c); });
+    V2_STAGES.forEach(s => {
+      if (v2StageSel.has(s.key))
+        s.codes.forEach(c => { if (avail.has(c)) state.selectedCats.add(c); });
+    });
+    renderCategoryChips(state.data.categories);   // 同步 chips 勾選態
   }
-  if (state.data) renderCategoryChips(state.data.categories);   // 同步 chips 勾選態
   applyFilters();
 }
 

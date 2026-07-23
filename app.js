@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260723d';
+const APP_VERSION = '20260723e';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -4739,7 +4739,8 @@ async function renderDispositionRisk(ticker) {
 //  作法：不動任何篩選邏輯，只「搬 DOM」——三階段欄位節點移進抽屜，
 //  既有的 checkbox/chips/精選鈕連事件一起帶走；關掉 flag 重整即回舊版。
 // ═════════════════════════════════════════════════════════
-const UI_V2 = localStorage.getItem('ui_v2') === '1';
+// 2026-07-23e：v2 改預設開啟（user 驗收要求「打開就是新版」）；存 '0' 才回舊版
+const UI_V2 = localStorage.getItem('ui_v2') !== '0';
 let v2Built = false;
 let v2Stage = 'all';
 
@@ -4757,9 +4758,11 @@ function _stageCount(codes, rows) {
 }
 
 function initV2Toggle() {
+  if (UI_V2) document.body.classList.add('ui-v2');   // 一進頁就套皮膚，不等資料載完
   const btn = document.getElementById('ui-v2-toggle');
   if (!btn) return;
   if (UI_V2) { btn.classList.add('active'); btn.textContent = '🧪 版面 v2'; }
+  else btn.textContent = '🧪 舊版中';
   btn.addEventListener('click', () => {
     localStorage.setItem('ui_v2', UI_V2 ? '0' : '1');
     location.reload();
@@ -4904,15 +4907,28 @@ function v2RestyleSnapshot(el) {
     wrap.classList.add('ms-tiles-v2');
   }
   // 訊號 chips 依嚴重度排序：偏空 → 留意 → 資訊 → 偏多（風險優先）
+  // 並補上 mockup 的立場標籤（偏空/留意/資訊/偏多）
   const notesEl = el.querySelector('.ms-notes');
   if (notesEl) {
     const rank = { bear: 0, warn: 1, info: 2, bull: 3 };
+    const TAG = { bear: '偏空', warn: '留意', info: '資訊', bull: '偏多' };
     [...notesEl.children]
       .sort((a, b) => {
         const lv = n => { const c = [...n.classList].find(x => x in rank); return c != null ? rank[c] : 2; };
         return lv(a) - lv(b);
       })
-      .forEach(n => notesEl.appendChild(n));
+      .forEach(n => {
+        notesEl.appendChild(n);
+        if (!n.querySelector('.ms-tag')) {
+          const c = [...n.classList].find(x => x in TAG);
+          if (c) {
+            const t = document.createElement('span');
+            t.className = `ms-tag ms-tag-${c}`;
+            t.textContent = TAG[c];
+            n.insertBefore(t, n.firstChild);
+          }
+        }
+      });
   }
 }
 

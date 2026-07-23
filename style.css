@@ -1492,3 +1492,70 @@ footer {
   .v2-gatebar { margin: 8px 10px 0; }
   .v2-stepper .stage-oneclick { margin: 0; }
 }
+
+/* ═══ P3-skin (2026-07-23e)：v2 套 mockup 視覺（深藍黑終端 + 四語義色）═══ */
+/* token 覆蓋：紅=多/漲、綠=空/跌、琥珀=警示、藍=互動（唯一非語義色） */
+body.ui-v2 {
+  --bg:        #0B0F17;
+  --panel:     #121826;
+  --panel-2:   #101623;
+  --panel-3:   #1A2233;
+  --border:    #243048;
+  --border-hi: #35507A;
+  --text:      #E8EDF7;
+  --text-dim:  #96A2B8;
+  --text-mut:  #5F6C84;
+  --accent:    #5FA8F5;
+  --accent-bg: rgba(95, 168, 245, .14);
+  --up:        #FF6161;
+  --down:      #33C48D;
+  --warn:      #E8A33D;
+}
+/* 硬編碼表面 → mockup 色 */
+.ui-v2 .topbar, .ui-v2 .tabs { background: #101623; border-color: #1B2436; }
+.ui-v2 .tab-btn:hover:not(:disabled) { background: #18202F; }
+.ui-v2 .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.ui-v2 .logo-mark { background: linear-gradient(135deg, #5FA8F5 0%, #7C5CFF 100%); box-shadow: 0 2px 10px rgba(95, 168, 245, .35); }
+.ui-v2 .filters { background: #121826; border-color: #1B2436; }
+.ui-v2 .panel-title, .ui-v2 .legend-label, .ui-v2 .fs-head, .ui-v2 .stage-head { color: var(--accent); }
+.ui-v2 .flow-pane, .ui-v2 .ranking-left, .ui-v2 .ranking-right { background: #121826; border-color: #243048; }
+.ui-v2 .subtab-btn.active { background: var(--accent); border-color: var(--accent); }
+.ui-v2 .cat-chip { background: #121A28; }
+.ui-v2 .cat-chip:hover { background: #1A2233; border-color: #35507A; }
+.ui-v2 .main-card, .ui-v2 .fs-card { background: #18202F; border-color: #1B2436; }
+.ui-v2 .fs-card:hover, .ui-v2 .main-card:hover { border-color: var(--accent); }
+.ui-v2 .fs-rank { color: #5F6C84; }
+.ui-v2 .fs-hits { color: var(--accent); background: var(--accent-bg); }
+.ui-v2 .fs-card.pos .fs-chg { color: var(--up); }
+.ui-v2 .fs-card.neg .fs-chg { color: var(--down); }
+.ui-v2 .fs-id .fs-code { color: var(--text-dim); font-weight: 400; }
+.ui-v2 .v2-step { background: #121826; border-color: #243048; }
+.ui-v2 .v2-step:hover { border-color: #35507A; }
+.ui-v2 .v2-drawer .stage-col, .ui-v2 .v2-drawer .stage-bottom { background: #121826; }
+.ui-v2 .diff-panel, .ui-v2 .zero-suggest { background: #121826; border-color: #243048; }
+.ui-v2 .ms-grp { background: #121826; border-color: #1B2436; }
+.ui-v2 .ms-grp-label { color: #5F6C84; }
+.ui-v2 .ms-note { background: #121826; border-color: #1B2436; border-left-width: 3px; }
+
+/* 定調膠囊（mockup 主視覺）：偏多=暗紅漸層+紅框、偏空=暗綠漸層+綠框 */
+.ui-v2 .ms-anchor .ms-tile {
+  border-radius: 10px;
+  min-width: 176px;
+  padding: 8px 16px;
+}
+.ui-v2 .ms-anchor .ms-tile.ms-state-bull {
+  background: linear-gradient(135deg, #2A1220, #1A1220 70%);
+  border: 1px solid rgba(255, 97, 97, .35);
+}
+.ui-v2 .ms-anchor .ms-tile.ms-state-bear {
+  background: linear-gradient(135deg, #0F231C, #101A20 70%);
+  border: 1px solid rgba(51, 196, 141, .4);
+}
+.ui-v2 .ms-anchor .ms-v { font-size: 28px; font-weight: 700; letter-spacing: 1px; }
+
+/* 訊號立場標籤（v2RestyleSnapshot 注入）：紅=偏多、綠=偏空（台股慣例） */
+.ms-tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-right: 7px; font-weight: 600; vertical-align: 1px; }
+.ms-tag-bull { background: rgba(255, 97, 97, .14); color: #FF8A80; }
+.ms-tag-bear { background: rgba(51, 196, 141, .14); color: #4DD0C4; }
+.ms-tag-warn { background: rgba(232, 163, 61, .15); color: #E8A33D; }
+.ms-tag-info { background: rgba(126, 192, 255, .14); color: #7EC0FF; }

@@ -6,7 +6,7 @@
 const PRESET_STORAGE_KEY = 'screener_presets_v1';
 
 // 介面版本 — 顯示在頁尾，方便確認是否載到最新版(避開瀏覽器快取舊檔)
-const APP_VERSION = '20260723f';
+const APP_VERSION = '20260723g';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = APP_VERSION;
@@ -243,18 +243,32 @@ function _resoCount(r) {
 }
 function _stripLeadEmoji(s) { return String(s || '').replace(/^[^一-龥A-Za-z0-9]+/, ''); }
 
-// ── 迷你走勢圖（近10日收盤 → 44×20 SVG 折線+端點；紅漲綠跌看區間首尾）──
+// ── 迷你走勢圖（近10日收盤；紅漲綠跌看區間首尾）──
+//   線 + 漸層面積填色 + 起點虛線基準 + 端點(帶底色圈避免糊線)
+let _sparkUid = 0;
 function sparkSvg(closes, w = 64, h = 20) {
   const v = (closes || []).filter(x => x != null && !isNaN(x)).map(Number);
   if (v.length < 2) return '';
   const lo = Math.min(...v), hi = Math.max(...v);
   const span = (hi - lo) || 1;
-  const pts = v.map((x, i) =>
-    `${(2 + i * (w - 6) / (v.length - 1)).toFixed(1)},${(h - 3 - (x - lo) / span * (h - 6)).toFixed(1)}`);
-  const col = v[v.length - 1] >= v[0] ? 'var(--up)' : 'var(--down)';
+  const X = i => 2 + i * (w - 6) / (v.length - 1);
+  const Y = x => h - 3 - (x - lo) / span * (h - 6);
+  const pts = v.map((x, i) => `${X(i).toFixed(1)},${Y(x).toFixed(1)}`);
+  const up = v[v.length - 1] >= v[0];
+  const col = up ? 'var(--up)' : 'var(--down)';
+  const id = `spkg${++_sparkUid}`;
+  const area = `${pts.join(' ')} ${X(v.length - 1).toFixed(1)},${h - 1} ${X(0).toFixed(1)},${h - 1}`;
+  const y0 = Y(v[0]).toFixed(1);
   const [lx, ly] = pts[pts.length - 1].split(',');
   return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">`
-    + `<polyline points="${pts.join(' ')}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`
+    + `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">`
+    + `<stop offset="0" stop-color="${up ? '#FF6161' : '#33C48D'}" stop-opacity=".28"/>`
+    + `<stop offset="1" stop-color="${up ? '#FF6161' : '#33C48D'}" stop-opacity="0"/>`
+    + `</linearGradient></defs>`
+    + `<line x1="2" y1="${y0}" x2="${w - 4}" y2="${y0}" stroke="currentColor" stroke-opacity=".18" stroke-width="1" stroke-dasharray="2 3"/>`
+    + `<polygon points="${area}" fill="url(#${id})"/>`
+    + `<polyline points="${pts.join(' ')}" fill="none" stroke="${col}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>`
+    + `<circle cx="${lx}" cy="${ly}" r="3" fill="var(--bg)"/>`
     + `<circle cx="${lx}" cy="${ly}" r="2" fill="${col}"/></svg>`;
 }
 
@@ -277,7 +291,7 @@ function renderFocusStrip(data) {
       const chgTxt = isNaN(chg) ? '--' : `${chg > 0 ? '+' : ''}${chg.toFixed(2)}%`;
       return `<button type="button" class="fs-card ${pos ? 'pos' : 'neg'}">
         <div class="fs-row"><span class="fs-rank">#${i + 1}</span><span class="fs-hits">命中 ${r.hits}</span></div>
-        <span class="fs-spark" data-spark="${r.ticker}">${r.spark ? sparkSvg(r.spark, 72, 24) : ''}</span>
+        <span class="fs-spark" data-spark="${r.ticker}">${r.spark ? sparkSvg(r.spark, 84, 26) : ''}</span>
         <div class="fs-chg">${chgTxt}</div>
         <div class="fs-id"><span class="fs-code">${r.ticker}</span> <span class="fs-name">${r.name || ''}</span></div>
         <div class="fs-meta">分數 ${r.score != null ? Math.round(r.score) : '--'}　${r.industry || ''}</div>
@@ -294,7 +308,7 @@ function renderFocusStrip(data) {
     fetchJsonGz(`data/kline/${r.ticker}.json.gz`).then(k => {
       const c = (k.c || []).slice(-10);
       const slot = el.querySelector(`[data-spark="${r.ticker}"]`);
-      if (slot && c.length >= 2) slot.innerHTML = sparkSvg(c, 72, 24);
+      if (slot && c.length >= 2) slot.innerHTML = sparkSvg(c, 84, 26);
     }).catch(() => {});
   });
 }
@@ -3469,7 +3483,7 @@ function mainCardHtml(r, grouped = false) {
       ${stageBadge}
     </div>
     ${persistHtml}
-    <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span><span class="sc-vol">量 ${_cardNum(r.vol_ratio, 1)}x</span>${r.spark ? `<span class="sc-spark">${sparkSvg(r.spark, 60, 18)}</span>` : ''}</div>
+    <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span><span class="sc-vol">量 ${_cardNum(r.vol_ratio, 1)}x</span>${r.spark ? `<span class="sc-spark">${sparkSvg(r.spark, 64, 20)}</span>` : ''}</div>
     ${chipLine}
     ${maintLineHtml(r)}
     ${dedLine}

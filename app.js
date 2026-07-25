@@ -4278,7 +4278,7 @@ function initHotkeys() {
       // 1=醞釀 2=發動 3=趨勢 4=風險/觀察：勾選/取消該階段（可複選；v2 限定）
       toggleV2Stage(V2_STAGES[Number(e.key) - 1].key);
     } else if (e.key === '0' && UI_V2 && v2Built) {
-      setV2StagesTo([]);   // 0 = 清空階段勾選（看全部）
+      setV2StagesTo([]);   // 0 = 清空階段勾選（看全部＋抽屜條件全收起）
     }
   });
 }
@@ -4788,6 +4788,9 @@ async function renderDispositionRisk(ticker) {
 const UI_V2 = localStorage.getItem('ui_v2') !== '0';
 let v2Built = false;
 // 2026-07-23f：user 要求階段「一整排直接勾選、可複選」，不要 tab 切換 → Set 多選
+// 2026-07-25：user 要求預設四個階段都勾起來（條件面板一進來就展開，不用先點）。
+//   語意＝「全勾」與「全不勾」一樣不限階段（見 applyV2Stages），所以清單檔數不變；
+//   取消其中任一個才開始真的套分類濾網。
 const v2StageSel = new Set();
 
 const V2_STAGES = [
@@ -4828,7 +4831,7 @@ function buildV2Layout() {
   //    不再佔一條橫列；stepper 容器保留但不啟用。
   const stagebox = document.createElement('div');
   stagebox.className = 'v2-stagebox';
-  stagebox.innerHTML = `<div class="v2-stagebox-t">階段 <small>可複選・不勾=全部</small></div>` +
+  stagebox.innerHTML = `<div class="v2-stagebox-t">階段 <small>可複選・全勾/全不勾=全部</small></div>` +
     V2_STAGES.map(s =>
       `<button type="button" class="v2-step" data-key="${s.key}" role="checkbox" aria-checked="false">`
       + `<span class="chkbox"></span>`
@@ -4906,7 +4909,8 @@ function buildV2Layout() {
 
   v2Built = true;
   refreshV2Stepper();
-  applyV2Stages();     // 預設全不勾=看全部
+  V2_STAGES.forEach(s => v2StageSel.add(s.key));   // 2026-07-25：預設四階段全勾（=不限階段，條件面板全展開）
+  applyV2Stages();
   updateV2Gatebar();   // P3-⑭：首次建置時 renderMeta 已跑過，這裡補一次
 }
 
@@ -4935,6 +4939,8 @@ function updateV2Gatebar() {
 
 // 階段勾選（可複選）：勾了哪些階段 → 分類 OR 濾網套那些階段的全部分類，
 // 抽屜同時顯示所有勾選階段的條件；全不勾 = 不限階段、抽屜收起。
+// 2026-07-25：「全勾」也視為不限階段（＝預設狀態）。理由：四階段分類只涵蓋約 1/4 個股，
+//   其餘（GroupResonance-only／無分類）本來就看得到，預設不該因為鈕都亮著就被砍掉。
 function toggleV2Stage(key) {
   if (v2StageSel.has(key)) v2StageSel.delete(key);
   else v2StageSel.add(key);
@@ -4964,15 +4970,18 @@ function applyV2Stages() {
   // ④併⑥後抽屜常駐（階段勾選就在抽屜裡）；此 class 只當樣式 hook 不再隱藏
   drawer.classList.toggle('v2-drawer-empty', v2StageSel.size === 0);
   // 套分類濾網（只選今日有命中的代碼；chips 可再往下細篩）
+  const noStageFilter = v2StageSel.size === 0 || v2StageSel.size === V2_STAGES.length;
   state.selectedCats.clear();
   if (state.data) {
-    const avail = new Set((state.data.categories || [])
-      .filter(c => c.count > 0).map(c => c.code));
-    V2_STAGES.forEach(s => {
-      if (v2StageSel.has(s.key))
-        s.codes.forEach(c => { if (avail.has(c)) state.selectedCats.add(c); });
-    });
-    renderCategoryChips(state.data.categories);   // 同步 chips 勾選態
+    if (!noStageFilter) {
+      const avail = new Set((state.data.categories || [])
+        .filter(c => c.count > 0).map(c => c.code));
+      V2_STAGES.forEach(s => {
+        if (v2StageSel.has(s.key))
+          s.codes.forEach(c => { if (avail.has(c)) state.selectedCats.add(c); });
+      });
+    }
+    renderCategoryChips(state.data.categories);   // 同步 chips 勾選態（全勾時=全部清空）
   }
   applyFilters();
 }

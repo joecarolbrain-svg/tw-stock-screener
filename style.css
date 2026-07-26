@@ -1046,760 +1046,198 @@ footer {
 .sv-c b { color: #eef1f5; }
 .sv-foot { padding: 14px 4px 10px; font-size: 13px; color: #6a6a7a; border-top: 1px solid #20203a; margin-top: 2px; }
 
-/* ═══ 個股彈窗卡片堆（2026-07-26）═══════════════════════════
-   原本的 sv-row 平鋪列改成 <details> 可收合卡。決策卡預設展開、
-   研究卡預設收合且標題列直接帶重點數字，所以收合時滑過去也掃得到。
-   收合狀態存 localStorage.sv_cards_open。 */
-.sv-nav {
-  position: sticky; top: 0; z-index: 5;
-  display: flex; gap: 5px; flex-wrap: wrap;
-  padding: 9px 2px; margin-bottom: 2px;
-  /* 跟滿版底色一致，否則捲動時這條 sticky 列會浮出一塊不同色的長條 */
-  background: var(--bg, #0d0d1a); border-bottom: 1px solid var(--border, #20203a);
+/* ═══ 個股頁 FinLab 版型（深色）2026-07-26 ═══════════════════
+   照 finlab.finance/stocks/3231 的呈現形式重排：問句式大標、重點結論條列、
+   膠囊雷達、維度分頁、訊號卡雙進度條、方向分量表、大留白。
+   **唯一不抄淺色主題**——贏窟全站深色，個股頁單獨白底會跟系統割裂。
+   彈窗與 stock.html 共用這整組樣式。 */
+
+.fl-page { padding: 4px 0 20px; }
+.fl-mut  { color: var(--text-mut, #6a6a7a); font-size: 13px; }
+.fl-none { color: var(--text-mut, #6a6a7a); font-size: 15px; padding: 12px 0; }
+.fl-up   { color: var(--up, #ef5350); }
+.fl-down { color: var(--down, #26a69a); }
+.fl-note { font-size: 13px; color: var(--text-mut, #6a6a7a); line-height: 1.8; margin: 10px 0 0; }
+.fl-lead { font-size: 15px; color: var(--text-dim, #9aa0b0); margin: 0 0 16px; line-height: 1.8; }
+.fl-warn {
+  font-size: 14px; color: var(--warn, #f5b942); line-height: 1.75;
+  background: rgba(245,185,66,.07); border-left: 3px solid var(--warn, #f5b942);
+  padding: 10px 14px; margin: 14px 0 0; border-radius: 0 5px 5px 0;
 }
-.sv-nav-b {
+.fl-foot {
+  font-size: 13px; color: var(--text-mut, #6a6a7a);
+  border-top: 1px solid var(--border, #2a2a3e); padding-top: 16px; margin-top: 8px;
+}
+.fl-foot a { color: var(--accent, #00d4aa); text-decoration: none; }
+
+/* 區塊跳轉列 */
+.fl-nav {
+  position: sticky; top: 0; z-index: 6; display: flex; gap: 6px; flex-wrap: wrap;
+  padding: 10px 0; margin-bottom: 4px;
+  background: var(--bg, #0d0d1a); border-bottom: 1px solid var(--border, #2a2a3e);
+}
+.fl-navb {
   background: var(--panel-3, #1a1a2e); border: 1px solid var(--border, #2a2a3e);
   color: var(--text-dim, #9aa0b0); border-radius: 20px;
-  padding: 6px 14px; font-size: 14px; cursor: pointer; font-family: inherit;
-  white-space: nowrap;
+  padding: 5px 14px; font-size: 14px; cursor: pointer; font-family: inherit; white-space: nowrap;
 }
-.sv-nav-b:hover { color: var(--accent, #00d4aa); border-color: var(--accent, #00d4aa); }
+.fl-navb:hover { color: var(--accent, #00d4aa); border-color: var(--accent, #00d4aa); }
 
-.sv-card { border-top: 1px solid var(--border, #20203a); }
-.sv-card > .sv-card-h {
-  display: flex; align-items: baseline; gap: 8px;
-  padding: 15px 6px; cursor: pointer; list-style: none; line-height: 1.6;
+/* ── ① 區塊與問句式大標 ─────────────────────────── */
+.fl-sec { padding: 34px 0; border-top: 1px solid var(--border, #2a2a3e); }
+.fl-sec:first-child { border-top: none; }
+.fl-h2 { font-size: 26px; font-weight: 800; margin: 0 0 20px; letter-spacing: .5px; color: var(--text, #e8edf7); }
+.fl-h3 { font-size: 17px; font-weight: 700; margin: 26px 0 10px; color: var(--text, #e8edf7); }
+.fl-h3:first-child { margin-top: 0; }
+.fl-two { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 40px; align-items: start; }
+@media (max-width: 900px) { .fl-two { grid-template-columns: 1fr; gap: 24px; } }
+
+/* ── 英雄區 ─────────────────────────────────────── */
+.fl-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 44px; padding: 8px 0 30px; }
+@media (max-width: 900px) { .fl-hero { grid-template-columns: 1fr; gap: 20px; } }
+.fl-name { font-size: 42px; font-weight: 800; margin: 0 0 12px; letter-spacing: 2px; }
+.fl-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.fl-tag {
+  border: 1px solid var(--border, #2a2a3e); border-radius: 20px;
+  padding: 4px 12px; font-size: 13px; color: var(--text-dim, #9aa0b0);
 }
-.sv-card > .sv-card-h::-webkit-details-marker { display: none; }
-.sv-card > .sv-card-h::before {
-  content: '▸'; color: var(--text-mut, #6a6a7a); font-size: 10px;
-  flex: 0 0 auto; transition: transform .12s;
+.fl-verdict { font-size: 19px; color: var(--text, #e8edf7); margin-bottom: 20px; font-weight: 600; }
+.fl-siglist-t { font-size: 14px; color: var(--text-dim, #9aa0b0); margin-bottom: 8px; }
+.fl-chip-on {
+  display: inline-block; margin: 0 8px 8px 0; padding: 5px 13px; border-radius: 20px;
+  font-size: 14px; color: var(--up, #ef5350);
+  background: rgba(239,83,80,.1); border: 1px solid rgba(239,83,80,.35);
 }
-.sv-card[open] > .sv-card-h::before { transform: rotate(90deg); }
-.sv-card > .sv-card-h:hover { background: rgba(255, 255, 255, .025); }
-.sv-card .sv-card-sum {
-  font-size: 14px; color: var(--text-mut, #6a6a7a);
-  margin-left: auto; text-align: right; min-width: 0;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.fl-hero-r { min-width: 0; }
+.fl-price { text-align: right; margin-bottom: 10px; font-family: var(--mono); }
+.fl-price b { font-size: 38px; font-weight: 700; }
+.fl-price span { font-size: 18px; margin-left: 12px; }
+.fl-chart svg { width: 100%; height: 190px; display: block; }
+.fl-chart-lg { font-size: 12px; color: var(--text-mut, #6a6a7a); text-align: right; margin-top: 6px; }
+
+/* ── ② 重點結論條列 ─────────────────────────────── */
+.fl-insights { list-style: none; margin: 0; padding: 0; }
+.fl-in {
+  position: relative; padding: 13px 0 13px 22px; font-size: 16px; line-height: 1.85;
+  border-bottom: 1px solid var(--border, #2a2a3e); color: var(--text-dim, #9aa0b0);
 }
-.sv-card > .sv-c { padding: 6px 4px 20px 30px; }
-.sv-card-na { padding: 10px 4px; font-size: 12px; color: var(--text-mut, #6a6a7a); }
-.sv-stale { color: var(--warn, #f5b942); font-size: 11px; display: block; margin-top: 3px; }
-
-/* ═══ 研究卡內容（stockcards.js，彈窗與 stock.html 共用）═══════ */
-.sc-mut { color: var(--text-mut, #6a6a7a); font-size: 14px; }
-.sc-foot { margin-top: 8px; line-height: 1.7; }
-.sc-none { color: var(--text-mut, #6a6a7a); font-size: 15px; padding: 6px 0; }
-.sc-up { color: var(--up, #ef5350); }
-.sc-down { color: var(--down, #26a69a); }
-.sc-warn {
-  font-size: 14px; color: var(--warn, #f5b942); line-height: 1.75;
-  background: rgba(245, 185, 66, .07); border-left: 3px solid var(--warn, #f5b942);
-  padding: 7px 10px; margin-top: 9px; border-radius: 0 4px 4px 0;
+.fl-in:last-child { border-bottom: none; }
+.fl-in::before {
+  content: ''; position: absolute; left: 2px; top: 21px;
+  width: 8px; height: 8px; border-radius: 50%; background: var(--text-mut, #6a6a7a);
 }
+.fl-in-good::before { background: var(--up, #ef5350); }
+.fl-in-bad::before  { background: var(--down, #26a69a); }
+.fl-in-warn::before { background: var(--warn, #f5b942); }
+.fl-in b { color: var(--text, #e8edf7); font-weight: 700; margin-right: 4px; }
 
-/* 五維 */
-.sc-scores { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
-/* 上限 620px：彈窗放寬到 1200px 後，進度條若吃滿整列會拉到近 900px，
-   長度差異反而看不出來、雷達圖也被推得太遠 */
-.sc-dims { flex: 1 1 440px; min-width: 240px; max-width: 720px; display: grid; gap: 11px; }
-.sc-dim { display: grid; grid-template-columns: 52px 1fr 46px; align-items: center; gap: 12px; }
-.sc-dim-off { opacity: .72; }          /* 估值不進總分，視覺上降一階 */
-.sc-dim-l { font-size: 15px; color: var(--text-dim, #9aa0b0); }
-.sc-dim-bar { height: 11px; background: var(--panel-3, #1a1a2e); border-radius: 4px; overflow: hidden; }
-.sc-dim-bar > i { display: block; height: 100%; border-radius: 4px; }
-.sc-dim-v { font-family: var(--mono); font-size: 18px; text-align: right; font-weight: 700; }
-.sc-total { font-size: 16px; margin-top: 3px; padding-top: 6px; border-top: 1px dotted var(--border, #2a2a3e); }
-.sc-total b { font-family: var(--mono); font-size: 23px; }
-.sc-radar { width: 268px; height: 268px; flex: 0 0 auto; }
-
-/* 訊號實證 */
-.sc-sig { border: 1px solid var(--border, #2a2a3e); border-radius: 8px; padding: 13px 16px; margin-bottom: 11px; }
-.sc-sig-h { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-bottom: 11px; font-size: 16px; }
-.sc-sig-v { margin-left: auto; font-family: var(--mono); color: var(--accent, #00d4aa); font-size: 16px; }
-table.sc-ev { border-collapse: collapse; width: 100%; font-size: 15px; }
-table.sc-ev th, table.sc-ev td {
-  padding: 7px 9px; text-align: right; font-family: var(--mono);
-  border-bottom: 1px solid var(--border, #2a2a3e);
+/* ── ④ 維度分頁 ─────────────────────────────────── */
+.fl-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.fl-tab {
+  background: transparent; border: 1px solid var(--border, #2a2a3e);
+  color: var(--text-dim, #9aa0b0); border-radius: 20px;
+  padding: 6px 16px; font-size: 14px; cursor: pointer; font-family: inherit;
 }
-table.sc-ev th { color: var(--text-mut, #6a6a7a); font-weight: 500; font-family: inherit; font-size: 14px; }
-table.sc-ev th:first-child, table.sc-ev td:first-child { text-align: left; font-family: inherit; }
-table.sc-ev tbody tr:last-child td { border-bottom: none; }
-table.sc-ev td small { display: block; font-size: 12.5px; opacity: .72; }
-.sc-ev-l { color: var(--text-dim, #9aa0b0); font-size: 15px; }
-.sc-ev-l small { display: block; font-size: 10px; opacity: .7; }
-
-/* 估值 */
-.sc-kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 13px; }
-.sc-kv-i { background: var(--panel-3, #1a1a2e); border-radius: 7px; padding: 12px 14px; }
-.sc-kv-l { font-size: 13px; color: var(--text-mut, #6a6a7a); }
-.sc-kv-v { font-family: var(--mono); font-size: 24px; font-weight: 700; margin: 2px 0; }
-.sc-pctbar { height: 4px; background: var(--bg, #0d0d1a); border-radius: 3px; margin: 5px 0 3px; position: relative; }
-.sc-pctbar > i { position: absolute; top: -2px; width: 2px; height: 8px; background: var(--accent, #00d4aa); }
-
-/* 籌碼數字（併進💰籌碼卡） */
-.sc-chipnums { margin-top: 9px; padding-top: 8px; border-top: 1px dotted var(--border, #2a2a3e); }
-.sc-chipn-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
-.sc-chipn { font-size: 15px; color: var(--text-dim, #9aa0b0); }
-.sc-chipn b { font-family: var(--mono); font-size: 17px; margin: 0 4px; }
-
-/* 矩陣 */
-.sc-mx-wrap { overflow-x: auto; }
-table.sc-mx { border-collapse: collapse; font-size: 15px; margin: 0 auto; }
-table.sc-mx th, table.sc-mx td {
-  padding: 11px 16px; text-align: center; border: 1px solid var(--border, #2a2a3e);
-  font-family: var(--mono); min-width: 88px;
+.fl-tab:hover { color: var(--text, #e8edf7); }
+.fl-tab.on {
+  background: var(--accent, #00d4aa); border-color: var(--accent, #00d4aa);
+  color: #06121a; font-weight: 700;
 }
-table.sc-mx th { color: var(--text-dim, #9aa0b0); font-family: inherit; font-weight: 500; background: var(--panel-2, #15152b); }
-table.sc-mx td small { display: block; font-size: 12px; color: var(--text-mut, #6a6a7a); }
-.sc-mx-me { outline: 2px solid var(--accent, #00d4aa); outline-offset: -2px; }
+.fl-pane { display: none; }
+.fl-pane.on { display: block; }
 
-/* 基本資料 */
-.sc-profile { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 9px 26px; }
-.sc-pf-r { display: flex; justify-content: space-between; gap: 8px; font-size: 15px;
+/* ── ③ 膠囊雷達 ─────────────────────────────────── */
+.fl-radar-col { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.fl-radar-wrap { position: relative; width: 100%; max-width: 330px; aspect-ratio: 1; }
+.fl-radar { width: 100%; height: 100%; display: block; }
+.fl-pill {
+  position: absolute; transform: translate(-50%, -50%);
+  background: var(--panel-3, #1a1a2e); border: 1px solid var(--border, #2a2a3e);
+  border-radius: 20px; padding: 4px 12px; font-size: 13px; white-space: nowrap;
+  color: var(--text-dim, #9aa0b0);
+}
+.fl-pill b { font-family: var(--mono); font-size: 16px; margin-left: 4px; }
+.fl-total { font-size: 15px; text-align: center; }
+.fl-total b { font-family: var(--mono); font-size: 24px; }
+
+/* ── 數值格 ─────────────────────────────────────── */
+.fl-kvs { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-top: 18px; }
+.fl-kv { background: var(--panel-3, #1a1a2e); border-radius: 8px; padding: 14px 16px; }
+.fl-kv-l { font-size: 13px; color: var(--text-mut, #6a6a7a); }
+.fl-kv-v { font-family: var(--mono); font-size: 24px; font-weight: 700; margin: 4px 0; }
+.fl-kv-s { font-size: 12px; color: var(--text-mut, #6a6a7a); }
+
+/* ── 贏窟自有內容區塊 ───────────────────────────── */
+.fl-cats { margin-bottom: 18px; }
+.fl-blocks { display: grid; gap: 20px; }
+.fl-block { }
+.fl-block-b { font-size: 16px; line-height: 1.9; color: #cfd3dc; }
+.fl-block-b b { color: #eef1f5; }
+
+/* ── ⑥ 方向分量表 ───────────────────────────────── */
+.fl-dirwrap { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 34px; align-items: start; }
+@media (max-width: 800px) { .fl-dirwrap { grid-template-columns: 1fr; gap: 18px; } }
+.fl-dir-l { font-size: 28px; font-weight: 800; }
+.fl-dir-v { font-family: var(--mono); font-size: 17px; margin-left: 8px; color: var(--text-dim, #9aa0b0); }
+.fl-gauge {
+  position: relative; height: 8px; border-radius: 5px; margin: 14px 0 6px;
+  background: linear-gradient(90deg, var(--down, #26a69a), var(--text-mut, #6a6a7a), var(--up, #ef5350));
+}
+.fl-gauge > i {
+  position: absolute; top: -4px; width: 4px; height: 16px; border-radius: 2px;
+  background: var(--text, #e8edf7); transform: translateX(-50%);
+}
+.fl-gauge-t { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-mut, #6a6a7a); }
+
+/* ── ⑤ 訊號卡 ───────────────────────────────────── */
+.fl-siggrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 18px; }
+@media (max-width: 700px) { .fl-siggrid { grid-template-columns: 1fr; } }
+.fl-sig {
+  border: 1px solid var(--border, #2a2a3e); border-radius: 10px;
+  padding: 20px 22px; background: var(--panel, #131326);
+}
+.fl-sig-active { border-color: rgba(239,83,80,.4); background: rgba(239,83,80,.05); }
+.fl-sig-h { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.fl-sig-name { font-size: 18px; font-weight: 700; color: var(--text, #e8edf7); }
+.fl-sig-on {
+  margin-left: auto; font-size: 13px; color: var(--up, #ef5350);
+  background: rgba(239,83,80,.12); border-radius: 20px; padding: 3px 12px;
+}
+.fl-sig-off {
+  margin-left: auto; font-size: 13px; color: var(--text-mut, #6a6a7a);
+  border: 1px solid var(--border, #2a2a3e); border-radius: 20px; padding: 3px 12px;
+}
+.fl-sig-desc { font-size: 14px; color: var(--text-dim, #9aa0b0); line-height: 1.85; margin: 0 0 12px; }
+.fl-sig-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.fl-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.fl-kpi-h { font-size: 13px; color: var(--text-mut, #6a6a7a); display: flex; justify-content: space-between; align-items: baseline; }
+.fl-kpi-h b { font-family: var(--mono); font-size: 18px; }
+.fl-kpi-bar { height: 6px; border-radius: 3px; background: var(--panel-3, #1a1a2e); margin-top: 7px; overflow: hidden; }
+.fl-kpi-bar > i { display: block; height: 100%; border-radius: 3px; background: var(--text-mut, #6a6a7a); }
+.fl-kpi-bar > i.fl-up { background: var(--up, #ef5350); }
+.fl-kpi-bar > i.fl-down { background: var(--down, #26a69a); }
+.fl-kpi-bar2 > i { background: var(--border-hi, #3a4a7a); }
+.fl-kpi-f { font-size: 12px; color: var(--text-mut, #6a6a7a); margin-top: 5px; }
+.fl-sig-note { font-size: 12px; color: var(--text-mut, #6a6a7a); margin-top: 14px; line-height: 1.7; }
+
+/* ── 矩陣 ───────────────────────────────────────── */
+.fl-mx-wrap { overflow-x: auto; }
+/* 靠左，跟區塊內其他內容對齊；置中會在寬螢幕左邊留一大片空白 */
+table.fl-mx { border-collapse: collapse; font-size: 15px; margin: 0; }
+table.fl-mx th, table.fl-mx td {
+  padding: 12px 18px; text-align: center; border: 1px solid var(--border, #2a2a3e);
+  font-family: var(--mono); min-width: 92px;
+}
+table.fl-mx th { color: var(--text-dim, #9aa0b0); font-family: inherit; font-weight: 500; background: var(--panel-2, #101623); }
+table.fl-mx td small { display: block; font-size: 12px; color: var(--text-mut, #6a6a7a); }
+.fl-mx-me { outline: 2px solid var(--accent, #00d4aa); outline-offset: -2px; }
+
+/* ── 基本資料 / 方法 ────────────────────────────── */
+.fl-pfgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px 30px; }
+.fl-pf { display: flex; justify-content: space-between; gap: 10px; font-size: 15px;
   border-bottom: 1px dotted var(--border, #2a2a3e); padding-bottom: 8px; }
-.sc-pf-r a { color: var(--accent, #00d4aa); }
-.sv-none { padding: 24px 10px; font-size: 14px; color: #9a9aa8; text-align: center; line-height: 2; }
-
-/* ── 期貨建倉計算機 ─────────────────────────────────── */
-.qef { max-width: 560px; margin: 0 auto; padding: 8px 4px 40px; }
-.qef-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
-.qef-kicker { font-size: 11px; color: #00d4aa; letter-spacing: 1.5px; text-transform: uppercase; }
-.qef-title { font-size: 22px; font-weight: 700; color: #eef1f5; margin-top: 2px; }
-.qef-atr { text-align: right; font-size: 12px; color: #888; line-height: 1.5; }
-.qef-atr b { color: #ffa726; font-size: 16px; }
-.qef-atr .muted { display: block; }
-
-/* HERO 三條線 */
-.qef-hero { background: #131326; border: 1px solid #2a2a3e; border-radius: 12px; overflow: hidden; }
-.qef-line {
-  display: flex; align-items: center; gap: 10px; padding: 11px 14px;
-  border-top: 1px solid #20203a;
-}
-.qef-line:first-child { border-top: none; }
-.qef-line .ql-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: #555; }
-.qef-line .ql-px { font-family: "Roboto Mono", ui-monospace, monospace; font-size: 19px; font-weight: 700; min-width: 74px; }
-.qef-line .ql-act { flex: 1; font-size: 13px; color: #e0e0e0; line-height: 1.35; }
-.qef-line .ql-why { display: block; font-size: 11px; color: #777; }
-.qef-line .ql-dist { font-size: 12px; color: #888; white-space: nowrap; }
-.qef-line.add .ql-dot { background: #22c55e; }
-.qef-line.add .ql-px { color: #22c55e; }
-.qef-line.support .ql-dot, .qef-line.atr .ql-dot { background: #f5b942; }
-.qef-line.support .ql-px, .qef-line.atr .ql-px { color: #f5b942; }
-.qef-line.breakeven .ql-dot { background: #ff5252; }
-.qef-line.breakeven .ql-px { color: #ff5252; }
-.qef-line.hit { background: #2a1416; }
-.qef-line.hit .ql-dist { color: #ff5252; font-weight: 700; }
-.qef-zone {
-  padding: 9px 14px; font-size: 13px; color: #cfcfe0; background: #0f0f22;
-  border-top: 1px solid #20203a; border-bottom: 1px solid #20203a;
-  font-family: "Roboto Mono", ui-monospace, monospace;
-}
-.qef-warn { font-size: 12px; color: #f5b942; margin: 8px 2px 14px; line-height: 1.5; }
-.qef-empty { color: #888; text-align: center; padding: 18px; font-size: 13px; }
-
-/* 部位狀態 */
-.qef-status { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-.qef-stat {
-  flex: 1; min-width: 110px; background: #131326; border: 1px solid #2a2a3e;
-  border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 2px;
-}
-.qef-stat span { font-size: 11px; color: #888; }
-.qef-stat b { font-family: "Roboto Mono", ui-monospace, monospace; font-size: 17px; color: #eef1f5; }
-.qef-stat.full { flex-basis: 100%; flex-direction: row; align-items: center; }
-.qef-stat b.pos { color: #ff5252; }   /* 台股紅漲 */
-.qef-stat b.neg { color: #22c55e; }
-.qef-stat b.good { color: #22c55e; }
-.qef-stat b.warn { color: #f5b942; }
-.qef-stat b.bad, .qef-stat.bad { color: #ff5252; }
-
-/* 卡片 / 表單 */
-.qef-card { background: #131326; border: 1px solid #2a2a3e; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
-.qef-card-t { font-size: 13px; font-weight: 700; color: #00d4aa; margin-bottom: 10px; }
-.qef-card-t .muted { font-weight: 400; }
-.qef-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
-.qef-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #888; }
-.qef-grid input { width: 100%; font-family: "Roboto Mono", ui-monospace, monospace; font-size: 15px; }
-.qef-note-warn { margin-top: 10px; padding: 8px 10px; background: #2a1416; border-radius: 6px; font-size: 12px; color: #ff9a9a; line-height: 1.5; }
-
-.qef-adv { background: #131326; border: 1px solid #2a2a3e; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; }
-.qef-adv summary { cursor: pointer; font-size: 13px; font-weight: 600; color: #cfe1ff; }
-.qef-adv[open] summary { margin-bottom: 10px; }
-
-.qef-sim { width: 100%; border-collapse: collapse; font-size: 13px; font-family: "Roboto Mono", ui-monospace, monospace; }
-.qef-sim th { color: #888; font-weight: 400; text-align: right; padding: 6px 8px; border-bottom: 1px solid #2a2a3e; font-size: 11px; }
-.qef-sim th:first-child, .qef-sim td:first-child { text-align: left; font-family: -apple-system, "Segoe UI", sans-serif; }
-.qef-sim td { text-align: right; padding: 7px 8px; border-bottom: 1px solid #20203a; }
-.qef-sim td.pos { color: #22c55e; }
-.qef-note { margin-top: 10px; padding: 9px 11px; border-radius: 6px; font-size: 12.5px; line-height: 1.5; }
-.qef-note.ok { background: #143020; color: #9be8b4; }
-.qef-note.warn { background: #2a1416; color: #ffb4b4; }
-.qef-foot { margin-top: 14px; line-height: 1.5; }
-
-@media (max-width: 600px) {
-  .qef-grid { grid-template-columns: 1fr 1fr; }
-  .qef-line .ql-px { font-size: 17px; min-width: 62px; }
-}
-
-/* 主升策略篩選 */
-.filter-group-mainup .mainup-mode label { color: #ffb347; }
-.mainup-sigs { display: flex; flex-direction: column; gap: 8px; margin: 4px 0; }
-.mainup-sigs label { font-size: 12px; color: #ffd9a8; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; }
-.mainup-sigs .mu-sub { font-size: 11px; color: #888; margin-left: 6px; }
-/* 5訊號3條件 框架面板 */
-.mu-block { }
-.mu-head { font-size: 12px; font-weight: 700; color: #ffcf99; margin-bottom: 4px; border-left: 3px solid #ffb347; padding-left: 7px; }
-.mu-head .mu-hint { font-weight: 400; color: #888; font-size: 11px; margin-left: 7px; }
-.mu-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding-left: 7px; }
-.mu-flow label { background: rgba(255,179,71,0.10); border: 1px solid #4a3a22; border-radius: 8px; padding: 2px 9px; }
-.mu-flow label:hover { border-color: #ffb347; }
-.mu-flow .mu-step { background: rgba(255,179,71,0.10); border: 1px solid #4a3a22; border-radius: 8px; padding: 2px 9px; color: #cfd3e0; }
-.mu-arrow { color: #ffb347; font-weight: 700; }
-.island-mode label { color: #5ad1ff; }
-.mainup-extra { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0; align-items: center; }
-.mainup-extra label { font-size: 12px; color: #ffd9a8; display: inline-flex; align-items: center; gap: 4px; }
-.mainup-extra select { font-size: 12px; }
-
-/* ── 篩選區重構：已選條件列 + 分組收合 ───────────────── */
-.active-filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-  padding: 6px 10px; min-height: 30px; border-bottom: 1px solid #2a2a3e; }
-.active-filters .af-empty { color: #666; font-size: 12px; }
-.afchip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px;
-  color: #cfe3ff; background: #1b2a44; border: 1px solid #2d4a6e; border-radius: 12px;
-  padding: 2px 4px 2px 10px; }
-.afchip .afx { background: none; border: none; color: #8aa6d0; cursor: pointer;
-  font-size: 11px; line-height: 1; padding: 2px 4px; border-radius: 8px; }
-.afchip .afx:hover { background: #33507a; color: #fff; }
-
-.group-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; }
-.group-bar-2nd { padding-top: 0; border-top: 1px dashed var(--border); margin-top: 2px; padding-top: 8px; }
-.group-bar .search-box { width: 200px; padding: 5px 8px; background: #0d0d1a;
-  border: 1px solid #2a2a3e; border-radius: 6px; color: #e0e0e0; font-size: 13px; }
-.fg-toggle { background: #14142a; border: 1px solid #2a2a3e; color: #cfd3e0;
-  border-radius: 6px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
-.fg-toggle::before { content: '▸ '; color: #888; }
-.fg-toggle.open { background: #1d2748; border-color: #3a4a7a; color: #fff; }
-.fg-toggle.open::before { content: '▾ '; color: #6ea8ff; }
-.fg-toggle .fg-count { color: #ffb347; font-weight: 700; }
-.fg-body { padding: 10px 14px; background: #0d0d1a; border-bottom: 1px solid #2a2a3e;
-  display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-start; }
-.fg-body[data-group="mainup"] { flex-direction: column; gap: 6px; }
-
-/* ── 🏛 今日市場快照（dashboard 頂部帶狀區） ─────────── */
-.mkt-snapshot { padding: 12px 20px 0; }
-.ms-tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 10px;
-}
-.ms-tile {
-  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-  padding: 10px 12px 9px; display: flex; flex-direction: column; gap: 3px;
-  min-width: 0;
-}
-.ms-tile .ms-k { font-size: 11px; color: var(--text-mut); letter-spacing: 0.5px; white-space: nowrap; }
-.ms-tile .ms-v {
-  font-family: var(--mono); font-size: 20px; font-weight: 700; line-height: 1.15;
-  color: var(--text); white-space: nowrap;
-}
-.ms-tile .ms-v small { font-size: 11px; font-weight: 400; color: var(--text-mut); margin-left: 3px; }
-.ms-tile .ms-sub { font-size: 11px; color: var(--text-mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ms-v.pos, .ms-sub .pos { color: var(--up); }
-.ms-v.neg, .ms-sub .neg { color: var(--down); }
-.ms-v.warn { color: var(--warn); }
-.ms-v.accent { color: var(--accent); }
-
-/* 大盤籌碼狀態 tile：整塊染色 */
-.ms-tile.ms-state-bull { border-color: rgba(239, 83, 80, 0.5); background: rgba(239, 83, 80, 0.08); }
-.ms-tile.ms-state-bear { border-color: rgba(38, 166, 154, 0.5); background: rgba(38, 166, 154, 0.08); }
-.ms-tile.ms-state-bull .ms-v { color: var(--up); }
-.ms-tile.ms-state-bear .ms-v { color: var(--down); }
-
-/* 漲跌家數比例條 */
-.ms-bar { display: flex; height: 4px; border-radius: 2px; overflow: hidden; background: #23233a; margin-top: 3px; }
-.ms-bar .up   { background: var(--up); }
-.ms-bar .down { background: var(--down); }
-
-/* 快照下方：市場評論一行 ticker */
-.ms-notes { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 2px 0; }
-.ms-note { font-size: 12px; line-height: 1.5; color: var(--text-dim); }
-.ms-note.bull { color: #ff8a80; }
-.ms-note.bear { color: #4dd0c4; }
-.ms-note.warn { color: var(--warn); }
-.ms-note.info { color: #7ec0ff; }
-
-@media (max-width: 800px) {
-  .mkt-snapshot { padding: 10px 10px 0; }
-  .ms-tiles { grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); }
-  .ms-tile .ms-v { font-size: 17px; }
-}
-
-/* ── 訊號成績單 ─────────────────────────────────────── */
-.sr-table { width: 100%; border-collapse: collapse; margin: 0 12px; }
-.sr-table th {
-  text-align: left; font-size: 12px; color: #888; font-weight: 600;
-  padding: 8px 10px; border-bottom: 1px solid #2a2a3e;
-}
-.sr-table td.sr-cat {
-  padding: 10px; font-size: 13px; color: #e0e0e0; white-space: nowrap;
-  border-bottom: 1px solid #20203a;
-}
-.sr-table td.sr-cat .cat-tag { margin-right: 8px; }
-.sr-td { padding: 8px 14px; text-align: center; border-bottom: 1px solid #20203a; min-width: 130px; }
-.sr-td.sr-empty { color: #555; }
-.sr-avg { font-size: 16px; font-weight: 700; }
-.sr-sub { font-size: 11px; color: #999; margin-top: 2px; }
-.sr-n { font-size: 10.5px; color: #666; margin-top: 1px; }
-.sr-foot { padding: 12px; font-size: 11px; line-height: 1.5; }
-
-
-/* ── 融資維持率雷達（卡片一行 + 彈窗危機表）───────────────────
-   風格刻意沿用 .sc-chip：同屬「籌碼」語意，色階只用紅/橘（這是風險溫度計，
-   不是買訊，所以不給綠色）。 */
-.sc-maint { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
-  font-size: 11.5px; border-radius: 6px; padding: 3px 7px;
-  background: rgba(255,255,255,0.04); border-left: 2px solid #6b7280; }
-.sc-maint b { font-weight: 700; }
-.sc-maint .sc-maint-detail { color: #8b93a3; font-size: 11px; }
-.sc-maint .sc-maint-new { color: #fbbf24; font-size: 10.5px; font-weight: 700; }
-.sc-maint.mt-broken { border-left-color: #ef5350; background: rgba(239,83,80,0.16);
-  box-shadow: 0 0 0 1px rgba(239,83,80,0.25) inset; }
-.sc-maint.mt-broken b { color: #ff6b6b; }
-.sc-maint.mt-reached { border-left-color: #ef5350; background: rgba(239,83,80,0.10); }
-.sc-maint.mt-reached b { color: #ff8a80; }
-.sc-maint.mt-near { border-left-color: #f5b942; }
-.sc-maint.mt-near b { color: #f5b942; }
-
-.sv-maint { margin-top: 8px; padding: 8px 10px; border-radius: 8px;
-  background: rgba(255,255,255,0.03); border-left: 3px solid #6b7280; }
-.sv-maint.mt-broken { border-left-color: #ef5350; }
-.sv-maint.mt-reached { border-left-color: #ff8a80; }
-.sv-maint.mt-near { border-left-color: #f5b942; }
-.sv-maint .svm-verdict { font-size: 12.5px; margin-bottom: 6px; }
-.sv-maint .svm-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
-.sv-maint .svm-table th { text-align: left; color: #8b93a3; font-weight: 600;
-  padding: 2px 6px; border-bottom: 1px solid rgba(255,255,255,0.08); }
-.sv-maint .svm-table td { padding: 2px 6px; }
-.sv-maint .svm-table .mt-num { text-align: right; font-variant-numeric: tabular-nums; }
-.sv-maint .svm-table .neg { color: #ff6b6b; }
-.sv-maint .svm-table tr.mt-base td { color: #ffd580; font-weight: 600; }
-.sv-maint .svm-table tr.mt-now td { border-top: 1px solid rgba(255,255,255,0.12);
-  font-weight: 700; }
-.sv-maint .svm-note { margin-top: 6px; font-size: 11px; line-height: 1.5; }
-.sc-maint.mt-loose { border-left-color: #9aa4b5; }
-.sc-maint.mt-loose b { color: #c3cad6; }
-.sc-maint.mt-safe  { border-left-color: #6b7280; }
-.sv-maint.mt-loose { border-left-color: #9aa4b5; }
-.sv-maint.mt-safe  { border-left-color: #6b7280; }
-
-/* ── 三階段直立面板（2026-07-22 重設計：階段 × 各自掛證據）─────────── */
-.stage-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 8px;
-}
-.stage-col {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px;
-  background: rgba(255, 255, 255, .02);
-}
-.stage-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  font-weight: 700;
-  font-size: 13px;
-  color: #00d4aa;
-}
-.stage-preset { font-size: 11px; padding: 2px 8px; }
-.stage-hint { font-size: 11px; margin: 2px 0 6px; }
-.stage-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 6px;
-  min-height: 22px;
-}
-.stage-sigs {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  border-top: 1px dashed var(--border);
-  padding-top: 6px;
-}
-.stage-sigs label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
-.stage-sigs select { font-size: 12px; }
-.stage-bottom {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 4px 0 8px;
-}
-.stage-mini-t { font-size: 12px; color: #8899aa; font-weight: 700; }
-.stage-bottom .stage-chips { margin-bottom: 0; display: inline-flex; }
-@media (max-width: 900px) {
-  .stage-grid { grid-template-columns: 1fr; }
-}
-.stage-sub {
-  font-size: 11px;
-  color: #8899aa;
-  font-weight: 700;
-  letter-spacing: .5px;
-}
-.stage-pat-row { display: flex; flex-wrap: wrap; gap: 4px 10px; }
-.stage-pat-row label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
-.stage-pats { margin-bottom: 6px; }
-.stage-oneclick {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-}
-
-/* 第一排快速鈕視覺分組（2026-07-22：只加分隔線，不動任何項目） */
-.qt-sep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; align-self: center; }
-
-/* ── P1 (2026-07-23)：時效徽章 / 今昨diff / 鍵盤選卡 ───────── */
-/* ⑧ 籌碼資料時效徽章：綠=已結算、琥珀=落後或窄檔(未結算事故防線) */
-.badge.chip-ok   { background: #123a2a; color: #7fe0b8; }
-.badge.chip-warn { background: #4a3410; color: #ffc46b; }
-
-/* ⑨ 今昨 diff：+上榜/−掉出 摘要 + 掉出名單下拉 */
-.diff-wrap    { position: relative; align-self: center; }
-.diff-summary { font-size: 12px; color: #9aa3b8; cursor: pointer; white-space: nowrap; user-select: none; }
-.diff-summary .diff-in  { color: #ffd166; font-weight: 600; }
-.diff-summary .diff-out { color: #ef9a9a; font-weight: 600; }
-.diff-panel {
-  position: absolute; top: calc(100% + 8px); right: 0; z-index: 80;
-  background: #14141f; border: 1px solid #2c2c44; border-radius: 8px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, .5);
-  min-width: 300px; max-height: 340px; overflow-y: auto; padding: 8px;
-}
-.diff-panel h5 { margin: 2px 4px 6px; font-size: 12px; color: #c9d2e4; font-weight: 600; }
-.diff-panel .diff-row {
-  display: flex; gap: 8px; align-items: center; padding: 4px 6px;
-  border-radius: 5px; cursor: pointer; font-size: 12.5px; color: #cfd6e4;
-}
-.diff-panel .diff-row:hover { background: #1e2233; }
-.diff-panel .diff-row .ds { margin-left: auto; color: #8b93a7; font-variant-numeric: tabular-nums; }
-.diff-panel .diff-act { display: block; margin: 6px 4px 2px; font-size: 12px; color: var(--accent); cursor: pointer; }
-
-/* ⑮ 鍵盤 j/k 選卡 */
-.main-card.kb-sel { outline: 2px solid var(--accent); outline-offset: -1px; }
-
-/* ═══ P2 (2026-07-23)：v2 版面（🧪雙跑，localStorage.ui_v2=1 時 body.ui-v2）═══ */
-/* v2 下三階段面板殼與其開關鈕隱藏（內容已搬進 stepper/抽屜） */
-.ui-v2 .fg-toggle[data-group="cat"] { display: none; }
-.ui-v2 .fg-body[data-group="cat"] { display: none !important; }
-#ui-v2-toggle.active { color: var(--accent); border-color: var(--accent); }
-
-/* ④ 三階段漏斗 stepper */
-.v2-stepper { display: flex; align-items: center; gap: 2px; padding: 10px 20px 0; flex-wrap: wrap; }
-.v2-step {
-  display: flex; align-items: center; gap: 9px;
-  background: #16162a; border: 1px solid #2c2c44; border-radius: 8px;
-  padding: 5px 12px; cursor: pointer; color: #9aa0b0;
-}
-.v2-step:hover { border-color: #3a3a5e; }
-.v2-step .n { font-size: 16px; font-weight: 700; color: #e0e0e0; font-variant-numeric: tabular-nums; }
-.v2-step .n em { font-style: normal; font-size: 10px; font-weight: 600; vertical-align: super; margin-left: 1px; }
-.v2-step .n em.pos { color: #ef5350; }
-.v2-step .n em.neg { color: #26a69a; }
-.v2-step .t { display: flex; flex-direction: column; line-height: 1.2; text-align: left; }
-.v2-step .t b { font-size: 12.5px; color: #d6dae6; font-weight: 600; }
-.v2-step .t span { font-size: 10.5px; color: #777f92; }
-.v2-step.active { border-color: var(--accent); background: var(--accent-bg); }
-.v2-step.active .t b, .v2-step.active .n { color: var(--accent); }
-.v2-arrow { color: #555e73; padding: 0 3px; font-size: 13px; }
-.v2-stepper .stage-oneclick { margin: 0 0 0 auto; }
-
-/* ④ 左抽屜 + 主區並排 */
-.dash-body { display: block; }
-.ui-v2 .dash-body { display: flex; align-items: flex-start; }
-.ui-v2 .dash-body > main { flex: 1; min-width: 0; }
-.v2-drawer {
-  flex: 0 0 272px;
-  margin: 8px 0 8px 8px;
-  max-height: calc(100vh - 150px);
-  overflow-y: auto;
-  display: flex; flex-direction: column; gap: 8px;
-  position: sticky; top: 8px;
-}
-.v2-drawer.v2-drawer-empty { display: none; }
-.v2-drawer .stage-col { background: #14141f; }
-.v2-drawer .stage-bottom {
-  border: 1px solid var(--border); border-radius: 10px; padding: 10px;
-  background: #14141f; margin: 0;
-}
-.v2-drawer .mode-toggle { padding: 0 4px; }
-@media (max-width: 900px) {
-  .ui-v2 .dash-body { display: block; }
-  .v2-drawer { margin: 8px; max-height: none; position: static; }
-}
-
-/* ① 定調錨點 + KPI 分組資料帶（現貨/期權/廣度） */
-.ms-tiles-v2 { display: flex !important; gap: 10px; flex-wrap: wrap; align-items: stretch; }
-.ms-tiles-v2 .ms-anchor { display: flex; }
-.ms-tiles-v2 .ms-anchor .ms-tile { height: 100%; border-width: 2px; padding: 8px 16px; }
-.ms-tiles-v2 .ms-anchor .ms-v { font-size: 26px; }
-.ms-grp {
-  display: flex; border: 1px solid var(--border); border-radius: 10px;
-  background: rgba(255, 255, 255, .015); padding: 4px 8px 4px 2px;
-}
-.ms-grp-label {
-  writing-mode: vertical-rl; font-size: 10px; letter-spacing: 3px; color: #667088;
-  display: flex; align-items: center; padding: 0 3px;
-}
-.ms-grp-tiles { display: flex; gap: 4px; }
-.ms-grp .ms-tile { border: 0; background: transparent; padding: 4px 8px; }
-
-/* ② 訊號 chips：左緣色條語義化（排序在 JS：偏空→留意→資訊→偏多） */
-.ui-v2 .ms-notes { gap: 6px; }
-.ui-v2 .ms-note {
-  background: #14141f; border: 1px solid #26263c; border-left-width: 3px;
-  border-radius: 6px; padding: 3px 10px;
-}
-.ui-v2 .ms-note.bull { border-left-color: #ff8a80; }
-.ui-v2 .ms-note.bear { border-left-color: #4dd0c4; }
-.ui-v2 .ms-note.warn { border-left-color: var(--warn); }
-.ui-v2 .ms-note.info { border-left-color: #7ec0ff; }
-
-/* ③ 焦點卡緊湊化：股名為主角、% 是屬性 */
-.ui-v2 .focus-strip { padding: 10px 20px 0; }
-.ui-v2 .fs-cards { gap: 8px; }
-.ui-v2 .fs-card { display: flex; align-items: center; gap: 10px; padding: 7px 12px; }
-.ui-v2 .fs-card .fs-row { display: contents; }
-.ui-v2 .fs-rank { order: 0; }
-.ui-v2 .fs-id { order: 1; font-size: 15px; white-space: nowrap; }
-.ui-v2 .fs-id .fs-name { color: #e6ecf7; font-weight: 700; }
-.ui-v2 .fs-meta { order: 2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.ui-v2 .fs-chg { order: 3; margin-left: auto; font-size: 15px; }
-.ui-v2 .fs-hits { order: 4; white-space: nowrap; }
-
-/* ═══ P3 (2026-07-23)：大盤閘門(v2) + 決策對帳 ═══ */
-/* ⑭ 閘門警示帶：空頭時出現在 stepper 上方 */
-.v2-gatebar {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  margin: 10px 20px 0; padding: 7px 14px;
-  font-size: 12.5px; color: #ffc46b;
-  background: rgba(232, 163, 61, .12);
-  border: 1px solid rgba(232, 163, 61, .35); border-left-width: 4px;
-  border-radius: 8px;
-}
-.v2-gatebar b { font-weight: 700; }
-.v2-gatebar .v2-gate-act { margin-left: auto; font-size: 12px; color: var(--accent); border-color: var(--accent); }
-/* 閘門開啟時：發動分頁降飽和 + ⚠ 角標 */
-.v2-stepper.v2-gate-on .v2-step[data-key="launch"] { opacity: .55; position: relative; }
-.v2-stepper.v2-gate-on .v2-step[data-key="launch"]::after {
-  content: "⚠"; position: absolute; top: -7px; right: -4px; font-size: 12px;
-}
-
-/* ═══ P3-⑩⑫ (2026-07-23)：零結果放寬建議 + 窄幕摺疊 ═══ */
-/* ⑩ 零結果放寬建議條 */
-.zero-suggest {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  margin: 10px 8px; padding: 10px 14px;
-  border: 1px dashed #3a3a5e; border-radius: 8px;
-  font-size: 12.5px; color: #9aa3b8; background: #14141f;
-}
-.zero-suggest .zs-t { color: #c9d2e4; font-weight: 600; }
-.zs-btn {
-  font-size: 12px; color: var(--accent); background: var(--accent-bg);
-  border: 1px solid var(--accent); border-radius: 6px; padding: 4px 10px; cursor: pointer;
-}
-.zs-btn:hover { filter: brightness(1.2); }
-.zs-btn.zs-clear { color: #ff9d9d; background: transparent; border-color: #5a3a3a; }
-
-/* ⑫ 窄幕（手機看推雲頁）：定調置頂全寬、KPI 群可橫捲、stepper 收副標 */
-@media (max-width: 720px) {
-  .topbar .meta { flex-wrap: wrap; }
-  .ms-tiles-v2 { gap: 6px; }
-  .ms-tiles-v2 .ms-anchor { width: 100%; }
-  .ms-tiles-v2 .ms-anchor .ms-tile { width: 100%; }
-  .ms-grp { flex: 1 1 100%; overflow-x: auto; }
-  .v2-stepper { padding: 8px 10px 0; }
-  .v2-step { padding: 4px 8px; gap: 6px; }
-  .v2-step .t span { display: none; }   /* 手機收掉副標，只留階段名+計數 */
-  .v2-arrow { display: none; }
-  .v2-gatebar { margin: 8px 10px 0; }
-  .v2-stepper .stage-oneclick { margin: 0; }
-}
-
-/* ═══ P3-skin (2026-07-23e)：v2 套 mockup 視覺（深藍黑終端 + 四語義色）═══ */
-/* token 覆蓋：紅=多/漲、綠=空/跌、琥珀=警示、藍=互動（唯一非語義色） */
-body.ui-v2 {
-  --bg:        #0B0F17;
-  --panel:     #121826;
-  --panel-2:   #101623;
-  --panel-3:   #1A2233;
-  --border:    #243048;
-  --border-hi: #35507A;
-  --text:      #E8EDF7;
-  --text-dim:  #96A2B8;
-  --text-mut:  #5F6C84;
-  --accent:    #5FA8F5;
-  --accent-bg: rgba(95, 168, 245, .14);
-  --up:        #FF6161;
-  --down:      #33C48D;
-  --warn:      #E8A33D;
-}
-/* 硬編碼表面 → mockup 色 */
-.ui-v2 .topbar, .ui-v2 .tabs { background: #101623; border-color: #1B2436; }
-.ui-v2 .tab-btn:hover:not(:disabled) { background: #18202F; }
-.ui-v2 .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
-.ui-v2 .logo-mark { background: linear-gradient(135deg, #5FA8F5 0%, #7C5CFF 100%); box-shadow: 0 2px 10px rgba(95, 168, 245, .35); }
-.ui-v2 .filters { background: #121826; border-color: #1B2436; }
-.ui-v2 .panel-title, .ui-v2 .legend-label, .ui-v2 .fs-head, .ui-v2 .stage-head { color: var(--accent); }
-.ui-v2 .flow-pane, .ui-v2 .ranking-left, .ui-v2 .ranking-right { background: #121826; border-color: #243048; }
-.ui-v2 .subtab-btn.active { background: var(--accent); border-color: var(--accent); }
-.ui-v2 .cat-chip { background: #121A28; }
-.ui-v2 .cat-chip:hover { background: #1A2233; border-color: #35507A; }
-.ui-v2 .main-card, .ui-v2 .fs-card { background: #18202F; border-color: #1B2436; }
-.ui-v2 .fs-card:hover, .ui-v2 .main-card:hover { border-color: var(--accent); }
-.ui-v2 .fs-rank { color: #5F6C84; }
-.ui-v2 .fs-hits { color: var(--accent); background: var(--accent-bg); }
-.ui-v2 .fs-card.pos .fs-chg { color: var(--up); }
-.ui-v2 .fs-card.neg .fs-chg { color: var(--down); }
-.ui-v2 .fs-id .fs-code { color: var(--text-dim); font-weight: 400; }
-.ui-v2 .v2-step { background: #121826; border-color: #243048; }
-.ui-v2 .v2-step:hover { border-color: #35507A; }
-.ui-v2 .v2-drawer .stage-col, .ui-v2 .v2-drawer .stage-bottom { background: #121826; }
-.ui-v2 .diff-panel, .ui-v2 .zero-suggest { background: #121826; border-color: #243048; }
-.ui-v2 .ms-grp { background: #121826; border-color: #1B2436; }
-.ui-v2 .ms-grp-label { color: #5F6C84; }
-.ui-v2 .ms-note { background: #121826; border-color: #1B2436; border-left-width: 3px; }
-
-/* 定調膠囊（mockup 主視覺）：偏多=暗紅漸層+紅框、偏空=暗綠漸層+綠框 */
-.ui-v2 .ms-anchor .ms-tile {
-  border-radius: 10px;
-  min-width: 176px;
-  padding: 8px 16px;
-}
-.ui-v2 .ms-anchor .ms-tile.ms-state-bull {
-  background: linear-gradient(135deg, #2A1220, #1A1220 70%);
-  border: 1px solid rgba(255, 97, 97, .35);
-}
-.ui-v2 .ms-anchor .ms-tile.ms-state-bear {
-  background: linear-gradient(135deg, #0F231C, #101A20 70%);
-  border: 1px solid rgba(51, 196, 141, .4);
-}
-.ui-v2 .ms-anchor .ms-v { font-size: 28px; font-weight: 700; letter-spacing: 1px; }
-
-/* 訊號立場標籤（v2RestyleSnapshot 注入）：紅=偏多、綠=偏空（台股慣例） */
-.ms-tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-right: 7px; font-weight: 600; vertical-align: 1px; }
-.ms-tag-bull { background: rgba(255, 97, 97, .14); color: #FF8A80; }
-.ms-tag-bear { background: rgba(51, 196, 141, .14); color: #4DD0C4; }
-.ms-tag-warn { background: rgba(232, 163, 61, .15); color: #E8A33D; }
-.ms-tag-info { background: rgba(126, 192, 255, .14); color: #7EC0FF; }
-
-/* ═══ 20260723f：卡片走勢圖 + 階段複選勾選列 ═══ */
-/* 走勢圖：焦點卡（72×24）與結果卡 .sc-price 尾端（60×18） */
-.fs-spark { display: flex; align-items: center; min-height: 24px; }
-.sc-spark { margin-left: auto; display: inline-flex; align-items: center; }
-.ui-v2 .fs-spark { order: 3; margin-left: auto; }
-.ui-v2 .fs-chg { order: 4; margin-left: 12px; }
-.ui-v2 .fs-hits { order: 5; }
-
-/* 階段勾選列：checkbox 樣式（active=勾選） */
-.v2-cap { font-size: 12px; color: var(--text-mut); margin-right: 8px; display: flex; flex-direction: column; line-height: 1.3; }
-.v2-cap small { font-size: 10px; color: var(--text-mut); opacity: .7; }
-.v2-step .chkbox {
-  width: 14px; height: 14px; flex: none; position: relative;
-  border: 1px solid var(--border); border-radius: 4px; background: var(--bg);
-}
-.v2-step.active .chkbox { background: var(--accent); border-color: var(--accent); }
-.v2-step.active .chkbox::after {
-  content: "✓"; position: absolute; inset: 0; color: #0B0F17;
-  font-size: 10px; line-height: 14px; text-align: center; font-weight: 700;
-}
-
-/* ═══ 20260723h：④階段勾選併進⑥左抽屜（mockup 比例）═══ */
-/* 抽屜常駐（階段勾選在裡面），全不勾只收條件、不收抽屜 */
-.v2-drawer.v2-drawer-empty { display: flex; }
-.v2-drawer { flex-basis: 252px; }
-
-.v2-stagebox {
-  border: 1px solid var(--border); border-radius: 10px;
-  background: var(--panel); padding: 8px;
-  display: flex; flex-direction: column; gap: 2px;
-}
-.v2-stagebox-t { font-size: 11px; color: var(--text-mut); letter-spacing: .5px; padding: 2px 4px 6px; }
-.v2-stagebox-t small { opacity: .7; font-size: 10px; }
-.v2-stagebox .v2-step {
-  width: 100%; background: transparent; border: 1px solid transparent;
-  border-radius: 8px; padding: 6px 8px; gap: 9px;
-}
-.v2-stagebox .v2-step:hover { background: var(--panel-3); border-color: var(--border); }
-.v2-stagebox .v2-step .n { margin-left: auto; font-size: 17px; }
-.v2-stagebox .v2-step.active { background: var(--accent-bg); border-color: var(--accent); }
-.v2-drawer .stage-oneclick {
-  border: 1px solid var(--border); border-radius: 10px;
-  background: var(--panel); padding: 8px 10px; margin: 0;
-}
-/* 閘門降權標示（掛抽屜）：發動階段降飽和+⚠ */
-.v2-drawer.v2-gate-on .v2-step[data-key="launch"] { opacity: .55; position: relative; }
-.v2-drawer.v2-gate-on .v2-step[data-key="launch"]::after {
-  content: "⚠"; position: absolute; top: -6px; right: -3px; font-size: 12px;
-}
-
-/* ═══ 20260723i：快速鈕 chips 化 + 計數徽章（v2）═══ */
-.ui-v2 .check-toggle {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: var(--panel-2); border: 1px solid var(--border);
-  border-radius: 14px; padding: 3px 11px;
-  font-size: 12px; color: var(--text-dim);
-  cursor: pointer; user-select: none; white-space: nowrap;
-}
-.ui-v2 .check-toggle:hover { border-color: var(--border-hi); color: var(--text); }
-.ui-v2 .check-toggle input { display: none; }
-.ui-v2 .check-toggle:has(input:checked) {
-  background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600;
-}
-.qt-n {
-  font-size: 10px; color: var(--text-mut); font-variant-numeric: tabular-nums;
-  background: rgba(255, 255, 255, .06); border-radius: 8px; padding: 0 5px; margin-left: 2px;
-}
-.ui-v2 .check-toggle:has(input:checked) .qt-n { color: var(--accent); background: rgba(95, 168, 245, .18); }
-.ui-v2 .pv-btn { border-radius: 14px; }
-.ui-v2 .pv-btn .qt-n { margin-left: 4px; }
-
-/* ═══ 20260723j：五項呈現優化（v2）═══ */
-/* ② 第一排三段分工：搜尋左 / chips 中 / 檢視控制右 */
-.ui-v2 .group-bar { gap: 8px; align-items: center; }
-.ui-v2 .group-bar .filler { order: 50; }
-.ui-v2 .group-bar #main-viewtoggle { order: 90; }
-.ui-v2 .group-bar #main-card-sort { order: 91; }
-.ui-v2 .group-bar #density-toggle { order: 92; }
-.ui-v2 .group-bar #adv-toggle { order: 93; }
-.ui-v2 .group-bar #filter-summary { order: 94; }
-.ui-v2 .group-bar .qt-sep { display: none; }
-/* ⑤ 分組小標 */
-.qt-cap { font-size: 10px; color: var(--text-mut); letter-spacing: 2px; align-self: center; margin: 0 2px 0 6px; }
-.ui-v2 #adv-toggle.active, .ui-v2 #density-toggle.active { color: var(--accent); border-color: var(--accent); }
-
-/* ① 卡片緊湊模式（mockup 三行）：藏重內容，「☰ 完整」一鍵展開 */
-.ui-v2 #main-cards.compact .main-card .sc-chip,
-.ui-v2 #main-cards.compact .main-card .sc-maint,
-.ui-v2 #main-cards.compact .main-card .sc-deduct,
-.ui-v2 #main-cards.compact .main-card .sc-trade,
-.ui-v2 #main-cards.compact .main-card .sc-reso,
-.ui-v2 #main-cards.compact .main-card .sc-detail { display: none; }
-.ui-v2 #main-cards.compact .main-card { padding: 9px 12px; }
-
-/* ③ Tabulator 表格皮膚對齊 v2（覆蓋 midnight 主題） */
-.ui-v2 .tabulator { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
-.ui-v2 .tabulator .tabulator-header,
-.ui-v2 .tabulator .tabulator-header .tabulator-col { background: var(--panel-2); border-color: var(--border); color: var(--text-dim); }
-.ui-v2 .tabulator .tabulator-header .tabulator-col-title { color: var(--text-dim); }
-.ui-v2 .tabulator-row { background: var(--panel); border-color: #1B2436; color: var(--text); }
-.ui-v2 .tabulator-row.tabulator-row-even { background: #141B29; }
-.ui-v2 .tabulator-row.tabulator-selectable:hover { background: var(--panel-3); }
-.ui-v2 .tabulator .tabulator-footer { background: var(--panel-2); border-color: var(--border); color: var(--text-dim); }
-.ui-v2 .tabulator .tabulator-footer .tabulator-page { background: transparent; color: var(--text-dim); border-color: var(--border); }
-.ui-v2 .tabulator .tabulator-footer .tabulator-page.active { color: var(--accent); border-color: var(--accent); }
+.fl-pf a { color: var(--accent, #00d4aa); }
+.fl-sec-method { }
+.fl-method { margin: 0; padding-left: 20px; }
+.fl-method li { font-size: 14px; line-height: 1.9; color: var(--text-dim, #9aa0b0); margin-bottom: 12px; }
+.fl-method b { color: var(--text, #e8edf7); }

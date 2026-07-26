@@ -23,45 +23,23 @@ function el(tag, cls, text) {
 const isNum = v => typeof v === 'number' && isFinite(v);
 const pct = (v, d = 1) => isNum(v) ? `${(v * 100).toFixed(d)}%` : '—';
 
-/** 獨立頁的卡：預設全部展開（來這頁就是要細看，不需要再點開） */
-function cardHtml(icon, title, bodyHtml, sum) {
-  return `<details class="card sv-card" data-card="${SC().esc(title)}" open>
-    <summary class="sv-card-h"><span class="sv-ic">${icon}</span>
-      <span class="sv-t">${SC().esc(title)}</span>
-      <span class="sv-card-sum">${sum || ''}</span></summary>
-    <div class="sv-c">${bodyHtml}</div></details>`;
-}
-
 function render(d, shared) {
   const root = document.getElementById('sp-root');
-  const price = d.price || [];
-  const last = price[price.length - 1];
-  const prev = price[price.length - 2];
-  const chg = last && prev ? last.c / prev.c - 1 : null;
-  const chgCls = isNum(chg) ? (chg > 0 ? 'sc-up' : (chg < 0 ? 'sc-down' : '')) : '';
-  const ind = (d.profile && (d.profile.sub_industry_tej || d.profile.industry_tej)) || '—';
-  const E = SC().esc;
-
-  root.innerHTML = `
-    <section class="sp-head">
-      <div class="sp-head-main">
-        <h1 class="sp-name">${E(d.name || d.ticker)}
-          <span class="sp-ticker">${E(d.ticker)}</span></h1>
-        <div class="sp-sub">${E(ind)}<span class="sp-dot">·</span>資料日 <b>${E(d.trade_date)}</b></div>
-        <div class="sp-verdict">${E(d.verdict || '')}</div>
-      </div>
-      <div class="sp-head-price">
-        <div class="sp-close">${last ? last.c.toFixed(2) : '—'}</div>
-        <div class="sp-chg ${chgCls}">${isNum(chg) ? (chg > 0 ? '+' : '') + pct(chg, 2) : ''}</div>
-      </div>
-    </section>
-    ${SC().CARDS.map(c =>
-      cardHtml(c.icon, c.title, c.body(d, shared), c.sum(d, shared))).join('')}
-    ${cardHtml('🏦', '籌碼流向', SC().chipNumsHtml(d) || '<div class="sc-none">無籌碼資料</div>', '')}
-    <p class="sp-caveat">${E((shared && shared.caveat) || '')}</p>
-    <p class="sp-back"><a href="index.html">← 回主看板</a>
-      <span class="sc-mut">日常操作建議走主看板點代號開彈窗，這頁供深連結／分享／並排比較</span></p>
-  `;
+  const S = SC();
+  // 跟彈窗完全同一套區塊。獨立頁沒有主表那一列，所以沒有「操作依據」段
+  // （訊號明細/關鍵價位/延續/對帳來自 latest.json，這頁不載那份）。
+  root.innerHTML = `<div class="fl-page">
+    ${S.heroHtml(d)}
+    ${S.qualityHtml(d)}
+    ${S.chipFlowHtml(d, '')}
+    ${S.evidenceHtml(d, shared)}
+    ${S.aboutHtml(d, '')}
+    ${S.methodHtml(d, shared)}
+    <p class="fl-foot"><a href="index.html">← 回主看板</a>
+      <span class="fl-mut">　日常操作走主看板點代號開彈窗（多一段「現在的操作依據」）；
+      這頁供深連結／分享／兩檔並排比較</span></p>
+  </div>`;
+  S.bindTabs(root);
   document.title = `${d.name || ''} ${d.ticker} · 贏窟個股`;
 }
 

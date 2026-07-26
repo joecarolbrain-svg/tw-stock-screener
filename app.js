@@ -4142,86 +4142,97 @@ function renderStockSummary(ticker, name, market, row) {
       `<span class="sv-mut">　基準=標記日收盤；檢驗判斷用，非績效</span>`;
   }
 
-  // 卡片順序＝使用頻率。決策卡（訊號/價位/籌碼/處置）在上且預設展開，
-  // 延續與工具類其次，研究卡（五維/實證/估值/矩陣/基本資料）由
-  // attachResearchCards() 非同步補在最後、一律預設收合。
-  // 收合時標題列要帶重點——不然把卡收起來就等於資訊消失
-  const ca = (typeof chipAdvice === 'function') ? chipAdvice(row) : null;
-  const sumSig = [svHas(G('mainup_tag')) ? svEsc(G('mainup_tag')) : '',
-  svNum(G('mainup_n')) != null ? `飆股${G('mainup_n')}/5` : '',
-  svNum(G('win_n')) != null ? `高勝率${G('win_n')}/3` : ''].filter(Boolean).join('　');
-  const sumPx = rrV != null ? `R:R ${rrV.toFixed(2)}` +
-    (svNum(G('stop_loss')) != null ? `　停損 ${G('stop_loss')}` : '') : '';
-  const sumChip = ca && ca.key !== 'na' ? `${ca.icon || ''} ${svEsc(ca.label || '')}` : '';
-  const sumPersist = svHas(G('board_streak')) ? `連${G('board_streak')}日` +
-    (svNum(G('score_delta')) != null ? `　Δ${G('score_delta') > 0 ? '+' : ''}${Math.round(G('score_delta'))}分` : '') : '';
-  const sumTheme = svHas(G('industry')) ? svEsc(G('industry')) : '';
-  const sumFut = svTruthy(G('stf_mini')) ? '小型 100股/口' : (svTruthy(G('stf')) ? '大型 2,000股/口' : '');
+  // ── FinLab 版型（2026-07-26）─────────────────────────────
+  //  照 finlab.finance/stocks/3231 的區塊分段重排，內容全部沿用贏窟自有。
+  //  贏窟獨有的部分（訊號明細/關鍵價位/延續/對帳/處置/題材/期貨）併進對應區塊：
+  //    · 訊號明細·關鍵價位·延續·對帳·處置 → 「現在的操作依據」（FinLab 沒有這段）
+  //    · 籌碼建議·融資維持率·逐日明細     → 「籌碼流向」
+  //    · 題材族群·個股期貨                → 「基本資料」
+  //  英雄區、體質、歷史證據、方法與限制由 StockCards 非同步補上。
+  const blk = (t, html) => html ? `<div class="fl-block">
+    <h3 class="fl-h3">${t}</h3><div class="fl-block-b">${html}</div></div>` : '';
 
-  const cards = [
-    svRow('📌', '訊號', sig.join('　·　'), { sum: sumSig }),
-    svRow('📐', '關鍵價位', px.length ? px.join('　｜　') + pxNote : '', { sum: sumPx }),
-    svRow('💰', '籌碼',
-      chipAdviceBlockHtml(row) + maintBlockHtml(row) +
-      `<div id="sv-chip" class="sv-mut">融資/明細載入中…</div>`, { sum: sumChip }),
-    // 處置風險：#dr-block 由 renderDispositionRisk() 填，openKlineModal 會把
-    // 那個節點搬進這個插槽（沿用專案既有的「DOM 節點搬移保留綁定」作法）
-    `<details class="sv-card" data-card="處置風險" id="sv-disp" hidden>
-       <summary class="sv-card-h"><span class="sv-ic">🚨</span><span class="sv-t">處置風險</span>
-         <span class="sv-card-sum"></span></summary>
-       <div class="sv-c" id="dr-slot"></div>
-     </details>`,
-    svRow('📈', '延續', persistPanel, { sum: sumPersist }),
-    svRow('⭐', '決策對帳', pinLine, { sum: pm && pm.d ? `${pm.d} 標記` : '' }),
-    svRow('🏭', '題材族群', th.join('　｜　'), { sum: sumTheme }),
-    svRow('🧮', '個股期貨', futHtml, { sum: sumFut }),
+  const actionBlocks = [
+    blk('訊號明細', sig.join('　·　')),
+    blk('關鍵價位', px.length ? px.join('　｜　') + pxNote : ''),
+    blk('排名延續', persistPanel),
+    blk('決策對帳', pinLine),
   ].join('');
 
-  el.innerHTML = `<div class="sv-wrap">
-    ${priceRow}
-    ${catHtml ? `<div class="sv-cats">${catHtml}</div>` : ''}
-    <div id="sv-nav-host"></div>
-    ${cards}
-    <div id="sv-research"></div>
-    <div class="sv-foot">訊號為策略輔助、非投資建議 — 進出場請至 TradingView 自行判斷。</div>
+  // 處置風險：#dr-block 由 renderDispositionRisk() 填，openKlineModal 再把那個
+  // 節點搬進插槽（沿用專案既有的「DOM 節點搬移保留綁定」作法）
+  const dispBlock = `<div class="fl-block" id="fl-disp" hidden>
+    <h3 class="fl-h3">處置風險</h3><div class="fl-block-b" id="dr-slot"></div></div>`;
+
+  el.innerHTML = `<div class="fl-page">
+    <div id="fl-hero"></div>
+    ${actionBlocks || dispBlock ? `<section class="fl-sec" data-sec="操作依據">
+      <h2 class="fl-h2">現在的操作依據</h2>
+      ${catHtml ? `<div class="fl-cats">${catHtml}</div>` : ''}
+      <div class="fl-blocks">${actionBlocks}${dispBlock}</div>
+    </section>` : ''}
+    <div id="fl-quality"></div>
+    <div id="fl-chip"></div>
+    <div id="fl-evidence"></div>
+    <div id="fl-about"></div>
+    <div id="fl-method"></div>
+    <div class="fl-foot">訊號為策略輔助、非投資建議 — 進出場請至 TradingView 自行判斷。</div>
   </div>`;
-  svRefreshNav();
+
+  // 贏窟自有的籌碼內容，等 StockCards 組「籌碼流向」區塊時當 extraHtml 插進去
+  el.__flChipExtra = `<div class="fl-blocks">
+    ${blk('籌碼結論', chipAdviceBlockHtml(row))}
+    ${blk('融資維持率', maintBlockHtml(row))}
+    ${blk('逐日法人明細', '<div id="sv-chip" class="fl-mut">載入中…</div>')}
+  </div>`;
+  el.__flAboutExtra = `<div class="fl-blocks">
+    ${blk('題材族群', th.join('　｜　'))}
+    ${blk('個股期貨', futHtml)}
+  </div>`;
 }
 
-/** 依目前實際存在的卡片重建跳轉列（研究卡載入後會再呼叫一次） */
-function svRefreshNav() {
-  const host = document.getElementById('sv-nav-host');
-  if (!host) return;
-  const items = [];
-  document.querySelectorAll('#kc-summary .sv-card').forEach(c => {
-    if (c.hidden) return;
-    const ic = c.querySelector('.sv-ic'), t = c.dataset.card;
-    if (t) items.push([ic ? ic.textContent : '', t]);
-  });
-  host.innerHTML = svNavHtml(items);
-}
-
-/** 研究卡：非同步載入 finlab_port 的個股 JSON 後補上 */
+/** 非同步補上 FinLab 版型的四個區塊（英雄區/體質/歷史證據/基本資料/方法） */
 async function attachResearchCards(ticker) {
-  const host = document.getElementById('sv-research');
-  if (!host || typeof StockCards === 'undefined') return;
+  const el = document.getElementById('kc-summary');
+  if (!el || typeof StockCards === 'undefined') return;
+  const slot = id => document.getElementById(id);
   let d, shared;
   try {
     [d, shared] = await Promise.all([StockCards.load(ticker), StockCards.loadShared()]);
   } catch (err) {
-    host.innerHTML = `<div class="sv-card sv-card-na">🎯 體質資料未產生
-      <span class="sv-mut">（跑 finlab_port/run_all.py --daily 後出現）</span></div>`;
+    if (slot('fl-quality')) {
+      slot('fl-quality').innerHTML = `<section class="fl-sec"><p class="fl-none">
+        體質資料未產生 —— 跑 finlab_port/run_all.py --daily 後出現。</p></section>`;
+    }
     return;
   }
-  host.innerHTML = StockCards.CARDS.map(c =>
-    svRow(c.icon, c.title, c.body(d, shared), { open: false, sum: c.sum(d, shared) })
-  ).join('');
+  if (slot('fl-hero')) slot('fl-hero').innerHTML = StockCards.heroHtml(d);
+  if (slot('fl-quality')) slot('fl-quality').innerHTML = StockCards.qualityHtml(d);
+  if (slot('fl-chip')) slot('fl-chip').innerHTML =
+    StockCards.chipFlowHtml(d, el.__flChipExtra || '');
+  if (slot('fl-evidence')) slot('fl-evidence').innerHTML = StockCards.evidenceHtml(d, shared);
+  if (slot('fl-about')) slot('fl-about').innerHTML =
+    StockCards.aboutHtml(d, el.__flAboutExtra || '');
+  if (slot('fl-method')) slot('fl-method').innerHTML = StockCards.methodHtml(d, shared);
+  StockCards.bindTabs(el);
+  flRefreshNav();
+}
 
-  // 註：**刻意不**在彈窗補法人買賣超數字。實測 chipAdviceBlockHtml 的
-  // 「外資連買5日（5日+154,949張）」與 StockCards 算出來的完全一致（同源同日），
-  // 再貼一次只會讓同一張卡出現三組法人數字。獨立頁 stock.html 沒有籌碼建議區塊，
-  // 那邊才需要 chipNumsHtml。
-  svRefreshNav();
+/** 區塊跳轉列：依實際存在的 section 重建 */
+function flRefreshNav() {
+  const el = document.getElementById('kc-summary');
+  const page = el && el.querySelector('.fl-page');
+  if (!page) return;
+  let nav = page.querySelector('.fl-nav');
+  if (!nav) {
+    nav = document.createElement('div');
+    nav.className = 'fl-nav';
+    page.insertBefore(nav, page.firstChild);
+  }
+  const secs = [...page.querySelectorAll('.fl-sec[data-sec]')];
+  nav.innerHTML = secs.map(s =>
+    `<button type="button" class="fl-navb" data-goto="${s.dataset.sec}">${s.dataset.sec}</button>`
+  ).join('');
 }
 
 // 彈窗籌碼建議區塊：結論一句話 + 依據（用主表 row，不必等 kline payload）
@@ -4336,19 +4347,14 @@ async function openKlineModal(ticker, name, market) {
   }
 }
 
-/** 把 #dr-block 搬進處置風險卡的插槽；沒內容就把整張卡藏起來 */
+/** 把 #dr-block 搬進處置風險區塊的插槽；沒內容就把整塊藏起來 */
 function svAdoptDispBlock() {
   const blk = document.getElementById('dr-block');
   const slot = document.getElementById('dr-slot');
-  const card = document.getElementById('sv-disp');
-  if (!blk || !slot || !card) return;
+  const box = document.getElementById('fl-disp');
+  if (!blk || !slot || !box) return;
   slot.appendChild(blk);
-  const empty = !blk.textContent.trim();
-  card.hidden = empty;
-  if (!empty) {
-    const st = svCardState();
-    card.open = (st['處置風險'] !== undefined) ? !!st['處置風險'] : true;
-  }
+  box.hidden = !blk.textContent.trim();
 }
 
 function closeKlineModal() {
@@ -4369,20 +4375,12 @@ function initKlineModal() {
 
   const summary = document.getElementById('kc-summary');
   if (summary) {
-    // 收合狀態持久化（<details> 的 toggle 不會冒泡，用捕獲階段收）
-    summary.addEventListener('toggle', (e) => {
-      const c = e.target.closest && e.target.closest('.sv-card');
-      if (c && c.dataset.card) svSaveCardState(c.dataset.card, c.open);
-    }, true);
-
-    // 跳轉列
+    // 區塊跳轉列
     summary.addEventListener('click', (e) => {
-      const b = e.target.closest('.sv-nav-b');
+      const b = e.target.closest('.fl-navb');
       if (!b) return;
-      const card = summary.querySelector(`.sv-card[data-card="${CSS.escape(b.dataset.goto)}"]`);
-      if (!card) return;
-      card.open = true;
-      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const sec = summary.querySelector(`.fl-sec[data-sec="${CSS.escape(b.dataset.goto)}"]`);
+      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 }

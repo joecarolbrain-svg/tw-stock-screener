@@ -43,6 +43,9 @@
     <button class="tab-btn" data-tab="signal-report">📋 訊號成績單</button>
     <button class="tab-btn" data-tab="disposition">🚨 處置雷達</button>
     <button class="tab-btn" data-tab="calc">🧮 期貨計算機</button>
+    <!-- 獨立頁面，故用 <a class="tab-link"> 而非 tab-btn，避免被 app.js 的
+         tab 切換邏輯當成不存在的 panel -->
+    <a class="tab-link" href="stock.html">🔍 個股詳情</a>
   </nav>
 
   <section class="tab-panel active" data-panel="dashboard">
@@ -663,7 +666,9 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260723j"></script>
+  <!-- 個股研究卡（finlab_port）：彈窗卡片堆與 stock.html 共用同一份實作 -->
+  <script src="stockcards.js?v=20260726a"></script>
+  <script src="app.js?v=20260726a"></script>
   <script src="calc.js?v=20260715a"></script>
 </body>
 </html>

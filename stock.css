@@ -1,0 +1,71 @@
+/* ── 個股詳情頁（獨立頁宿主）──────────────────────────────
+   卡片本體的樣式（.sv-card / .sc-*）在 style.css，跟彈窗卡片堆共用。
+   這裡只放這一頁專屬的外框：頁首、搜尋、版面寬度。
+   ------------------------------------------------------------------ */
+
+.sp-wrap { max-width: 1100px; margin: 0 auto; padding: 16px 20px 60px; }
+.sp-status { padding: 40px; text-align: center; color: var(--text-dim); }
+
+.sp-search {
+  background: var(--panel-3); border: 1px solid var(--border);
+  color: var(--text); border-radius: 6px; padding: 6px 10px;
+  font-size: 13px; width: 200px; font-family: inherit;
+}
+.sp-search:focus { outline: none; border-color: var(--accent); }
+
+.sp-suggest {
+  position: absolute; right: 20px; top: 56px; z-index: 40;
+  background: var(--panel-3); border: 1px solid var(--border-hi);
+  border-radius: 8px; max-height: 320px; overflow-y: auto;
+  min-width: 240px; box-shadow: 0 8px 24px rgba(0, 0, 0, .5);
+}
+.sp-suggest button {
+  display: block; width: 100%; text-align: left; background: none;
+  border: none; color: var(--text); padding: 7px 12px; cursor: pointer;
+  font-size: 13px; font-family: inherit;
+}
+.sp-suggest button:hover { background: var(--accent-bg); color: var(--accent); }
+.sp-suggest .sp-sg-t { font-family: var(--mono); color: var(--text-dim); margin-right: 8px; }
+
+/* 頁首 */
+.sp-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 20px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.sp-name { font-size: 26px; margin: 0 0 4px; font-weight: 800; }
+.sp-ticker { font-family: var(--mono); font-size: 17px; color: var(--text-dim); margin-left: 8px; }
+.sp-sub { font-size: 12px; color: var(--text-mut); }
+.sp-dot { margin: 0 7px; }
+.sp-verdict {
+  margin-top: 8px; display: inline-block; padding: 4px 11px;
+  border-radius: 20px; background: var(--accent-bg); color: var(--accent);
+  font-size: 13px; font-weight: 600;
+}
+.sp-head-price { text-align: right; }
+.sp-close { font-family: var(--mono); font-size: 30px; font-weight: 700; }
+.sp-chg { font-family: var(--mono); font-size: 14px; }
+
+/* 這一頁的卡外框（彈窗版沒有邊框、靠分隔線；獨立頁給實體卡片感） */
+.sp-wrap .card {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; padding: 4px 14px; margin-bottom: 12px;
+}
+.sp-wrap .card > .sv-card-h { padding: 12px 0; }
+.sp-wrap .card > .sv-card-h .sv-t { font-size: 13px; font-weight: 700; letter-spacing: 0; }
+.sp-wrap .card > .sv-c { padding: 0 0 14px 22px; }
+
+.sp-caveat {
+  font-size: 11px; color: var(--warn); background: rgba(245, 185, 66, .08);
+  border-left: 3px solid var(--warn); padding: 8px 11px; margin: 14px 0 0;
+  line-height: 1.6; border-radius: 0 4px 4px 0;
+}
+.sp-back { font-size: 12px; margin-top: 18px; display: flex; gap: 12px; flex-wrap: wrap; align-items: baseline; }
+.sp-back a { color: var(--accent); text-decoration: none; }
+.sp-back a:hover { text-decoration: underline; }
+
+@media (max-width: 640px) {
+  .sp-wrap { padding: 12px 12px 40px; }
+  .sp-name { font-size: 21px; }
+  .sp-close { font-size: 24px; }
+  .sp-search { width: 140px; }
+}

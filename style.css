@@ -108,6 +108,19 @@ html { overflow-x: hidden; }
 .tab-btn.active { color: #00d4aa; border-bottom-color: #00d4aa; }
 .tab-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
+/* 連往獨立頁面的分頁（如個股詳情），外觀同 tab-btn 但不參與 tab 切換 */
+.tab-link {
+  display: inline-block;
+  color: #888;
+  padding: 12px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+.tab-link:hover { color: #e0e0e0; background: #1d1d33; }
+
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
 
@@ -1021,6 +1034,117 @@ footer {
 .sv-c { font-size: 13px; color: #cfd3dc; }
 .sv-c b { color: #eef1f5; }
 .sv-foot { padding: 10px 4px 6px; font-size: 11px; color: #6a6a7a; border-top: 1px solid #20203a; margin-top: 2px; }
+
+/* ═══ 個股彈窗卡片堆（2026-07-26）═══════════════════════════
+   原本的 sv-row 平鋪列改成 <details> 可收合卡。決策卡預設展開、
+   研究卡預設收合且標題列直接帶重點數字，所以收合時滑過去也掃得到。
+   收合狀態存 localStorage.sv_cards_open。 */
+.sv-nav {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; gap: 5px; flex-wrap: wrap;
+  padding: 7px 2px; margin-bottom: 2px;
+  background: var(--panel, #16161f); border-bottom: 1px solid var(--border, #20203a);
+}
+.sv-nav-b {
+  background: var(--panel-3, #1a1a2e); border: 1px solid var(--border, #2a2a3e);
+  color: var(--text-dim, #9aa0b0); border-radius: 20px;
+  padding: 2px 9px; font-size: 11px; cursor: pointer; font-family: inherit;
+  white-space: nowrap;
+}
+.sv-nav-b:hover { color: var(--accent, #00d4aa); border-color: var(--accent, #00d4aa); }
+
+.sv-card { border-top: 1px solid var(--border, #20203a); }
+.sv-card > .sv-card-h {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 9px 4px; cursor: pointer; list-style: none; line-height: 1.6;
+}
+.sv-card > .sv-card-h::-webkit-details-marker { display: none; }
+.sv-card > .sv-card-h::before {
+  content: '▸'; color: var(--text-mut, #6a6a7a); font-size: 10px;
+  flex: 0 0 auto; transition: transform .12s;
+}
+.sv-card[open] > .sv-card-h::before { transform: rotate(90deg); }
+.sv-card > .sv-card-h:hover { background: rgba(255, 255, 255, .025); }
+.sv-card .sv-card-sum {
+  font-size: 11px; color: var(--text-mut, #6a6a7a);
+  margin-left: auto; text-align: right; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sv-card > .sv-c { padding: 2px 4px 12px 22px; }
+.sv-card-na { padding: 10px 4px; font-size: 12px; color: var(--text-mut, #6a6a7a); }
+.sv-stale { color: var(--warn, #f5b942); font-size: 11px; display: block; margin-top: 3px; }
+
+/* ═══ 研究卡內容（stockcards.js，彈窗與 stock.html 共用）═══════ */
+.sc-mut { color: var(--text-mut, #6a6a7a); font-size: 11px; }
+.sc-foot { margin-top: 8px; line-height: 1.7; }
+.sc-none { color: var(--text-mut, #6a6a7a); font-size: 12px; padding: 6px 0; }
+.sc-up { color: var(--up, #ef5350); }
+.sc-down { color: var(--down, #26a69a); }
+.sc-warn {
+  font-size: 11px; color: var(--warn, #f5b942); line-height: 1.65;
+  background: rgba(245, 185, 66, .07); border-left: 3px solid var(--warn, #f5b942);
+  padding: 7px 10px; margin-top: 9px; border-radius: 0 4px 4px 0;
+}
+
+/* 五維 */
+.sc-scores { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.sc-dims { flex: 1 1 260px; min-width: 220px; display: grid; gap: 7px; }
+.sc-dim { display: grid; grid-template-columns: 34px 1fr 30px; align-items: center; gap: 8px; }
+.sc-dim-off { opacity: .72; }          /* 估值不進總分，視覺上降一階 */
+.sc-dim-l { font-size: 11px; color: var(--text-dim, #9aa0b0); }
+.sc-dim-bar { height: 7px; background: var(--panel-3, #1a1a2e); border-radius: 4px; overflow: hidden; }
+.sc-dim-bar > i { display: block; height: 100%; border-radius: 4px; }
+.sc-dim-v { font-family: var(--mono); font-size: 12px; text-align: right; font-weight: 700; }
+.sc-total { font-size: 12px; margin-top: 3px; padding-top: 6px; border-top: 1px dotted var(--border, #2a2a3e); }
+.sc-total b { font-family: var(--mono); font-size: 15px; }
+.sc-radar { width: 168px; height: 168px; flex: 0 0 auto; }
+
+/* 訊號實證 */
+.sc-sig { border: 1px solid var(--border, #2a2a3e); border-radius: 7px; padding: 9px 11px; margin-bottom: 8px; }
+.sc-sig-h { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-bottom: 7px; font-size: 12px; }
+.sc-sig-v { margin-left: auto; font-family: var(--mono); color: var(--accent, #00d4aa); font-size: 12px; }
+table.sc-ev { border-collapse: collapse; width: 100%; font-size: 12px; }
+table.sc-ev th, table.sc-ev td {
+  padding: 4px 6px; text-align: right; font-family: var(--mono);
+  border-bottom: 1px solid var(--border, #2a2a3e);
+}
+table.sc-ev th { color: var(--text-mut, #6a6a7a); font-weight: 500; font-family: inherit; font-size: 11px; }
+table.sc-ev th:first-child, table.sc-ev td:first-child { text-align: left; font-family: inherit; }
+table.sc-ev tbody tr:last-child td { border-bottom: none; }
+table.sc-ev td small { display: block; font-size: 10px; opacity: .65; }
+.sc-ev-l { color: var(--text-dim, #9aa0b0); font-size: 11px; }
+.sc-ev-l small { display: block; font-size: 10px; opacity: .7; }
+
+/* 估值 */
+.sc-kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 9px; }
+.sc-kv-i { background: var(--panel-3, #1a1a2e); border-radius: 6px; padding: 8px 10px; }
+.sc-kv-l { font-size: 10px; color: var(--text-mut, #6a6a7a); }
+.sc-kv-v { font-family: var(--mono); font-size: 15px; font-weight: 700; margin: 2px 0; }
+.sc-pctbar { height: 4px; background: var(--bg, #0d0d1a); border-radius: 3px; margin: 5px 0 3px; position: relative; }
+.sc-pctbar > i { position: absolute; top: -2px; width: 2px; height: 8px; background: var(--accent, #00d4aa); }
+
+/* 籌碼數字（併進💰籌碼卡） */
+.sc-chipnums { margin-top: 9px; padding-top: 8px; border-top: 1px dotted var(--border, #2a2a3e); }
+.sc-chipn-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
+.sc-chipn { font-size: 11px; color: var(--text-dim, #9aa0b0); }
+.sc-chipn b { font-family: var(--mono); font-size: 13px; margin: 0 4px; }
+
+/* 矩陣 */
+.sc-mx-wrap { overflow-x: auto; }
+table.sc-mx { border-collapse: collapse; font-size: 11px; margin: 0 auto; }
+table.sc-mx th, table.sc-mx td {
+  padding: 5px 8px; text-align: center; border: 1px solid var(--border, #2a2a3e);
+  font-family: var(--mono); min-width: 56px;
+}
+table.sc-mx th { color: var(--text-dim, #9aa0b0); font-family: inherit; font-weight: 500; background: var(--panel-2, #15152b); }
+table.sc-mx td small { display: block; font-size: 9px; color: var(--text-mut, #6a6a7a); }
+.sc-mx-me { outline: 2px solid var(--accent, #00d4aa); outline-offset: -2px; }
+
+/* 基本資料 */
+.sc-profile { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 5px 18px; }
+.sc-pf-r { display: flex; justify-content: space-between; gap: 8px; font-size: 12px;
+  border-bottom: 1px dotted var(--border, #2a2a3e); padding-bottom: 4px; }
+.sc-pf-r a { color: var(--accent, #00d4aa); }
 .sv-none { padding: 24px 10px; font-size: 14px; color: #9a9aa8; text-align: center; line-height: 2; }
 
 /* ── 期貨建倉計算機 ─────────────────────────────────── */

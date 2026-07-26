@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>贏窟 · 個股詳情</title>
+<link rel="stylesheet" href="style.css?v=20260726a" />
+<link rel="stylesheet" href="stock.css?v=20260726a" />
+</head>
+<!-- ui-v2 由 stock.js 依 localStorage.ui_v2 補上，跟主看板同步（預設 v2） -->
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <a class="logo-mark" href="index.html" title="回主看板">窟</a>
+    <div>
+      <div class="title">贏窟</div>
+      <div class="subtitle">個股詳情</div>
+    </div>
+  </div>
+  <div class="meta">
+    <input id="sp-search" class="sp-search" type="search"
+           placeholder="輸入代號或名稱…" autocomplete="off" />
+    <span id="sp-meta" class="muted"></span>
+  </div>
+</div>
+
+<div id="sp-suggest" class="sp-suggest" hidden></div>
+
+<main id="sp-root" class="sp-wrap">
+  <div id="sp-status" class="sp-status">載入中…</div>
+</main>
+
+<script src="stockcards.js?v=20260726a"></script>
+<script src="stock.js?v=20260726a"></script>
+</body>
+</html>

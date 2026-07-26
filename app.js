@@ -3979,45 +3979,9 @@ function svInstBit(label, r) {
     `（5日${r.sum5 > 0 ? '+' : ''}${Math.round(r.sum5).toLocaleString()}張）`;
 }
 
-// ── 卡片堆：收合狀態記憶（同 cards_density / ui_v2 的 localStorage 套路）──
-const SV_CARD_KEY = 'sv_cards_open';
-let _svCardState = null;
-
-function svCardState() {
-  if (_svCardState) return _svCardState;
-  try { _svCardState = JSON.parse(localStorage.getItem(SV_CARD_KEY) || '{}'); }
-  catch (e) { _svCardState = {}; }
-  return _svCardState;
-}
-
-function svSaveCardState(title, open) {
-  const st = svCardState();
-  st[title] = open ? 1 : 0;
-  try { localStorage.setItem(SV_CARD_KEY, JSON.stringify(st)); } catch (e) { }
-}
-
-/** 一張可收合卡。opts.open=預設展開(預設true)、opts.sum=收合時標題列帶的重點字 */
-function svRow(icon, title, html, opts) {
-  if (!html) return '';
-  const o = opts || {};
-  const st = svCardState();
-  const open = (st[title] !== undefined) ? !!st[title] : (o.open !== false);
-  return `<details class="sv-card" data-card="${svEsc(title)}"${open ? ' open' : ''}>
-    <summary class="sv-card-h">
-      <span class="sv-ic">${icon}</span><span class="sv-t">${svEsc(title)}</span>
-      <span class="sv-card-sum">${o.sum || ''}</span>
-    </summary>
-    <div class="sv-c">${html}</div>
-  </details>`;
-}
-
-/** 卡片跳轉列：點了捲到該卡並展開 */
-function svNavHtml(items) {
-  if (!items.length) return '';
-  return `<div class="sv-nav">${items.map(([ic, t]) =>
-    `<button type="button" class="sv-nav-b" data-goto="${svEsc(t)}">${ic} ${svEsc(t)}</button>`
-  ).join('')}</div>`;
-}
+// 註：2026-07-26 早先做過一版「可收合卡片堆」（svRow / svNavHtml / svCardState +
+// localStorage.sv_cards_open），同日改成 FinLab 版型後那組已無呼叫者，連同
+// 相關 CSS 一併移除。個股頁的組裝現在在 renderStockSummary + attachResearchCards。
 
 function renderStockSummary(ticker, name, market, row) {
   const el = document.getElementById('kc-summary');

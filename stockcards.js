@@ -456,6 +456,174 @@ window.StockCards = (function () {
       兩個方向都單調：越便宜越好、動能越強越好；但最貴那排不管動能多強都是負的。</p>`;
   }
 
+  // ═══ 多序列折線圖 ═════════════════════════════════════
+  //
+  //  集保「比率」是 %、「絕對張數」是千股，兩者量綱差 3 個數量級，
+  //  硬畫在同一個 y 軸其中一條會變成貼底的直線。這裡**每條各自正規化**到 0-1，
+  //  圖上看的是「形狀是否同步」——交叉驗證要看的正是背離，不是絕對高度。
+  //  真實數值放在圖例上（最新值 + 區間），不會因為正規化而失去可讀性。
+  //
+  function fmtD(d) {
+    const s = String(d);
+    return s.length === 8 ? `${s.slice(2, 4)}/${s.slice(4, 6)}/${s.slice(6)}` : s;
+  }
+
+  function multiLineHtml(dates, series, opts) {
+    const o = opts || {};
+    const n = dates.length;
+    const live = series.filter(s => (s.data || []).some(isNum));
+    if (n < 2 || !live.length) return '<div class="fl-none">資料不足，無法繪圖</div>';
+
+    const W = 100, H = o.h || 40;
+    const x = i => (i / (n - 1)) * W;
+    const paths = live.map(s => {
+      const vs = s.data;
+      const ok = vs.filter(isNum);
+      const lo = Math.min(...ok), hi = Math.max(...ok), rng = (hi - lo) || 1;
+      const pts = vs.map((v, i) => isNum(v) ? `${x(i)},${H - ((v - lo) / rng) * H}` : null)
+        .filter(Boolean).join(' ');
+      return `<polyline points="${pts}" fill="none" stroke="${s.color}"
+        stroke-width="${s.w || 0.8}" opacity="${s.op || 1}"
+        ${s.dash ? `stroke-dasharray="${s.dash}"` : ''}/>`;
+    }).join('');
+
+    const grid = [0.25, 0.5, 0.75].map(f =>
+      `<line x1="0" y1="${H * f}" x2="${W}" y2="${H * f}"
+        stroke="var(--border)" stroke-width="0.25"/>`).join('');
+
+    const legend = live.map(s => {
+      const ok = s.data.filter(isNum);
+      const last = ok[ok.length - 1];
+      const d = s.d == null ? 2 : s.d;
+      return `<span class="fl-lg">
+        <i style="background:${s.color}"></i>${esc(s.label)}
+        <b>${num(last, d)}${s.unit ? esc(s.unit) : ''}</b>
+        <span class="fl-mut">（${num(Math.min(...ok), d)}~${num(Math.max(...ok), d)}）</span>
+      </span>`;
+    }).join('');
+
+    return `<div class="fl-lc">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"
+        aria-label="${esc(o.aria || '折線圖')}">${grid}${paths}</svg>
+      <div class="fl-lc-x"><span>${fmtD(dates[0])}</span><span>${fmtD(dates[n - 1])}</span></div>
+      <div class="fl-lgs">${legend}</div>
+      ${o.note ? `<p class="fl-note">${o.note}</p>` : ''}
+    </div>`;
+  }
+
+  // ═══ 集保大戶 · 絕對持股交叉驗證 ═══════════════════════
+  const JB_FLAG = {
+    both_up: ['good', '真實加碼', '比率與絕對張數同步上升——確實有人在買進。'],
+    denom: ['bad', '分母縮水的假象',
+      '比率上升，但大戶手上的絕對張數其實是減少的。這是集保總張數變小'
+      + '（減資／股票移出集保／ETF 調整）造成的，**不是大戶進場**。'],
+    both_down: ['warn', '真實減碼', '比率與絕對張數同步下降——大戶確實在出。'],
+    dilute: ['flat', '買了但被稀釋',
+      '絕對張數增加，但比率反而下降——買盤跟不上流通張數的擴張。'],
+  };
+
+  function jibaoHtml(d) {
+    const j = d.jibao || {};
+    if (!j.weeks) return '';
+    const f = JB_FLAG[j.flag] || ['flat', '資料不足', ''];
+    const chg = (v, u, dg) => isNum(v)
+      ? `<b class="${retCls(v)}">${v > 0 ? '+' : ''}${num(v, dg)}${u}</b>` : '—';
+
+    const chart = multiLineHtml(j.date, [
+      { label: '收盤價', data: j.close, color: 'var(--border-hi)', w: 0.6, op: .7, unit: '', d: 0 },
+      { label: '大戶持股比率', data: j.big_pct, color: 'var(--accent)', w: 1.1, unit: '%' },
+      { label: '大戶絕對張數', data: j.big_k, color: '#f5b942', w: 1.1, unit: ' 千股', d: 0 },
+      { label: '散戶(≤10張)比率', data: j.small_pct, color: '#8b7bd8', w: 0.7, dash: '2 1.5', unit: '%' },
+    ], {
+      h: 42, aria: '集保大戶比率與絕對持股交叉驗證',
+      note: '四條線各自正規化到同一高度——這張圖要看的是<b>形狀是否同步</b>，'
+        + '不是絕對高度。青線（比率）與黃線（絕對張數）分岔時，就是分母在作怪。',
+    });
+
+    return `<section class="fl-sec" data-sec="集保">
+      <h2 class="fl-h2">集保大戶 · 絕對持股交叉驗證</h2>
+      <p class="fl-lead">大戶持股「比率」的分母是集保總張數，會因減資或股票移出集保而縮水——
+        <b>大戶一張都沒買，比率照樣上升</b>。所以比率一定要跟絕對張數一起看。</p>
+      <div class="fl-jb-head">
+        <div class="fl-in fl-in-${f[0]} fl-jb-verdict"><b>${esc(f[1])}</b>${esc(f[2])}</div>
+        <div class="fl-kvs">
+          <div class="fl-kv"><div class="fl-kv-l">大戶持股比率</div>
+            <div class="fl-kv-v">${num(j.big_pct[j.big_pct.length - 1], 2)}%</div>
+            <div class="fl-kv-s">近 ${j.lookback_w} 週 ${chg(j.big_pct_chg, ' pp', 2)}</div></div>
+          <div class="fl-kv"><div class="fl-kv-l">大戶絕對張數</div>
+            <div class="fl-kv-v">${int(j.big_k[j.big_k.length - 1])}</div>
+            <div class="fl-kv-s">千股，近 ${j.lookback_w} 週 ${chg(j.big_k_chg, '', 0)}</div></div>
+          <div class="fl-kv"><div class="fl-kv-l">集保總張數</div>
+            <div class="fl-kv-v">${int(j.total_k[j.total_k.length - 1])}</div>
+            <div class="fl-kv-s">千股（＝比率的分母）</div></div>
+          <div class="fl-kv"><div class="fl-kv-l">股東人數</div>
+            <div class="fl-kv-v">${int(j.holders[j.holders.length - 1])}</div>
+            <div class="fl-kv-s">人</div></div>
+        </div>
+      </div>
+      ${chart}
+      <p class="fl-note">大戶＝持股 ≥400 張；散戶＝≤10 張。集保每週五結算、次週一公布，
+        故最新一點是 <b>${fmtD(j.asof)}</b>，會落後盤面數天，<b>不能拿來做當日判斷</b>。
+        共 ${j.weeks} 週。</p>
+    </section>`;
+  }
+
+  // ═══ 分點明細 + 分點庫存重建 ═══════════════════════════
+  const BK_COLORS = ['var(--accent)', '#f5b942', '#8b7bd8', '#4ec9b0', '#e8734a', '#6a9fd8'];
+
+  function brokerHtml(d) {
+    const b = d.broker || {};
+    if (!b.days || !(b.brokers || []).length) return '';
+    const dt = b.detail || {};
+
+    const board = (title, rows, sub) => `<div class="fl-bd">
+      <div class="fl-bd-h">${title}<span class="fl-mut">${sub}</span></div>
+      ${(rows || []).map(r => `<div class="fl-bd-r">
+        <span>${esc(r.bk)}</span><b>${int(r.qty)}</b></div>`).join('')}
+    </div>`;
+
+    const cum = multiLineHtml(b.dates, b.brokers.map((x, i) => ({
+      label: x.bk, data: x.cum, color: BK_COLORS[i % BK_COLORS.length],
+      w: 1, unit: ' 張', d: 0,
+    })), {
+      h: 40, aria: '分點庫存重建',
+      note: '每條各自正規化，看的是<b>累積曲線的走勢</b>（持續向上＝持續收貨）。'
+        + '真實累積張數見下表。',
+    });
+
+    const cov = b.brokers.map((x, i) => {
+      const c = x.coverage;
+      const cls = !isNum(c) ? 'flat' : (c >= 0.85 && c <= 1.15 ? 'good' : 'warn');
+      return `<div class="fl-kv">
+        <div class="fl-kv-l"><i class="fl-dot" style="background:${BK_COLORS[i % BK_COLORS.length]}"></i>${esc(x.bk)}</div>
+        <div class="fl-kv-v ${retCls(x.cum_last)}">${int(x.cum_last)}</div>
+        <div class="fl-kv-s">進榜 ${x.days_on_board}/${b.days} 日
+          <span class="fl-cov fl-cov-${cls}">覆蓋 ${isNum(c) ? c.toFixed(2) : '—'}</span></div>
+      </div>`;
+    }).join('');
+
+    return `<section class="fl-sec" data-sec="分點">
+      <h2 class="fl-h2">分點明細與主力庫存重建</h2>
+      <h3 class="fl-h3">${fmtD(dt.date)} 分點進出</h3>
+      <p class="fl-lead">當日成交 ${int(dt.turnover_k)} 張，${int(dt.n_brokers)} 家分點進出
+        （買方 ${int(dt.n_buy)} 家／賣方 ${int(dt.n_sell)} 家）。</p>
+      <div class="fl-bds">
+        ${board('買超榜', dt.net, '淨額 · 張')}
+        ${board('買進榜', dt.buy, '毛額 · 張')}
+        ${board('賣出榜', dt.sell, '毛額 · 張')}
+      </div>
+      <h3 class="fl-h3">主力庫存重建（近 ${b.days} 個交易日）</h3>
+      <p class="fl-lead">追蹤「近 60 日買賣超」排行前段的分點，把牠們每日淨額累加成庫存曲線。
+        每日淨額＝<b>當日買進榜的量 減 賣出榜的量</b>——只用買賣超榜會漏掉牠們賣出的日子，
+        累積會系統性高估（實測覆蓋率會跑到 1.2~3.1）。</p>
+      ${cum}
+      <div class="fl-kvs">${cov}</div>
+      <p class="fl-note"><b>覆蓋率</b>＝自行累加的近 60 日淨額 ÷ TEJ 直接給的「近60日買賣超」，
+        越接近 1 代表這家幾乎天天在榜、重建線越可信；偏離大代表有相當比例的進出
+        發生在沒進 top-20 的日子。<br>${esc(b.caveat)}</p>
+    </section>`;
+  }
+
   const PROFILE_FIELDS = [
     ['name_full', '公司全稱'], ['industry_tej', 'TEJ 產業'], ['sub_industry_tej', 'TEJ 子產業'],
     ['industry_tse', 'TSE 產業'], ['market', '市場別'], ['listing_type', '上市別'],
@@ -523,6 +691,7 @@ window.StockCards = (function () {
   return {
     load, loadShared, bindTabs,
     heroHtml, qualityHtml, chipFlowHtml, evidenceHtml, aboutHtml, methodHtml,
+    jibaoHtml, brokerHtml, multiLineHtml,
     matrixHtml, chipNumsHtml, buildInsights, insightsHtml, radarHtml,
     esc, isNum, pct, num, int, scoreColor, retCls,
   };

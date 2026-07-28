@@ -32,6 +32,8 @@ function render(d, shared) {
     ${S.heroHtml(d)}
     ${S.qualityHtml(d)}
     ${S.chipFlowHtml(d, '')}
+    ${S.brokerHtml(d)}
+    ${S.jibaoHtml(d)}
     ${S.evidenceHtml(d, shared)}
     ${S.aboutHtml(d, '')}
     ${S.methodHtml(d, shared)}

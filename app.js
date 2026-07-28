@@ -4137,6 +4137,8 @@ function renderStockSummary(ticker, name, market, row) {
     </section>` : ''}
     <div id="fl-quality"></div>
     <div id="fl-chip"></div>
+    <div id="fl-broker"></div>
+    <div id="fl-jibao"></div>
     <div id="fl-evidence"></div>
     <div id="fl-about"></div>
     <div id="fl-method"></div>
@@ -4174,6 +4176,9 @@ async function attachResearchCards(ticker) {
   if (slot('fl-quality')) slot('fl-quality').innerHTML = StockCards.qualityHtml(d);
   if (slot('fl-chip')) slot('fl-chip').innerHTML =
     StockCards.chipFlowHtml(d, el.__flChipExtra || '');
+  // 分點（日頻）緊接在法人籌碼後面，集保（週頻）再接著——籌碼三張由快到慢排
+  if (slot('fl-broker')) slot('fl-broker').innerHTML = StockCards.brokerHtml(d);
+  if (slot('fl-jibao')) slot('fl-jibao').innerHTML = StockCards.jibaoHtml(d);
   if (slot('fl-evidence')) slot('fl-evidence').innerHTML = StockCards.evidenceHtml(d, shared);
   if (slot('fl-about')) slot('fl-about').innerHTML =
     StockCards.aboutHtml(d, el.__flAboutExtra || '');

@@ -1889,3 +1889,44 @@ body.ui-v2 {
 .ui-v2 .tabulator .tabulator-footer { background: var(--panel-2); border-color: var(--border); color: var(--text-dim); }
 .ui-v2 .tabulator .tabulator-footer .tabulator-page { background: transparent; color: var(--text-dim); border-color: var(--border); }
 .ui-v2 .tabulator .tabulator-footer .tabulator-page.active { color: var(--accent); border-color: var(--accent); }
+
+/* ── 多序列折線圖（集保交叉驗證 / 分點庫存重建共用）──────── */
+.fl-lc { margin-top: 16px; }
+.fl-lc > svg {
+  width: 100%; height: 200px; display: block;
+  background: var(--panel-3, #1a1a2e); border-radius: 8px;
+  border: 1px solid var(--border, #2a2a3e);
+}
+.fl-lc-x {
+  display: flex; justify-content: space-between;
+  font-size: 12px; color: var(--text-mut, #6a6a7a); margin-top: 6px;
+}
+.fl-lgs { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 10px; }
+.fl-lg { font-size: 13px; color: var(--text-dim, #9aa0b0); white-space: nowrap; }
+.fl-lg > i {
+  display: inline-block; width: 14px; height: 3px; border-radius: 2px;
+  margin-right: 7px; vertical-align: middle;
+}
+.fl-lg b { font-family: var(--mono); color: var(--text, #e8edf7); margin-left: 6px; }
+
+/* ── 集保區塊 ───────────────────────────────────── */
+.fl-jb-head { display: grid; gap: 14px; }
+.fl-jb-verdict { font-size: 15px; line-height: 1.8; }
+.fl-jb-head .fl-kvs { margin-top: 4px; }
+
+/* ── 分點三榜 ───────────────────────────────────── */
+.fl-bds { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+.fl-bd { background: var(--panel-3, #1a1a2e); border-radius: 8px; padding: 12px 14px; }
+.fl-bd-h {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 14px; font-weight: 700; padding-bottom: 8px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--border, #2a2a3e);
+}
+.fl-bd-h > span { font-size: 12px; font-weight: 400; }
+.fl-bd-r { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; }
+.fl-bd-r b { font-family: var(--mono); color: var(--text, #e8edf7); }
+.fl-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.fl-cov { margin-left: 8px; padding: 1px 6px; border-radius: 10px; font-family: var(--mono); }
+.fl-cov-good { background: rgba(38, 166, 154, .18); color: var(--up, #26a69a); }
+.fl-cov-warn { background: rgba(245, 185, 66, .16); color: #f5b942; }
+.fl-cov-flat { background: var(--border, #2a2a3e); color: var(--text-mut, #6a6a7a); }

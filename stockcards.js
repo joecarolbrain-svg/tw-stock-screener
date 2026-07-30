@@ -634,7 +634,10 @@ window.StockCards = (function () {
       g.lo = Math.min(g.lo, ...ok);
       g.hi = Math.max(g.hi, ...ok);
     });
-    Object.values(groups).forEach(g => {
+    // o.fixed = { grpKey: [lo, hi] }：讓多張面板共用同一把尺（跨 multiLineHtml 呼叫）
+    Object.entries(groups).forEach(([k, g]) => {
+      const fx = o.fixed && o.fixed[k];
+      if (fx) { g.lo = fx[0]; g.hi = fx[1]; g.span = (g.hi - g.lo) || 1; return; }
       const pad = ((g.hi - g.lo) || Math.abs(g.hi) || 1) * 0.08;
       g.lo -= pad; g.hi += pad; g.span = (g.hi - g.lo) || 1;
     });
@@ -652,12 +655,21 @@ window.StockCards = (function () {
         ${s.dash ? `stroke-dasharray="${s.dash * 1 ? s.dash * 3 : '5 4'}"` : ''}/>`;
     }).join('');
 
-    const grid = [0, 0.25, 0.5, 0.75, 1].map(f =>
-      `<line class="flc-grid" x1="${PL}" y1="${(PT + H * f).toFixed(1)}" x2="${PL + pw}" y2="${(PT + H * f).toFixed(1)}"/>`
-    ).join('');
+    // 面板模式（o.panel）不畫格線，只畫一條零基準線（照 FinLab 小倍數面板的做法）
+    let grid;
+    if (o.panel) {
+      const zg = groups[o.zeroGrp] || Object.values(groups)[0];
+      const zy = PT + (1 - (0 - zg.lo) / zg.span) * H;
+      grid = (zy >= PT && zy <= PT + H)
+        ? `<line class="flc-zero" x1="${PL}" y1="${zy.toFixed(1)}" x2="${PL + pw}" y2="${zy.toFixed(1)}"/>` : '';
+    } else {
+      grid = [0, 0.25, 0.5, 0.75, 1].map(f =>
+        `<line class="flc-grid" x1="${PL}" y1="${(PT + H * f).toFixed(1)}" x2="${PL + pw}" y2="${(PT + H * f).toFixed(1)}"/>`
+      ).join('');
+    }
 
-    // 日期軸：約 5 個等距標籤
-    const nLab = Math.min(5, n);
+    // 日期軸：約 5 個等距標籤（面板模式只放頭尾兩個，寬度不夠）
+    const nLab = o.panel ? Math.min(2, n) : Math.min(5, n);
     const xLabs = Array.from({ length: nLab }, (_, k) => {
       const i = Math.round(k * (n - 1) / (nLab - 1));
       const anchor = k === 0 ? 'start' : (k === nLab - 1 ? 'end' : 'middle');
@@ -665,6 +677,10 @@ window.StockCards = (function () {
     }).join('');
 
     const legend = live.map(s => {
+      if (s.noLegend) return '';
+      if (o.legend === 'dot') {     // 面板模式：只有色塊＋名稱，數字在下方明細表
+        return `<span class="fl-lg fl-lg-dot"><i style="background:${s.color}"></i>${esc(s.label)}</span>`;
+      }
       const ok = s.data.filter(isNum);
       const last = ok[ok.length - 1];
       const d = s.d == null ? 2 : s.d;
@@ -686,11 +702,12 @@ window.StockCards = (function () {
       }),
     });
 
-    return `<div class="fl-lc">
+    return `<div class="fl-lc${o.panel ? ' fl-lc-pane' : ''}"${o.tone ? ` data-tone="${o.tone}"` : ''}>
       <div class="flc-plot fl-lc-plot" data-hov="${hid}" data-w="${W}" data-xh="${XH}">
         <svg viewBox="0 0 ${W} ${PT + H + XH}" aria-label="${esc(o.aria || '折線圖')}">
           ${grid}${xLabs}${paths}
         </svg>
+        ${o.badge ? `<span class="fl-lc-badge">${esc(o.badge)}</span>` : ''}
         <div class="flc-cross" hidden></div>
         <div class="flc-tip" hidden></div>
       </div>
@@ -758,7 +775,71 @@ window.StockCards = (function () {
   }
 
   // ═══ 分點明細 + 分點庫存重建 ═══════════════════════════
+  //   版型照 finlab.finance/stocks/6488（2026-07-30 截圖）重排：
+  //   把分點依「重建庫存曲線」分成 承接／派發／交易台 三組，各給一張小倍數面板
+  //   （組內用同色系深→淺區分，股價當灰色底線），下面接三欄明細（橫條＋狀態）。
+  //   ⚠️ 數字對不上 FinLab 是預期的，不是 bug：我們的窗口只有 61 個交易日、6 家分點，
+  //   他們約 103 日、16 家。分點資料只能每天存檔往前長（TEJ 回補是死路），會隨時間收斂。
   const BK_COLORS = ['var(--accent)', '#f5b942', '#8b7bd8', '#4ec9b0', '#e8734a', '#6a9fd8'];
+
+  // 組內深→淺色階（照 FinLab：同色系區分同組分點，不用彩虹色）
+  const BK_RAMP = {
+    hold: ['#0e8f6f', '#17a97f', '#2ec49a', '#4dd6ae', '#7ee3c6', '#a9eeda'],
+    dist: ['#a3231f', '#c0392b', '#d9534f', '#e8736f', '#f0968f', '#f5b8b3'],
+    desk: ['#5a6a8a', '#6e7f9f', '#8492b0', '#9aa6c0', '#b0bad0', '#c6cee0'],
+  };
+  const BK_DIST_MIN = 0.30;   // 自峰值回吐 ≥30% 才算「派發倒貨」
+  const BK_PACE_WIN = 20;     // 估算倒貨速度的回看天數
+
+  /** 依重建庫存曲線把分點分成 承接／派發／交易台，並算出已賣%、倒完天數 */
+  function bkClassify(x) {
+    const cum = (x.cum || []).filter(isNum);
+    if (!cum.length) return null;
+    const now = cum[cum.length - 1];
+    const peak = Math.max(...cum);
+    const soldPct = peak > 0 ? Math.max(0, (peak - now) / peak) : 0;
+    const daily = (x.daily || []).slice(-BK_PACE_WIN).filter(isNum);
+    const sells = daily.filter(v => v < 0);
+    // 倒貨速度＝回看窗內「賣出日」的平均賣量（不用全部日平均，否則買賣互相抵銷會低估）
+    const pace = sells.length ? Math.abs(sells.reduce((a, b) => a + b, 0)) / BK_PACE_WIN : 0;
+    const daysLeft = (pace > 0 && now > 0) ? Math.round(now / pace) : null;
+
+    let grp;
+    if (now <= 0) grp = 'desk';                     // 負庫存 → 交易台淨空
+    else if (soldPct >= BK_DIST_MIN) grp = 'dist';  // 曾大量累積、已明顯回吐 → 派發
+    else grp = 'hold';                              // 仍留正庫存 → 承接
+    return { ...x, now, peak, soldPct, pace, daysLeft, grp, recentSells: sells.length };
+  }
+
+  const BK_GRP_META = {
+    hold: {
+      key: 'hold', title: '承接持有者', short: '承接', tone: 'hold',
+      desc: '窗口內累積買進後仍留有正庫存的分點，可視為正在吸收籌碼的一方。',
+    },
+    dist: {
+      key: 'dist', title: '派發倒貨者', short: '派發', tone: 'dist',
+      desc: '曾累積大量庫存、近期持續賣出的分點；「剩」是估計尚未出完的張數。',
+    },
+    desk: {
+      key: 'desk', title: '交易台淨空', short: '交易台', tone: 'desk',
+      desc: '分點呈現負庫存或淨賣出，多見於避險、對沖或短線部位，不直接等同看空。',
+    },
+  };
+
+  /** 明細列的狀態文字（只用資料算得出來的，不猜分點性質） */
+  function bkStatus(r) {
+    const sold = `${(r.soldPct * 100).toFixed(0)}%`;
+    if (r.grp === 'hold') {
+      return `已賣 ${sold}·${r.recentSells >= BK_PACE_WIN * 0.5 ? '邊買邊出' : '仍在加碼'}`;
+    }
+    if (r.grp === 'dist') {
+      if (r.daysLeft == null) return `已倒 ${sold}·近期停手`;
+      return `已倒 ${sold}·約 ${int(r.daysLeft)} 日倒完`;
+    }
+    // 交易台：只講庫存方向與是否回補中
+    const last5 = (r.daily || []).slice(-5).filter(isNum).reduce((a, b) => a + b, 0);
+    return last5 > 0 ? '負庫存·近 5 日回補中' : '負庫存·仍在淨賣';
+  }
 
   function brokerHtml(d) {
     const b = d.broker || {};
@@ -771,29 +852,127 @@ window.StockCards = (function () {
         <span>${esc(r.bk)}</span><b>${int(r.qty)}</b></div>`).join('')}
     </div>`;
 
-    const cum = multiLineHtml(b.dates, b.brokers.map((x, i) => ({
-      label: x.bk, data: x.cum, color: BK_COLORS[i % BK_COLORS.length],
-      w: 1, unit: ' 張', d: 0, grp: '張',
-    })), {
-      aria: '分點庫存重建',
-      note: '各分點<b>共用同一把尺規</b>（單位都是張），所以線的高低可以直接互相比較——'
-        + '誰收得多、誰在倒，一眼看得出來。滑過圖看任一天各家的真實累積張數。',
+    // ── 分組 ──────────────────────────────────────────
+    const rows = b.brokers.map(bkClassify).filter(Boolean);
+    const byGrp = { hold: [], dist: [], desk: [] };
+    rows.forEach(r => byGrp[r.grp].push(r));
+    // 組內依規模排序，並指派同色系深→淺
+    Object.keys(byGrp).forEach(k => {
+      byGrp[k].sort((a, c) => (k === 'dist' ? c.now - a.now
+        : k === 'desk' ? a.now - c.now : c.now - a.now));
+      byGrp[k].forEach((r, i) => { r.color = BK_RAMP[k][i % BK_RAMP[k].length]; });
     });
 
-    const cov = b.brokers.map((x, i) => {
-      const c = x.coverage;
-      const cls = !isNum(c) ? 'flat' : (c >= 0.85 && c <= 1.15 ? 'good' : 'warn');
-      return `<div class="fl-kv">
-        <div class="fl-kv-l"><i class="fl-dot" style="background:${BK_COLORS[i % BK_COLORS.length]}"></i>${esc(x.bk)}</div>
-        <div class="fl-kv-v ${retCls(x.cum_last)}">${int(x.cum_last)}</div>
-        <div class="fl-kv-s">進榜 ${x.days_on_board}/${b.days} 日
-          <span class="fl-cov fl-cov-${cls}">覆蓋 ${isNum(c) ? c.toFixed(2) : '—'}</span></div>
+    // 股價當面板底線：broker 日期是 YYYYMMDD，price 是 YYYY-MM-DD
+    const pmap = {};
+    (d.price || []).forEach(p => { pmap[String(p.d).replace(/-/g, '')] = p.c; });
+    const pxLine = b.dates.map(dd => pmap[String(dd)] ?? null);
+    const hasPx = pxLine.some(isNum);
+
+    // 承接與派發共用同一把尺（可互比）；交易台獨立（負值域，混在一起會把正庫存壓平）
+    const shareVals = byGrp.hold.concat(byGrp.dist)
+      .flatMap(r => r.cum.filter(isNum));
+    const shareRange = shareVals.length
+      ? (() => {
+        let lo = Math.min(0, ...shareVals), hi = Math.max(0, ...shareVals);
+        const pad = ((hi - lo) || 1) * 0.08;
+        return [lo - pad, hi + pad];
+      })() : null;
+
+    const panel = (key) => {
+      const list = byGrp[key];
+      if (!list.length) return '';           // 空組不出現（全站慣例）
+      const m = BK_GRP_META[key];
+      const shared = key !== 'desk' && shareRange;
+      const series = list.map(r => ({
+        label: r.bk, data: r.cum, color: r.color, w: 1, unit: ' 張', d: 0, grp: '張',
+      }));
+      if (hasPx) {
+        series.push({
+          label: '股價', data: pxLine, color: 'var(--text-mut)', w: 0.7, op: .55,
+          unit: '', d: 2, grp: '價', noLegend: true,
+        });
+      }
+      return `<div class="fl-pane fl-pane-${key}">
+        <div class="fl-pane-h">${m.short}</div>
+        ${multiLineHtml(b.dates, series, {
+          h: 150, panel: true, legend: 'dot', tone: m.tone, zeroGrp: '張',
+          badge: shared ? '' : '獨立尺度',
+          aria: `分點庫存重建 · ${m.short}`,
+          fixed: shared ? { '張': shareRange } : null,
+        })}
       </div>`;
-    }).join('');
+    };
+
+    const explainer = ['hold', 'dist', 'desk'].map(k => byGrp[k].length
+      ? `<div class="fl-pcard fl-pcard-${k}">
+          <div class="fl-pcard-t">${BK_GRP_META[k].title}</div>
+          <p>${BK_GRP_META[k].desc}</p>
+        </div>` : '').join('');
+
+    // ── 明細三欄（名稱＋值＋橫條＋狀態）─────────────────
+    //   橫條三欄共用同一個分母（全組最大絕對值），所以跨欄長度可直接比
+    const barMax = Math.max(1, ...rows.map(r => Math.abs(r.now)));
+    const detailCol = (key) => {
+      const list = byGrp[key];
+      if (!list.length) return '';
+      const m = BK_GRP_META[key];
+      return `<div class="fl-dcol fl-dcol-${key}">
+        <div class="fl-dcol-h">${m.short}</div>
+        ${list.map(r => `<div class="fl-drow">
+          <div class="fl-drow-t"><span>${esc(r.bk)}</span>
+            <b>${key === 'dist' ? `剩 ${int(r.now)}`
+        : `${r.now > 0 ? '+' : ''}${int(r.now)}`}</b></div>
+          <div class="fl-dbar"><i style="width:${(Math.abs(r.now) / barMax * 100).toFixed(1)}%;background:${r.color}"></i></div>
+          <div class="fl-drow-s">${esc(bkStatus(r))}
+            <span class="fl-cov fl-cov-${!isNum(r.coverage) ? 'flat'
+        : (r.coverage >= 0.85 && r.coverage <= 1.15 ? 'good' : 'warn')}"
+              title="自行累加的近60日淨額 ÷ TEJ 給的近60日買賣超；越接近 1 越可信">覆蓋 ${isNum(r.coverage) ? r.coverage.toFixed(2) : '—'}</span>
+            <span class="fl-mut">進榜 ${r.days_on_board}/${b.days}</span></div>
+        </div>`).join('')}
+      </div>`;
+    };
+
+    // ── 底部合計 ──────────────────────────────────────
+    const distLeft = byGrp.dist.reduce((a, r) => a + Math.max(0, r.now), 0);
+    const maxDays = byGrp.dist.reduce((a, r) => r.daysLeft != null ? Math.max(a, r.daysLeft) : a, 0);
+    const pull = rows.reduce((a, r) => {
+      const s = (r.daily || []).slice(-BK_PACE_WIN).filter(isNum);
+      return a + s.filter(v => v > 0).reduce((x, y) => x + y, 0);
+    }, 0);
+    const push = rows.reduce((a, r) => {
+      const s = (r.daily || []).slice(-BK_PACE_WIN).filter(isNum);
+      return a + s.filter(v => v < 0).reduce((x, y) => x + y, 0);
+    }, 0);
+    const net = pull + push;
 
     return `<section class="fl-sec" data-sec="分點">
-      <h2 class="fl-h2">分點明細與主力庫存重建</h2>
-      <h3 class="fl-h3">${fmtD(dt.date)} 分點進出</h3>
+      <h2 class="fl-h2">誰在收、誰在倒？分點庫存重建</h2>
+      <p class="fl-lead">追蹤「近 60 日買賣超」排行前段的分點，把牠們每日淨額累加成庫存曲線，
+        再依曲線形狀分成三組。每日淨額＝<b>當日買進榜的量 減 賣出榜的量</b>——只用買賣超榜會
+        漏掉牠們賣出的日子，累積會系統性高估（實測覆蓋率會跑到 1.2~3.1）。</p>
+
+      <h3 class="fl-h3">分點庫存重建（近 ${b.days} 個交易日）</h3>
+      <div class="fl-pcards">${explainer}</div>
+      <div class="fl-panes">${panel('hold')}${panel('dist')}${panel('desk')}</div>
+      <p class="fl-note">${hasPx ? '灰線＝股價（各面板獨立縮放，只看形狀對照）。' : ''}
+        ${byGrp.hold.length && byGrp.dist.length ? '承接與派發<b>共用尺度可互比</b>；' : ''}
+        ${byGrp.desk.length ? '交易台為獨立尺度（負值域）。' : ''}橫線為零基準。
+        滑過任一面板可看該日各分點的真實累積張數。</p>
+
+      <h3 class="fl-h3">分點明細<span class="fl-h3-r">單位：張</span></h3>
+      <div class="fl-dcols">${detailCol('hold')}${detailCol('dist')}${detailCol('desk')}</div>
+      <div class="fl-dsum">
+        <div><div class="fl-dsum-l">還在倒</div>
+          <div class="fl-dsum-v">${int(distLeft)} 張</div>
+          <div class="fl-dsum-s">${maxDays ? `最長約 ${int(maxDays)} 個交易日見底` : '無倒貨速度可估'}</div></div>
+        <div><div class="fl-dsum-l">近 ${BK_PACE_WIN} 日買賣力道</div>
+          <div class="fl-dsum-v"><span class="fl-up">+${int(pull)} 吸</span>
+            <span class="fl-mut"> / </span><span class="fl-down">${int(push)} 倒</span></div>
+          <div class="fl-dsum-s">${net > 0 ? '買盤略勝' : (net < 0 ? '賣壓略勝' : '買賣相抵')}</div></div>
+      </div>
+
+      <h3 class="fl-h3">${fmtD(dt.date)} 當日分點進出</h3>
       <p class="fl-lead">當日成交 ${int(dt.turnover_k)} 張，${int(dt.n_brokers)} 家分點進出
         （買方 ${int(dt.n_buy)} 家／賣方 ${int(dt.n_sell)} 家）。</p>
       <div class="fl-bds">
@@ -801,15 +980,12 @@ window.StockCards = (function () {
         ${board('買進榜', dt.buy, '毛額 · 張')}
         ${board('賣出榜', dt.sell, '毛額 · 張')}
       </div>
-      <h3 class="fl-h3">主力庫存重建（近 ${b.days} 個交易日）</h3>
-      <p class="fl-lead">追蹤「近 60 日買賣超」排行前段的分點，把牠們每日淨額累加成庫存曲線。
-        每日淨額＝<b>當日買進榜的量 減 賣出榜的量</b>——只用買賣超榜會漏掉牠們賣出的日子，
-        累積會系統性高估（實測覆蓋率會跑到 1.2~3.1）。</p>
-      ${cum}
-      <div class="fl-kvs">${cov}</div>
-      <p class="fl-note"><b>覆蓋率</b>＝自行累加的近 60 日淨額 ÷ TEJ 直接給的「近60日買賣超」，
-        越接近 1 代表這家幾乎天天在榜、重建線越可信；偏離大代表有相當比例的進出
-        發生在沒進 top-20 的日子。<br>${esc(b.caveat)}</p>
+
+      <p class="fl-note"><b>分組規則</b>：目前庫存 ≤0 → 交易台；自峰值回吐 ≥${(BK_DIST_MIN * 100).toFixed(0)}%
+        → 派發；其餘 → 承接。<b>倒完天數</b>＝目前庫存 ÷ 近 ${BK_PACE_WIN} 日的平均賣出速度
+        （只算賣出日的量，避免買賣互相抵銷而低估），窗口只有 ${b.days} 日、屬粗估。
+        <b>覆蓋率</b>＝自行累加的近 60 日淨額 ÷ TEJ 直接給的「近60日買賣超」，越接近 1 代表
+        這家幾乎天天在榜、重建線越可信。<br>${esc(b.caveat)}</p>
     </section>`;
   }
 

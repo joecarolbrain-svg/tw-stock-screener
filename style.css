@@ -1966,6 +1966,84 @@ body.ui-v2 {
   display: flex; justify-content: space-between;
   font-size: 12px; color: var(--text-mut, #6a6a7a); margin-top: 6px;
 }
+/* ── 分點庫存重建：承接／派發／交易台 三面板 ─────────────── */
+.fl-pcards {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px; margin: 12px 0 14px;
+}
+.fl-pcard {
+  border: 1px solid var(--border, #2a2a3e); border-radius: 8px; padding: 10px 12px;
+  font-size: 12.5px; line-height: 1.7;
+}
+.fl-pcard p { margin: 4px 0 0; color: var(--text-dim, #9aa0b0); }
+.fl-pcard-t { font-weight: 700; }
+.fl-pcard-hold { background: rgba(46,196,154,.07); border-color: rgba(46,196,154,.32); }
+.fl-pcard-hold .fl-pcard-t { color: #2ec49a; }
+.fl-pcard-dist { background: rgba(217,83,79,.07); border-color: rgba(217,83,79,.32); }
+.fl-pcard-dist .fl-pcard-t { color: #d9534f; }
+.fl-pcard-desk { background: rgba(132,146,176,.07); border-color: rgba(132,146,176,.3); }
+.fl-pcard-desk .fl-pcard-t { color: #9aa6c0; }
+
+.fl-panes {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px;
+}
+.fl-pane-h { font-size: 13px; font-weight: 700; margin-bottom: 5px; }
+.fl-pane-hold .fl-pane-h { color: #2ec49a; }
+.fl-pane-dist .fl-pane-h { color: #d9534f; }
+.fl-pane-desk .fl-pane-h { color: #9aa6c0; }
+.fl-lc-pane { margin-top: 0; }
+.fl-lc-pane .fl-lc-plot { position: relative; }
+.fl-lc-pane[data-tone="hold"] .fl-lc-plot { background: rgba(46,196,154,.05); border-color: rgba(46,196,154,.22); }
+.fl-lc-pane[data-tone="dist"] .fl-lc-plot { background: rgba(217,83,79,.05); border-color: rgba(217,83,79,.22); }
+.fl-lc-pane[data-tone="desk"] .fl-lc-plot { background: var(--panel-3, #1a1a2e); }
+.fl-lc-badge {
+  position: absolute; top: 6px; left: 8px; z-index: 2;
+  background: var(--panel-2, #15152b); border: 1px solid var(--border, #2a2a3e);
+  border-radius: 4px; color: var(--text-mut, #6a6a7a); font-size: 10.5px; padding: 1px 5px;
+}
+.fl-chart .flc-zero, .fl-lc .flc-zero {
+  vector-effect: non-scaling-stroke;
+  stroke: var(--text-mut, #6a6a7a); stroke-width: 1; stroke-opacity: .4; stroke-dasharray: 4 4;
+}
+.fl-lg-dot { font-size: 12px; }
+
+/* ── 分點明細：三欄 × (名稱＋值＋橫條＋狀態) ───────────── */
+.fl-h3-r { float: right; font-size: 12px; font-weight: 400; color: var(--text-mut, #6a6a7a); }
+.fl-dcols {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 10px 26px; margin-top: 10px;
+}
+.fl-dcol-h {
+  font-size: 13px; font-weight: 700; padding-bottom: 6px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--border, #2a2a3e);
+}
+.fl-dcol-hold .fl-dcol-h { color: #2ec49a; }
+.fl-dcol-dist .fl-dcol-h { color: #d9534f; }
+.fl-dcol-desk .fl-dcol-h { color: #9aa6c0; }
+.fl-drow { padding: 8px 0 7px; border-bottom: 1px solid rgba(42,42,62,.55); }
+.fl-drow:last-child { border-bottom: none; }
+.fl-drow-t {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  font-size: 13.5px; color: var(--text, #e0e0e0);
+}
+.fl-drow-t b { font-family: var(--mono); font-weight: 700; white-space: nowrap; }
+.fl-dbar {
+  height: 4px; border-radius: 3px; background: var(--border, #2a2a3e);
+  margin: 5px 0 4px; overflow: hidden;
+}
+.fl-dbar i { display: block; height: 100%; border-radius: 3px; }
+.fl-drow-s {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 11.5px; color: var(--text-mut, #6a6a7a);
+}
+.fl-dsum {
+  display: flex; flex-wrap: wrap; gap: 14px 46px; margin-top: 14px; padding-top: 12px;
+  border-top: 1px solid var(--border, #2a2a3e);
+}
+.fl-dsum-l { font-size: 12px; font-weight: 700; color: var(--text-dim, #9aa0b0); }
+.fl-dsum-v { font-family: var(--mono); font-size: 19px; margin: 2px 0 1px; color: var(--text, #e0e0e0); }
+.fl-dsum-s { font-size: 11.5px; color: var(--text-mut, #6a6a7a); }
+
 .fl-lgs { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 10px; }
 .fl-lg { font-size: 13px; color: var(--text-dim, #9aa0b0); white-space: nowrap; }
 .fl-lg > i {

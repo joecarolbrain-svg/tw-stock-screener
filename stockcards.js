@@ -230,6 +230,18 @@ window.StockCards = (function () {
   // 座標系（像素單位，等比縮放）：右側留價格標籤、下方留量能與日期
   const CH = { W: 1200, PL: 6, PR: 54, PT: 8, H: 150, GAP: 8, VH: 30, XH: 18 };
 
+  // ── 通用 hover 引擎：走勢圖與集保/分點多線圖共用 ───────────────
+  //   圖表把「每點的 x 像素位置 + 每條線的真實值與 y」註冊進來，DOM 只留一個 id，
+  //   避免把上千個數字塞進 data- 屬性。舊資料在超出保留張數後自動丟棄。
+  const _flHov = {};
+  let _flHovUid = 0;
+  function hovRegister(spec) {
+    const id = ++_flHovUid;
+    _flHov[id] = spec;
+    Object.keys(_flHov).forEach(k => { if (id - k > 24) delete _flHov[k]; });
+    return id;
+  }
+
   /** 價格刻度：在 1/2/2.5/5×10^n 這些「好看的」間距裡，挑條數最接近 want 的一組。
       （不能只取「第一個 ≥ span/want 的間距」——會overshoot，出現只剩 2 條格線的圖） */
   function priceTicks(lo, hi, want) {
@@ -320,13 +332,19 @@ window.StockCards = (function () {
     const chg = (cs[n - 1] / cs[0] - 1) * 100;
     const H_TOTAL = PT + H + GAP + VH + XH;
 
-    // hover 用：把每點的 x(px 座標系) 與數值塞進 data-，交給 bindChart 讀
-    const hov = bars.map((b, i) => [x(i).toFixed(1), b.d, b.c,
-      ma20[i] == null ? '' : +ma20[i].toFixed(2),
-      ma60[i] == null ? '' : +ma60[i].toFixed(2), b.v || 0].join('|')).join(';');
+    // 註冊 hover 資料（通用引擎，見 hovRegister/bindChart）
+    const hid = hovRegister({
+      W, xs: bars.map((_, i) => x(i)), dates: bars.map(b => b.d),
+      series: [
+        { label: '收盤', color: raw, d: 2, vals: cs, ys: cs.map(y) },
+        { label: 'MA20', color: '#f5b942', d: 2, vals: ma20, ys: ma20.map(v => v == null ? null : y(v)) },
+        { label: 'MA60', color: '#8b7bd8', d: 2, vals: ma60, ys: ma60.map(v => v == null ? null : y(v)) },
+      ],
+      extra: [{ label: '量', unit: ' 張', d: 0, vals: bars.map(b => b.v || 0) }],
+      pctOf: 0,   // 第 0 條額外顯示對前一日的漲跌%
+    });
 
-    return `<div class="flc-plot" data-hov="${hov}" data-w="${W}" data-h="${H_TOTAL}"
-        data-pt="${PT}" data-ph="${H}" data-lo="${lo}" data-span="${span}">
+    return `<div class="flc-plot" data-hov="${hid}" data-w="${W}" data-xh="${XH}">
       <svg viewBox="0 0 ${W} ${H_TOTAL}" aria-label="近 ${rangeKey} 走勢">
         ${grid}
         <g class="flc-vol">${volBars}</g>
@@ -589,28 +607,62 @@ window.StockCards = (function () {
     return s.length === 8 ? `${s.slice(2, 4)}/${s.slice(4, 6)}/${s.slice(6)}` : s;
   }
 
+  //   ⚠️ 同 priceChartHtml：用像素座標 + non-scaling-stroke。舊版是 viewBox="0 0 100 40"
+  //   + preserveAspectRatio="none" 撐到 height:200px（橫 15.6× / 縱 4.8×），線寬會在
+  //   2.9~9.4px 之間亂跳，整條線腫成「河流」。
+  //   正規化：預設維持「每條線各自拉滿全高」——集保那張是跨單位比形狀（比率 vs 絕對張數），
+  //   共用尺規會毀掉它（實測台積電大戶比率 78% 與散戶 3% 綁同一把 % 尺後，大戶 3.24pp 的
+  //   變化只剩 5px/158px，線被壓平）。要共用尺規的圖表自己傳 grp（分點庫存全是「張」且量級
+  //   可比，共用才看得出誰收得多）。缺少真實數值的問題由 hover tooltip 解決，不靠共用尺規。
   function multiLineHtml(dates, series, opts) {
     const o = opts || {};
-    const n = dates.length;
-    const live = series.filter(s => (s.data || []).some(isNum));
+    const n = (dates || []).length;
+    const live = (series || []).filter(s => (s.data || []).some(isNum));
     if (n < 2 || !live.length) return '<div class="fl-none">資料不足，無法繪圖</div>';
 
-    const W = 100, H = o.h || 40;
-    const x = i => (i / (n - 1)) * W;
-    const paths = live.map(s => {
-      const vs = s.data;
-      const ok = vs.filter(isNum);
-      const lo = Math.min(...ok), hi = Math.max(...ok), rng = (hi - lo) || 1;
-      const pts = vs.map((v, i) => isNum(v) ? `${x(i)},${H - ((v - lo) / rng) * H}` : null)
+    const W = 1200, PL = 6, PR = 6, PT = 8, H = o.h || 158, XH = 18;
+    const pw = W - PL - PR;
+    const x = i => PL + (n === 1 ? pw / 2 : (i / (n - 1)) * pw);
+
+    // 同單位（或同 grp）的線共用 lo/hi，跨單位才各自正規化
+    const groups = {};
+    const gkey = (s, i) => s.grp || ('#' + i);      // 預設每條線獨立；傳 grp 才共用
+    live.forEach((s, i) => {
+      const k = gkey(s, i);
+      const ok = s.data.filter(isNum);
+      const g = groups[k] || (groups[k] = { lo: Infinity, hi: -Infinity });
+      g.lo = Math.min(g.lo, ...ok);
+      g.hi = Math.max(g.hi, ...ok);
+    });
+    Object.values(groups).forEach(g => {
+      const pad = ((g.hi - g.lo) || Math.abs(g.hi) || 1) * 0.08;
+      g.lo -= pad; g.hi += pad; g.span = (g.hi - g.lo) || 1;
+    });
+    const yOf = (s, i) => {
+      const g = groups[gkey(s, i)];
+      return (v) => PT + (1 - (v - g.lo) / g.span) * H;
+    };
+
+    const paths = live.map((s, i) => {
+      const y = yOf(s, i);
+      const pts = s.data.map((v, i) => isNum(v) ? `${x(i).toFixed(1)},${y(v).toFixed(1)}` : null)
         .filter(Boolean).join(' ');
       return `<polyline points="${pts}" fill="none" stroke="${s.color}"
-        stroke-width="${s.w || 0.8}" opacity="${s.op || 1}"
-        ${s.dash ? `stroke-dasharray="${s.dash}"` : ''}/>`;
+        stroke-width="${s.w != null ? s.w * 1.6 : 1.6}" opacity="${s.op || 1}"
+        ${s.dash ? `stroke-dasharray="${s.dash * 1 ? s.dash * 3 : '5 4'}"` : ''}/>`;
     }).join('');
 
-    const grid = [0.25, 0.5, 0.75].map(f =>
-      `<line x1="0" y1="${H * f}" x2="${W}" y2="${H * f}"
-        stroke="var(--border)" stroke-width="0.25"/>`).join('');
+    const grid = [0, 0.25, 0.5, 0.75, 1].map(f =>
+      `<line class="flc-grid" x1="${PL}" y1="${(PT + H * f).toFixed(1)}" x2="${PL + pw}" y2="${(PT + H * f).toFixed(1)}"/>`
+    ).join('');
+
+    // 日期軸：約 5 個等距標籤
+    const nLab = Math.min(5, n);
+    const xLabs = Array.from({ length: nLab }, (_, k) => {
+      const i = Math.round(k * (n - 1) / (nLab - 1));
+      const anchor = k === 0 ? 'start' : (k === nLab - 1 ? 'end' : 'middle');
+      return `<text class="flc-ax" x="${x(i).toFixed(1)}" y="${PT + H + XH - 4}" text-anchor="${anchor}">${fmtD(dates[i])}</text>`;
+    }).join('');
 
     const legend = live.map(s => {
       const ok = s.data.filter(isNum);
@@ -623,10 +675,25 @@ window.StockCards = (function () {
       </span>`;
     }).join('');
 
+    const hid = hovRegister({
+      W, xs: live[0].data.map((_, i) => x(i)), dates: dates.slice(),
+      series: live.map((s, i) => {
+        const y = yOf(s, i);
+        return {
+          label: s.label, color: s.color, unit: s.unit || '', d: s.d == null ? 2 : s.d,
+          vals: s.data, ys: s.data.map(v => isNum(v) ? y(v) : null),
+        };
+      }),
+    });
+
     return `<div class="fl-lc">
-      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"
-        aria-label="${esc(o.aria || '折線圖')}">${grid}${paths}</svg>
-      <div class="fl-lc-x"><span>${fmtD(dates[0])}</span><span>${fmtD(dates[n - 1])}</span></div>
+      <div class="flc-plot fl-lc-plot" data-hov="${hid}" data-w="${W}" data-xh="${XH}">
+        <svg viewBox="0 0 ${W} ${PT + H + XH}" aria-label="${esc(o.aria || '折線圖')}">
+          ${grid}${xLabs}${paths}
+        </svg>
+        <div class="flc-cross" hidden></div>
+        <div class="flc-tip" hidden></div>
+      </div>
       <div class="fl-lgs">${legend}</div>
       ${o.note ? `<p class="fl-note">${o.note}</p>` : ''}
     </div>`;
@@ -656,9 +723,10 @@ window.StockCards = (function () {
       { label: '大戶絕對張數', data: j.big_k, color: '#f5b942', w: 1.1, unit: ' 千股', d: 0 },
       { label: '散戶(≤10張)比率', data: j.small_pct, color: '#8b7bd8', w: 0.7, dash: '2 1.5', unit: '%' },
     ], {
-      h: 42, aria: '集保大戶比率與絕對持股交叉驗證',
-      note: '四條線各自正規化到同一高度——這張圖要看的是<b>形狀是否同步</b>，'
-        + '不是絕對高度。青線（比率）與黃線（絕對張數）分岔時，就是分母在作怪。',
+      aria: '集保大戶比率與絕對持股交叉驗證',
+      note: '四條線各自正規化到同一高度（單位不同：% 與千股不能比高低）——這張圖要看的是'
+        + '<b>形狀是否同步</b>，不是絕對高度。青線（比率）與黃線（絕對張數）分岔時，'
+        + '就是分母在作怪。<b>滑過圖表可看任一週四條線的真實數值。</b>',
     });
 
     return `<section class="fl-sec" data-sec="集保">
@@ -705,11 +773,11 @@ window.StockCards = (function () {
 
     const cum = multiLineHtml(b.dates, b.brokers.map((x, i) => ({
       label: x.bk, data: x.cum, color: BK_COLORS[i % BK_COLORS.length],
-      w: 1, unit: ' 張', d: 0,
+      w: 1, unit: ' 張', d: 0, grp: '張',
     })), {
-      h: 40, aria: '分點庫存重建',
-      note: '每條各自正規化，看的是<b>累積曲線的走勢</b>（持續向上＝持續收貨）。'
-        + '真實累積張數見下表。',
+      aria: '分點庫存重建',
+      note: '各分點<b>共用同一把尺規</b>（單位都是張），所以線的高低可以直接互相比較——'
+        + '誰收得多、誰在倒，一眼看得出來。滑過圖看任一天各家的真實累積張數。',
     });
 
     const cov = b.brokers.map((x, i) => {
@@ -829,49 +897,49 @@ window.StockCards = (function () {
       if (t) t.hidden = true;
     });
 
-    // hover：把滑鼠 px 位置換算回圖表座標，找最近的一根
+    // hover：把滑鼠 px 位置換算回圖表座標，找最近的一點，列出每條線的真實值
     const move = (e) => {
       const plot = e.target.closest ? e.target.closest('.flc-plot') : null;
       if (!plot) { hideAll(); return; }   // 移出圖表就收起（不用 mouseleave capture，避免掠過子元素時閃動）
-      const hov = plot.__hov || (plot.__hov = (plot.dataset.hov || '').split(';')
-        .filter(Boolean).map(s => {
-          const [px, d, c, m20, m60, v] = s.split('|');
-          return { px: +px, d, c: +c, m20, m60, v: +v };
-        }));
-      if (!hov.length) return;
+      const spec = _flHov[plot.dataset.hov];
+      if (!spec || !spec.xs.length) return;
       const r = plot.getBoundingClientRect();
       if (!r.width) return;
-      const W = +plot.dataset.w, sc = r.width / W;
+      const sc = r.width / spec.W;
       const ux = (e.clientX - r.left) / sc;
       let k = 0, best = Infinity;
-      for (let i = 0; i < hov.length; i++) {
-        const dd = Math.abs(hov[i].px - ux);
+      for (let i = 0; i < spec.xs.length; i++) {
+        const dd = Math.abs(spec.xs[i] - ux);
         if (dd < best) { best = dd; k = i; }
       }
-      const p = hov[k];
-      const lo = +plot.dataset.lo, span = +plot.dataset.span;
-      const PT = +plot.dataset.pt, PH = +plot.dataset.ph;
-      const yUser = PT + (1 - (p.c - lo) / span) * PH;
 
       const cross = plot.querySelector('.flc-cross');
       const tip = plot.querySelector('.flc-tip');
+      const lx = spec.xs[k] * sc;
       cross.hidden = false;
-      cross.style.left = (p.px * sc) + 'px';
-      cross.style.setProperty('--dot', (yUser * sc) + 'px');
+      cross.style.left = lx + 'px';
+      // 每條線在該點的位置各放一顆點
+      cross.innerHTML = spec.series.map(s => s.ys[k] == null ? '' :
+        `<i class="flc-dotm" style="top:${(s.ys[k] * sc).toFixed(1)}px;background:${s.color}"></i>`).join('');
 
-      const prev = k > 0 ? hov[k - 1].c : p.c;
-      const dpc = prev ? (p.c / prev - 1) * 100 : 0;
-      const cls = dpc > 0 ? 'flc-t-up' : (dpc < 0 ? 'flc-t-dn' : '');
+      const rows = spec.series.map((s, si) => {
+        const v = s.vals[k];
+        if (!isNum(v)) return '';
+        let extra = '';
+        if (spec.pctOf === si && k > 0 && isNum(s.vals[k - 1]) && s.vals[k - 1]) {
+          const dp = (v / s.vals[k - 1] - 1) * 100;
+          extra = `<i class="${dp > 0 ? 'flc-t-up' : (dp < 0 ? 'flc-t-dn' : '')}">${dp >= 0 ? '+' : ''}${num(dp, 2)}%</i>`;
+        }
+        return `<span><em style="background:${s.color}"></em>${esc(s.label)}`
+          + `<i>${num(v, s.d)}${esc(s.unit || '')}</i>${extra}</span>`;
+      }).join('');
+      const extras = (spec.extra || []).map(x => isNum(x.vals[k])
+        ? `<span><em class="flc-noc"></em>${esc(x.label)}<i>${num(x.vals[k], x.d)}${esc(x.unit || '')}</i></span>` : '').join('');
+
       tip.hidden = false;
-      tip.innerHTML = `<b>${p.d}</b>`
-        + `<span>收 <i class="${cls}">${num(p.c, 2)}</i>`
-        + `<i class="${cls}">${dpc >= 0 ? '+' : ''}${num(dpc, 2)}%</i></span>`
-        + (p.m20 !== '' ? `<span>MA20 <i style="color:#f5b942">${p.m20}</i></span>` : '')
-        + (p.m60 !== '' ? `<span>MA60 <i style="color:#8b7bd8">${p.m60}</i></span>` : '')
-        + `<span>量 ${int(p.v)} 張</span>`;
+      tip.innerHTML = `<b>${esc(String(spec.dates[k] || ''))}</b>${rows}${extras}`;
       // tooltip 靠邊時翻到左側，避免被容器裁掉
-      const tw = tip.offsetWidth || 150;
-      const lx = p.px * sc;
+      const tw = tip.offsetWidth || 160;
       tip.style.left = (lx + tw + 16 > r.width ? Math.max(0, lx - tw - 12) : lx + 12) + 'px';
     };
     root.addEventListener('mousemove', move);

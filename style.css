@@ -1152,22 +1152,29 @@ footer {
   position: absolute; top: 0; bottom: 18px; width: 1px; pointer-events: none;
   background: var(--text-mut, #6a6a7a); opacity: .55;
 }
-.flc-cross::after {
-  content: ''; position: absolute; left: -3.5px; top: var(--dot, 0);
-  width: 8px; height: 8px; margin-top: -4px; border-radius: 50%;
-  background: var(--text, #e0e0e0); box-shadow: 0 0 0 2px var(--panel, #131326);
+/* 每條線在游標處各一顆點 */
+.flc-cross .flc-dotm {
+  position: absolute; left: -3.5px; width: 8px; height: 8px; margin-top: -4px;
+  border-radius: 50%; box-shadow: 0 0 0 2px var(--panel-3, #1a1a2e);
 }
 .flc-tip {
   position: absolute; top: 6px; z-index: 3; pointer-events: none;
-  background: var(--panel-3, #1a1a2e); border: 1px solid var(--border-hi, #3a4a7a);
-  border-radius: 7px; padding: 7px 10px; box-shadow: 0 6px 18px rgba(0,0,0,.5);
-  font-size: 12px; line-height: 1.6; white-space: nowrap;
+  background: var(--panel-2, #15152b); border: 1px solid var(--border-hi, #3a4a7a);
+  border-radius: 7px; padding: 7px 10px; box-shadow: 0 6px 18px rgba(0,0,0,.55);
+  font-size: 12px; line-height: 1.7; white-space: nowrap;
 }
 .flc-tip b { display: block; color: var(--text, #e0e0e0); font-family: var(--mono); margin-bottom: 3px; }
-.flc-tip span { display: block; color: var(--text-mut, #6a6a7a); }
-.flc-tip i { font-style: normal; font-family: var(--mono); color: var(--text, #e0e0e0); margin-left: 6px; }
-.flc-tip .flc-t-up { color: var(--up, #ef5350); }
-.flc-tip .flc-t-dn { color: var(--down, #26a69a); }
+.flc-tip span { display: flex; align-items: center; gap: 6px; color: var(--text-mut, #6a6a7a); }
+.flc-tip em {
+  flex: 0 0 auto; width: 9px; height: 3px; border-radius: 2px; display: inline-block;
+}
+.flc-tip em.flc-noc { background: transparent; }
+.flc-tip i {
+  font-style: normal; font-family: var(--mono); color: var(--text, #e0e0e0);
+  margin-left: auto; padding-left: 10px;
+}
+.flc-tip .flc-t-up { color: var(--up, #ef5350); margin-left: 0; padding-left: 6px; }
+.flc-tip .flc-t-dn { color: var(--down, #26a69a); margin-left: 0; padding-left: 6px; }
 
 .fl-chart-lg { font-size: 12px; color: var(--text-mut, #6a6a7a); text-align: right; margin-top: 6px; }
 .fl-chart-lg .flc-k { font-family: var(--mono); font-weight: 700; }
@@ -1945,10 +1952,15 @@ body.ui-v2 {
 
 /* ── 多序列折線圖（集保交叉驗證 / 分點庫存重建共用）──────── */
 .fl-lc { margin-top: 16px; }
-.fl-lc > svg {
-  width: 100%; height: 200px; display: block;
+/* 等比縮放 + non-scaling-stroke：舊版 height:200px 搭 preserveAspectRatio="none"
+   會讓線寬在 2.9~9.4px 之間亂跳（見 stockcards.js multiLineHtml 的註解） */
+.fl-lc .fl-lc-plot {
   background: var(--panel-3, #1a1a2e); border-radius: 8px;
-  border: 1px solid var(--border, #2a2a3e);
+  border: 1px solid var(--border, #2a2a3e); padding: 4px 2px 0;
+}
+.fl-lc svg { width: 100%; height: auto; display: block; }
+.fl-lc svg polyline {
+  vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round;
 }
 .fl-lc-x {
   display: flex; justify-content: space-between;

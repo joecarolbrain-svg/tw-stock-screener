@@ -736,108 +736,127 @@ window.StockCards = (function () {
   const JB_WEEKS = 52;
   const JB_C = { big: '#17a97f', small: '#7d8aa8', px: '#8b93a8' };
 
-  function jibaoChartHtml(j) {
+  function jibaoChartHtml(j, winStart) {
     const n0 = (j.date || []).length;
     if (n0 < 4) return '';
     const s = Math.max(0, n0 - JB_WEEKS);
     const dates = j.date.slice(s);
     const big = (j.super_pct || []).slice(s);
-    const r2 = v => Math.round(v * 100) / 100;      // 來源只有 2dp，先收乾淨再算
-    const small = (j.big_pct || []).slice(s).map(v => isNum(v) ? r2(100 - v) : null);
+    // 散戶＝<400張 11 級距直接加總（後端 retail_pct）。舊 payload 沒有這欄時退回
+    // 100−big_pct，會差約 0.1pp——見 finlab_port/jibao.py 的 RETAIL 註解。
+    const hasRetail = Array.isArray(j.retail_pct) && j.retail_pct.some(isNum);
+    const small = hasRetail ? j.retail_pct.slice(s)
+      : (j.big_pct || []).slice(s).map(v => isNum(v) ? Math.round((100 - v) * 100) / 100 : null);
     const px = (j.close || []).slice(s);
     const n = dates.length;
     if (n < 4 || !big.some(isNum)) return '';
 
-    const W = 1200, PL = 44, PR = 52, PT = 26, H = 200, XH = 18;
+    // 上下兩個獨立面板，各自縮放（實測 FinLab 就是這樣：上框 31.47px/pp、下框 25.21px/pp，
+    // 比值 1.25≠1 → 不是共用一條 % 軸。共用軸會把 68~74% 與 18~28% 一起壓平）
+    const W = 1200, PL = 10, PR = 52, PT = 22, HP = 148, GAP = 34, XH = 18;
     const pw = W - PL - PR;
+    const yA0 = PT, yA1 = PT + HP;
+    const yB0 = yA1 + GAP, yB1 = yB0 + HP;
+    const H_TOTAL = yB1 + XH;
     const x = i => PL + (i / (n - 1)) * pw;
 
-    // 左軸：兩條 % 共用（同單位，高低可直接比）
-    const pv = big.concat(small).filter(isNum);
-    let plo = Math.min(...pv), phi = Math.max(...pv);
-    const ppad = ((phi - plo) || 1) * 0.16;
-    plo -= ppad; phi += ppad;
-    const yP = v => PT + (1 - (v - plo) / (phi - plo)) * H;
-    // 右軸：股價
-    const hasPx = px.some(isNum);                    // 創新板等無還原價的個股 close 全 null
-    const xv = px.filter(isNum);
-    let xlo = hasPx ? Math.min(...xv) : 0, xhi = hasPx ? Math.max(...xv) : 1;
-    const xpad = ((xhi - xlo) || 1) * 0.10;
-    xlo -= xpad; xhi += xpad;
-    const yX = v => PT + (1 - (v - xlo) / (xhi - xlo)) * H;
+    // 各面板自己的值域（上下各留 8% 呼吸空間）
+    const band = (arr, y0, y1) => {
+      const v = arr.filter(isNum);
+      let lo = Math.min(...v), hi = Math.max(...v);
+      const pad = ((hi - lo) || 1) * 0.08;
+      lo -= pad; hi += pad;
+      return { lo, hi, y: t => y0 + (1 - (t - lo) / (hi - lo)) * (y1 - y0) };
+    };
+    const A = band(big, yA0, yA1);
+    const B = band(small, yB0, yB1);
+    // 股價：一條線橫跨兩個面板（自己的尺度、走右軸）
+    const hasPx = px.some(isNum);
+    const P = hasPx ? band(px, yA0, yB1) : null;
 
-    const line = (arr, y) => arr.map((v, i) => isNum(v)
-      ? `${x(i).toFixed(1)},${y(v).toFixed(1)}` : null).filter(Boolean).join(' ');
+    const line = (arr, f) => arr.map((v, i) => isNum(v)
+      ? `${x(i).toFixed(1)},${f(v).toFixed(1)}` : null).filter(Boolean).join(' ');
 
-    const pt1 = priceTicks(plo, phi, 4);
-    const grid = pt1.ts.map(v => {
-      const yy = yP(v).toFixed(1);
-      return `<line class="flc-grid" x1="${PL}" y1="${yy}" x2="${PL + pw}" y2="${yy}"/>`
-        + `<text class="flc-ax" x="${PL - 6}" y="${yy}" text-anchor="end" dominant-baseline="middle">${num(v, 0)}%</text>`;
-    }).join('');
-    const pt2 = hasPx ? priceTicks(xlo, xhi, 3) : { ts: [] };
-    const rax = pt2.ts.map(v =>
-      `<text class="flc-ax flc-ax-r" x="${PL + pw + 6}" y="${yX(v).toFixed(1)}" dominant-baseline="middle">${num(v, 0)}</text>`
-    ).join('');
+    // 每個面板 3 條格線 + 左上角標自己的範圍（照 FinLab 的「67...75%」）
+    const panel = (bd, y0, y1, label) => {
+      const g = [0, 0.5, 1].map(t =>
+        `<line class="flc-grid" x1="${PL}" y1="${(y0 + (y1 - y0) * t).toFixed(1)}" x2="${PL + pw}" y2="${(y0 + (y1 - y0) * t).toFixed(1)}"/>`).join('');
+      return g + `<text class="flc-ax flc-band" x="${PL + 6}" y="${y0 + 14}">${Math.floor(bd.lo)}...${Math.ceil(bd.hi)}%</text>`
+        + `<text class="flc-ax flc-band-n" x="${PL + pw}" y="${y0 + 14}" text-anchor="end">${esc(label)}</text>`;
+    };
 
-    // 高低點標註（照 FinLab：點 + 粗體標籤直接寫在線旁）
-    const annot = (arr, y, color, name) => {
+    // 右軸：股價刻度（橫跨兩個面板的整體高度）
+    const rax = hasPx ? priceTicks(P.lo, P.hi, 4).ts.map(v =>
+      `<text class="flc-ax flc-ax-r" x="${PL + pw + 6}" y="${P.y(v).toFixed(1)}" dominant-baseline="middle">${num(v, 0)}</text>`
+    ).join('') : '';
+
+    // 高低點標註
+    const annot = (arr, f, color, name) => {
       const ok = arr.map((v, i) => [v, i]).filter(([v]) => isNum(v));
       if (ok.length < 2) return '';
       const hi = ok.reduce((a, b) => b[0] > a[0] ? b : a);
       const lo = ok.reduce((a, b) => b[0] < a[0] ? b : a);
       return [[hi, '高', -9], [lo, '低', 17]].map(([[v, i], tag, dy]) => {
-        const cx = x(i), cy = y(v);
-        const right = cx < W * 0.7;
+        const cx = x(i), cy = f(v), right = cx < W * 0.68;
         return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3" fill="${color}"/>`
           + `<text class="flc-note-t" x="${(cx + (right ? 8 : -8)).toFixed(1)}"`
           + ` y="${(cy + dy).toFixed(1)}" text-anchor="${right ? 'start' : 'end'}"`
           + ` fill="${color}">${name}${tag} ${num(v, 1)}%</text>`;
       }).join('');
     };
-
-    // 末點空心圈
-    const ring = (arr, y, color) => {
+    const ring = (arr, f, color) => {
       const k = arr.reduce((a, v, i) => isNum(v) ? i : a, -1);
       if (k < 0) return '';
-      return `<circle cx="${x(k).toFixed(1)}" cy="${y(arr[k]).toFixed(1)}" r="5"
+      return `<circle cx="${x(k).toFixed(1)}" cy="${f(arr[k]).toFixed(1)}" r="5"
         fill="var(--panel-3,#1a1a2e)" stroke="${color}" stroke-width="2"/>`;
     };
+
+    // 窗口起點：pp 是從這裡量到最新，畫出來才不會「圖是一年、數字是三個月」對不起來
+    let winMark = '';
+    if (winStart != null) {
+      let k = -1;
+      for (let i = 0; i < dates.length; i++) if (dates[i] <= winStart) k = i;
+      if (k > 0 && k < n - 1) {
+        const wx = x(k).toFixed(1);
+        winMark = `<line class="flc-win" x1="${wx}" y1="${yA0}" x2="${wx}" y2="${yB1}"/>`
+          + `<text class="flc-ax flc-win-t" x="${wx}" y="${yA0 - 7}" text-anchor="middle">窗口起點</text>`;
+      }
+    }
 
     const nLab = Math.min(5, n);
     const xLabs = Array.from({ length: nLab }, (_, k) => {
       const i = Math.round(k * (n - 1) / (nLab - 1));
       const a = k === 0 ? 'start' : (k === nLab - 1 ? 'end' : 'middle');
-      return `<text class="flc-ax" x="${x(i).toFixed(1)}" y="${PT + H + XH - 3}" text-anchor="${a}">${fmtD(dates[i])}</text>`;
+      return `<text class="flc-ax" x="${x(i).toFixed(1)}" y="${yB1 + XH - 3}" text-anchor="${a}">${fmtD(dates[i])}</text>`;
     }).join('');
 
     const hid = hovRegister({
       W, xs: dates.map((_, i) => x(i)), dates: dates.map(fmtD),
       series: [
-        { label: '千張大戶', color: JB_C.big, unit: '%', d: 2, vals: big, ys: big.map(v => isNum(v) ? yP(v) : null) },
-        { label: '散戶', color: JB_C.small, unit: '%', d: 2, vals: small, ys: small.map(v => isNum(v) ? yP(v) : null) },
+        { label: '千張大戶', color: JB_C.big, unit: '%', d: 2, vals: big, ys: big.map(v => isNum(v) ? A.y(v) : null) },
+        { label: '散戶', color: JB_C.small, unit: '%', d: 2, vals: small, ys: small.map(v => isNum(v) ? B.y(v) : null) },
       ].concat(hasPx
-        ? [{ label: '股價', color: JB_C.px, unit: '', d: 2, vals: px, ys: px.map(v => isNum(v) ? yX(v) : null) }]
+        ? [{ label: '股價', color: JB_C.px, unit: '', d: 2, vals: px, ys: px.map(v => isNum(v) ? P.y(v) : null) }]
         : []),
     });
 
     return `<div class="fl-lc fl-jb-lc">
       <div class="flc-plot fl-lc-plot" data-hov="${hid}" data-w="${W}" data-xh="${XH}">
-        <svg viewBox="0 0 ${W} ${PT + H + XH}" aria-label="集保大戶與散戶佔比對股價">
-          ${grid}${rax}${xLabs}
-          <polyline class="flc-jb-px" points="${line(px, yX)}" fill="none" stroke="${JB_C.px}"/>
-          <polyline class="flc-jb-l" points="${line(small, yP)}" fill="none" stroke="${JB_C.small}"/>
-          <polyline class="flc-jb-l" points="${line(big, yP)}" fill="none" stroke="${JB_C.big}"/>
-          ${annot(big, yP, JB_C.big, '千張大戶')}${annot(small, yP, JB_C.small, '散戶')}
-          ${ring(px, yX, JB_C.px)}${ring(small, yP, JB_C.small)}${ring(big, yP, JB_C.big)}
+        <svg viewBox="0 0 ${W} ${H_TOTAL}" aria-label="集保大戶與散戶佔比對股價">
+          ${panel(A, yA0, yA1, '千張大戶')}${panel(B, yB0, yB1, '散戶')}${rax}${xLabs}${winMark}
+          ${hasPx ? `<polyline class="flc-jb-px" points="${line(px, P.y)}" fill="none" stroke="${JB_C.px}"/>` : ''}
+          <polyline class="flc-jb-l" points="${line(small, B.y)}" fill="none" stroke="${JB_C.small}"/>
+          <polyline class="flc-jb-l" points="${line(big, A.y)}" fill="none" stroke="${JB_C.big}"/>
+          ${annot(big, A.y, JB_C.big, '千張大戶')}${annot(small, B.y, JB_C.small, '散戶')}
+          ${hasPx ? ring(px, P.y, JB_C.px) : ''}${ring(small, B.y, JB_C.small)}${ring(big, A.y, JB_C.big)}
         </svg>
         <div class="flc-cross" hidden></div>
         <div class="flc-tip" hidden></div>
       </div>
       <div class="fl-lgs">
         <span class="fl-lg fl-lg-dot"><i style="background:${JB_C.big}"></i>千張大戶(≥1000張)佔比</span>
-        <span class="fl-lg fl-lg-dot"><i style="background:${JB_C.small}"></i>散戶(&lt;400張)佔比</span>
-        ${hasPx ? `<span class="fl-lg fl-lg-dot"><i style="background:${JB_C.px}"></i>股價（右軸）</span>` : ''}
+        <span class="fl-lg fl-lg-dot"><i style="background:${JB_C.small}"></i>散戶(&lt;400張)佔比${hasRetail ? '' : '<b class="fl-mut">（近似值）</b>'}</span>
+        ${hasPx ? `<span class="fl-lg fl-lg-dot"><i style="background:${JB_C.px}"></i>股價（右軸，橫跨兩面板）</span>` : ''}
       </div>
     </div>`;
   }
@@ -861,14 +880,31 @@ window.StockCards = (function () {
         + '青線（比率）往上、黃線（絕對張數）卻往下，就是分母在作怪。滑過看真實數值。',
     });
 
-    // 頂部兩個數字方塊（照 FinLab）：千張大戶＝super_pct、散戶＝100−big_pct
+    // 頂部兩個數字方塊（照 FinLab）：千張大戶＝super_pct、散戶＝retail_pct(<400張)
+    // pp 的基準＝「窗口起點」而非固定回看期——FinLab 的 bullet 寫「自起點累積」，
+    // 窗口起點就是分點庫存重建的起點，整個籌碼流向區塊共用同一個起點，故事才對得起來。
+    // 我們的等價物＝分點資料起點（會隨每日存檔往前長）。無分點資料時退回近 JB_WEEKS 週。
     const sup = j.super_pct || [], bigp = j.big_pct || [];
-    const lw = j.lookback_w || 4;
-    const at = (arr, k) => (arr.length > k && isNum(arr[arr.length - 1 - k])) ? arr[arr.length - 1 - k] : null;
-    const supNow = at(sup, 0), supPrev = at(sup, lw);
-    const rnd2 = v => Math.round(v * 100) / 100;
-    const retNow = isNum(at(bigp, 0)) ? rnd2(100 - at(bigp, 0)) : null;
-    const retPrev = isNum(at(bigp, lw)) ? rnd2(100 - at(bigp, lw)) : null;
+    const hasRetail = Array.isArray(j.retail_pct) && j.retail_pct.some(isNum);
+    const rt = hasRetail ? j.retail_pct
+      : bigp.map(v => isNum(v) ? Math.round((100 - v) * 100) / 100 : null);
+
+    const bDates = ((d.broker || {}).dates) || [];
+    const winStart = bDates.length ? Number(bDates[0]) : null;
+    // 找出 ≤ 窗口起點的最後一個集保週（FinLab 對 2026-02-28 取的是 2026-02-26 那週）
+    let baseIdx = -1;
+    if (winStart != null) {
+      for (let i = 0; i < j.date.length; i++) if (j.date[i] <= winStart) baseIdx = i;
+    }
+    if (baseIdx < 0 || baseIdx >= j.date.length - 1) {
+      baseIdx = Math.max(0, j.date.length - 1 - JB_WEEKS);
+    }
+    const baseDate = j.date[baseIdx];
+    const lastIdx = j.date.length - 1;
+    const supNow = sup[lastIdx], supPrev = sup[baseIdx];
+    const retNow = rt[lastIdx], retPrev = rt[baseIdx];
+    const winW = lastIdx - baseIdx;
+
     const ppTxt = (a, b) => (isNum(a) && isNum(b))
       ? `<span class="${retCls(a - b)}">${a - b > 0 ? '+' : ''}${num(a - b, 2)}pp</span>` : '—';
     const dirSame = (isNum(supNow) && isNum(supPrev) && isNum(retNow) && isNum(retPrev))
@@ -878,14 +914,30 @@ window.StockCards = (function () {
       <div class="fl-jbb fl-jbb-on">
         <span class="fl-jbb-l">千張大戶</span>
         <span class="fl-jbb-v">${num(supNow, 1)}%</span>
-        <span class="fl-jbb-d">近 ${lw} 週 ${ppTxt(supNow, supPrev)}</span>
+        <span class="fl-jbb-d">窗口內 ${ppTxt(supNow, supPrev)}</span>
       </div>
       <div class="fl-jbb">
         <span class="fl-jbb-l">散戶</span>
         <span class="fl-jbb-v">${num(retNow, 1)}%</span>
-        <span class="fl-jbb-d">近 ${lw} 週 ${ppTxt(retNow, retPrev)}</span>
+        <span class="fl-jbb-d">窗口內 ${ppTxt(retNow, retPrev)}</span>
       </div>
     </div>`;
+
+    // 窗口資訊列（照 FinLab 那行）：起點 / 股價漲幅 / 各資料源的最新日期
+    const prices = (d.price || []);
+    const pAt = (yyyymmdd) => {
+      let v = null;
+      prices.forEach(pp => { if (Number(String(pp.d).replace(/-/g, '')) <= yyyymmdd && isNum(pp.c)) v = pp.c; });
+      return v;
+    };
+    const p0 = winStart != null ? pAt(winStart) : null;
+    const p1 = prices.length ? prices[prices.length - 1].c : null;
+    const winPct = (isNum(p0) && isNum(p1) && p0) ? (p1 / p0 - 1) * 100 : null;
+    const winBar = `<p class="fl-jb-win">窗口 <b>${fmtD(baseDate)}</b> 起（${winW} 週）
+      ${isNum(winPct) ? `· 股價 <b class="${retCls(winPct)}">${winPct > 0 ? '+' : ''}${num(winPct, 0)}%</b>` : ''}
+      ${bDates.length ? `· 分點至 ${fmtD(bDates[bDates.length - 1])}` : ''}
+      · 集保至 ${fmtD(j.asof)}</p>`;
+
     const dirNote = dirSame == null ? ''
       : (dirSame
         ? `<p class="fl-jb-dir">方向一致：大戶佔比${supNow > supPrev ? '上升' : '下降'}，散戶佔比${retNow > retPrev ? '上升' : '下降'}。</p>`
@@ -897,7 +949,7 @@ window.StockCards = (function () {
         <b>大戶一張都沒買，比率照樣上升</b>。所以比率一定要跟絕對張數一起看。</p>
 
       <div class="fl-jb-top">
-        <div class="fl-jb-card">${boxes}${jibaoChartHtml(j)}</div>
+        <div class="fl-jb-card">${boxes}${winBar}${jibaoChartHtml(j, winStart)}</div>
         <div class="fl-jb-side">${dirNote}
           <div class="fl-in fl-in-${f[0]} fl-jb-verdict"><b>${esc(f[1])}</b>${esc(f[2])}</div></div>
       </div>
@@ -920,10 +972,14 @@ window.StockCards = (function () {
             <div class="fl-kv-s">人</div></div>
         </div>
       </div>
-      <p class="fl-note">上圖級距：<b>千張大戶＝≥1000 張</b>、<b>散戶＝&lt;400 張</b>（＝100−大戶佔比），
-        視窗近 ${JB_WEEKS} 週。下圖的<b>大戶＝≥400 張</b>（400 張是市場慣用切點、非官方定義），
-        全期共 ${j.weeks} 週。集保每週五結算、次週一公布，故最新一點是
-        <b>${fmtD(j.asof)}</b>，會落後盤面數天，<b>不能拿來做當日判斷</b>。</p>
+      <p class="fl-note">上圖<b>兩個面板各自縮放</b>（左上角是該面板自己的值域）——% 雖同單位，
+        但千張大戶約 7 字頭、散戶約 2 字頭，綁同一把尺會把兩條線都壓平。股價一條線橫跨兩面板走右軸。
+        級距：<b>千張大戶＝≥1000 張</b>、<b>散戶＝&lt;400 張的 11 個級距直接加總</b>
+        ${hasRetail ? '' : '<b class="fl-warn-t">（本檔尚無 retail_pct，暫以 100−大戶近似，約差 0.1pp）</b>'}。
+        <b>不是</b> 100−大戶：TEJ 各級距比率各自四捨五入、另有「股數調整項」不屬任何級距。
+        圖為近 ${JB_WEEKS} 週，方塊的 pp 則是自<b>窗口起點</b>（＝分點重建起點）量到最新，圖上虛線標出該點。
+        下圖的<b>大戶＝≥400 張</b>（市場慣用切點、非官方定義），全期共 ${j.weeks} 週。
+        集保每週五結算、次週一公布，最新一點 <b>${fmtD(j.asof)}</b> 會落後盤面數天，<b>不能拿來做當日判斷</b>。</p>
     </section>`;
   }
 

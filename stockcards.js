@@ -727,6 +727,121 @@ window.StockCards = (function () {
       '絕對張數增加，但比率反而下降——買盤跟不上流通張數的擴張。'],
   };
 
+  // ── 集保主圖（版型照 finlab.finance/stocks/6488 截圖）──────────────
+  //   雙軸：千張大戶%／散戶% 共用左軸（同單位可比高低），股價走右軸；
+  //   高低點直接標在線上、末點掛空心圈。視窗固定近 52 週＝他們圖上的範圍
+  //   （已用 6488 對帳：千張大戶 68.0~73.8、散戶 18.4~27.8 與截圖完全一致）。
+  //   ⚠️ 級距對應：他們的「千張大戶」＝我們 super_pct(≥1000張)、
+  //   「散戶(<400張)」＝100−big_pct。原本這裡畫的是 big_pct(≥400張)，數字對不上就是這個原因。
+  const JB_WEEKS = 52;
+  const JB_C = { big: '#17a97f', small: '#7d8aa8', px: '#8b93a8' };
+
+  function jibaoChartHtml(j) {
+    const n0 = (j.date || []).length;
+    if (n0 < 4) return '';
+    const s = Math.max(0, n0 - JB_WEEKS);
+    const dates = j.date.slice(s);
+    const big = (j.super_pct || []).slice(s);
+    const r2 = v => Math.round(v * 100) / 100;      // 來源只有 2dp，先收乾淨再算
+    const small = (j.big_pct || []).slice(s).map(v => isNum(v) ? r2(100 - v) : null);
+    const px = (j.close || []).slice(s);
+    const n = dates.length;
+    if (n < 4 || !big.some(isNum)) return '';
+
+    const W = 1200, PL = 44, PR = 52, PT = 26, H = 200, XH = 18;
+    const pw = W - PL - PR;
+    const x = i => PL + (i / (n - 1)) * pw;
+
+    // 左軸：兩條 % 共用（同單位，高低可直接比）
+    const pv = big.concat(small).filter(isNum);
+    let plo = Math.min(...pv), phi = Math.max(...pv);
+    const ppad = ((phi - plo) || 1) * 0.16;
+    plo -= ppad; phi += ppad;
+    const yP = v => PT + (1 - (v - plo) / (phi - plo)) * H;
+    // 右軸：股價
+    const hasPx = px.some(isNum);                    // 創新板等無還原價的個股 close 全 null
+    const xv = px.filter(isNum);
+    let xlo = hasPx ? Math.min(...xv) : 0, xhi = hasPx ? Math.max(...xv) : 1;
+    const xpad = ((xhi - xlo) || 1) * 0.10;
+    xlo -= xpad; xhi += xpad;
+    const yX = v => PT + (1 - (v - xlo) / (xhi - xlo)) * H;
+
+    const line = (arr, y) => arr.map((v, i) => isNum(v)
+      ? `${x(i).toFixed(1)},${y(v).toFixed(1)}` : null).filter(Boolean).join(' ');
+
+    const pt1 = priceTicks(plo, phi, 4);
+    const grid = pt1.ts.map(v => {
+      const yy = yP(v).toFixed(1);
+      return `<line class="flc-grid" x1="${PL}" y1="${yy}" x2="${PL + pw}" y2="${yy}"/>`
+        + `<text class="flc-ax" x="${PL - 6}" y="${yy}" text-anchor="end" dominant-baseline="middle">${num(v, 0)}%</text>`;
+    }).join('');
+    const pt2 = hasPx ? priceTicks(xlo, xhi, 3) : { ts: [] };
+    const rax = pt2.ts.map(v =>
+      `<text class="flc-ax flc-ax-r" x="${PL + pw + 6}" y="${yX(v).toFixed(1)}" dominant-baseline="middle">${num(v, 0)}</text>`
+    ).join('');
+
+    // 高低點標註（照 FinLab：點 + 粗體標籤直接寫在線旁）
+    const annot = (arr, y, color, name) => {
+      const ok = arr.map((v, i) => [v, i]).filter(([v]) => isNum(v));
+      if (ok.length < 2) return '';
+      const hi = ok.reduce((a, b) => b[0] > a[0] ? b : a);
+      const lo = ok.reduce((a, b) => b[0] < a[0] ? b : a);
+      return [[hi, '高', -9], [lo, '低', 17]].map(([[v, i], tag, dy]) => {
+        const cx = x(i), cy = y(v);
+        const right = cx < W * 0.7;
+        return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3" fill="${color}"/>`
+          + `<text class="flc-note-t" x="${(cx + (right ? 8 : -8)).toFixed(1)}"`
+          + ` y="${(cy + dy).toFixed(1)}" text-anchor="${right ? 'start' : 'end'}"`
+          + ` fill="${color}">${name}${tag} ${num(v, 1)}%</text>`;
+      }).join('');
+    };
+
+    // 末點空心圈
+    const ring = (arr, y, color) => {
+      const k = arr.reduce((a, v, i) => isNum(v) ? i : a, -1);
+      if (k < 0) return '';
+      return `<circle cx="${x(k).toFixed(1)}" cy="${y(arr[k]).toFixed(1)}" r="5"
+        fill="var(--panel-3,#1a1a2e)" stroke="${color}" stroke-width="2"/>`;
+    };
+
+    const nLab = Math.min(5, n);
+    const xLabs = Array.from({ length: nLab }, (_, k) => {
+      const i = Math.round(k * (n - 1) / (nLab - 1));
+      const a = k === 0 ? 'start' : (k === nLab - 1 ? 'end' : 'middle');
+      return `<text class="flc-ax" x="${x(i).toFixed(1)}" y="${PT + H + XH - 3}" text-anchor="${a}">${fmtD(dates[i])}</text>`;
+    }).join('');
+
+    const hid = hovRegister({
+      W, xs: dates.map((_, i) => x(i)), dates: dates.map(fmtD),
+      series: [
+        { label: '千張大戶', color: JB_C.big, unit: '%', d: 2, vals: big, ys: big.map(v => isNum(v) ? yP(v) : null) },
+        { label: '散戶', color: JB_C.small, unit: '%', d: 2, vals: small, ys: small.map(v => isNum(v) ? yP(v) : null) },
+      ].concat(hasPx
+        ? [{ label: '股價', color: JB_C.px, unit: '', d: 2, vals: px, ys: px.map(v => isNum(v) ? yX(v) : null) }]
+        : []),
+    });
+
+    return `<div class="fl-lc fl-jb-lc">
+      <div class="flc-plot fl-lc-plot" data-hov="${hid}" data-w="${W}" data-xh="${XH}">
+        <svg viewBox="0 0 ${W} ${PT + H + XH}" aria-label="集保大戶與散戶佔比對股價">
+          ${grid}${rax}${xLabs}
+          <polyline class="flc-jb-px" points="${line(px, yX)}" fill="none" stroke="${JB_C.px}"/>
+          <polyline class="flc-jb-l" points="${line(small, yP)}" fill="none" stroke="${JB_C.small}"/>
+          <polyline class="flc-jb-l" points="${line(big, yP)}" fill="none" stroke="${JB_C.big}"/>
+          ${annot(big, yP, JB_C.big, '千張大戶')}${annot(small, yP, JB_C.small, '散戶')}
+          ${ring(px, yX, JB_C.px)}${ring(small, yP, JB_C.small)}${ring(big, yP, JB_C.big)}
+        </svg>
+        <div class="flc-cross" hidden></div>
+        <div class="flc-tip" hidden></div>
+      </div>
+      <div class="fl-lgs">
+        <span class="fl-lg fl-lg-dot"><i style="background:${JB_C.big}"></i>千張大戶(≥1000張)佔比</span>
+        <span class="fl-lg fl-lg-dot"><i style="background:${JB_C.small}"></i>散戶(&lt;400張)佔比</span>
+        ${hasPx ? `<span class="fl-lg fl-lg-dot"><i style="background:${JB_C.px}"></i>股價（右軸）</span>` : ''}
+      </div>
+    </div>`;
+  }
+
   function jibaoHtml(d) {
     const j = d.jibao || {};
     if (!j.weeks) return '';
@@ -734,24 +849,62 @@ window.StockCards = (function () {
     const chg = (v, u, dg) => isNum(v)
       ? `<b class="${retCls(v)}">${v > 0 ? '+' : ''}${num(v, dg)}${u}</b>` : '—';
 
-    const chart = multiLineHtml(j.date, [
-      { label: '收盤價', data: j.close, color: 'var(--border-hi)', w: 0.6, op: .7, unit: '', d: 0 },
-      { label: '大戶持股比率', data: j.big_pct, color: 'var(--accent)', w: 1.1, unit: '%' },
+    // 交叉驗證副圖：只留「比率 vs 絕對張數」兩條（這是 FinLab 沒有的、我們的重點），
+    // 各自正規化比形狀——單位不同（% vs 千股）不能共用尺規
+    const xchk = multiLineHtml(j.date, [
+      { label: '大戶(≥400張)持股比率', data: j.big_pct, color: 'var(--accent)', w: 1.1, unit: '%' },
       { label: '大戶絕對張數', data: j.big_k, color: '#f5b942', w: 1.1, unit: ' 千股', d: 0 },
-      { label: '散戶(≤10張)比率', data: j.small_pct, color: '#8b7bd8', w: 0.7, dash: '2 1.5', unit: '%' },
     ], {
-      aria: '集保大戶比率與絕對持股交叉驗證',
-      note: '四條線各自正規化到同一高度（單位不同：% 與千股不能比高低）——這張圖要看的是'
-        + '<b>形狀是否同步</b>，不是絕對高度。青線（比率）與黃線（絕對張數）分岔時，'
-        + '就是分母在作怪。<b>滑過圖表可看任一週四條線的真實數值。</b>',
+      h: 120,
+      aria: '大戶比率與絕對持股交叉驗證',
+      note: '兩條各自正規化（% 與千股不能比高低）——要看的是<b>形狀是否同步</b>。'
+        + '青線（比率）往上、黃線（絕對張數）卻往下，就是分母在作怪。滑過看真實數值。',
     });
+
+    // 頂部兩個數字方塊（照 FinLab）：千張大戶＝super_pct、散戶＝100−big_pct
+    const sup = j.super_pct || [], bigp = j.big_pct || [];
+    const lw = j.lookback_w || 4;
+    const at = (arr, k) => (arr.length > k && isNum(arr[arr.length - 1 - k])) ? arr[arr.length - 1 - k] : null;
+    const supNow = at(sup, 0), supPrev = at(sup, lw);
+    const rnd2 = v => Math.round(v * 100) / 100;
+    const retNow = isNum(at(bigp, 0)) ? rnd2(100 - at(bigp, 0)) : null;
+    const retPrev = isNum(at(bigp, lw)) ? rnd2(100 - at(bigp, lw)) : null;
+    const ppTxt = (a, b) => (isNum(a) && isNum(b))
+      ? `<span class="${retCls(a - b)}">${a - b > 0 ? '+' : ''}${num(a - b, 2)}pp</span>` : '—';
+    const dirSame = (isNum(supNow) && isNum(supPrev) && isNum(retNow) && isNum(retPrev))
+      ? ((supNow - supPrev) * (retNow - retPrev) < 0) : null;
+
+    const boxes = `<div class="fl-jb-boxes">
+      <div class="fl-jbb fl-jbb-on">
+        <span class="fl-jbb-l">千張大戶</span>
+        <span class="fl-jbb-v">${num(supNow, 1)}%</span>
+        <span class="fl-jbb-d">近 ${lw} 週 ${ppTxt(supNow, supPrev)}</span>
+      </div>
+      <div class="fl-jbb">
+        <span class="fl-jbb-l">散戶</span>
+        <span class="fl-jbb-v">${num(retNow, 1)}%</span>
+        <span class="fl-jbb-d">近 ${lw} 週 ${ppTxt(retNow, retPrev)}</span>
+      </div>
+    </div>`;
+    const dirNote = dirSame == null ? ''
+      : (dirSame
+        ? `<p class="fl-jb-dir">方向一致：大戶佔比${supNow > supPrev ? '上升' : '下降'}，散戶佔比${retNow > retPrev ? '上升' : '下降'}。</p>`
+        : `<p class="fl-jb-dir">方向同向：大戶與散戶佔比同時${supNow > supPrev ? '上升' : '下降'}——中實戶那一段在變動。</p>`);
 
     return `<section class="fl-sec" data-sec="集保">
       <h2 class="fl-h2">集保大戶 · 絕對持股交叉驗證</h2>
       <p class="fl-lead">大戶持股「比率」的分母是集保總張數，會因減資或股票移出集保而縮水——
         <b>大戶一張都沒買，比率照樣上升</b>。所以比率一定要跟絕對張數一起看。</p>
+
+      <div class="fl-jb-top">
+        <div class="fl-jb-card">${boxes}${jibaoChartHtml(j)}</div>
+        <div class="fl-jb-side">${dirNote}
+          <div class="fl-in fl-in-${f[0]} fl-jb-verdict"><b>${esc(f[1])}</b>${esc(f[2])}</div></div>
+      </div>
+
+      <h3 class="fl-h3">比率 vs 絕對張數：分母有沒有在作怪</h3>
+      ${xchk}
       <div class="fl-jb-head">
-        <div class="fl-in fl-in-${f[0]} fl-jb-verdict"><b>${esc(f[1])}</b>${esc(f[2])}</div>
         <div class="fl-kvs">
           <div class="fl-kv"><div class="fl-kv-l">大戶持股比率</div>
             <div class="fl-kv-v">${num(j.big_pct[j.big_pct.length - 1], 2)}%</div>
@@ -767,10 +920,10 @@ window.StockCards = (function () {
             <div class="fl-kv-s">人</div></div>
         </div>
       </div>
-      ${chart}
-      <p class="fl-note">大戶＝持股 ≥400 張；散戶＝≤10 張。集保每週五結算、次週一公布，
-        故最新一點是 <b>${fmtD(j.asof)}</b>，會落後盤面數天，<b>不能拿來做當日判斷</b>。
-        共 ${j.weeks} 週。</p>
+      <p class="fl-note">上圖級距：<b>千張大戶＝≥1000 張</b>、<b>散戶＝&lt;400 張</b>（＝100−大戶佔比），
+        視窗近 ${JB_WEEKS} 週。下圖的<b>大戶＝≥400 張</b>（400 張是市場慣用切點、非官方定義），
+        全期共 ${j.weeks} 週。集保每週五結算、次週一公布，故最新一點是
+        <b>${fmtD(j.asof)}</b>，會落後盤面數天，<b>不能拿來做當日判斷</b>。</p>
     </section>`;
   }
 

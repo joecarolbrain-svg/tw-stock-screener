@@ -2053,6 +2053,43 @@ body.ui-v2 {
 .fl-lg b { font-family: var(--mono); color: var(--text, #e8edf7); margin-left: 6px; }
 
 /* ── 集保區塊 ───────────────────────────────────── */
+/* 主圖卡 + 右側判定（版型照 FinLab 截圖） */
+.fl-jb-top {
+  display: grid; grid-template-columns: minmax(0, 3fr) minmax(200px, 1fr);
+  gap: 18px; align-items: start; margin: 14px 0 6px;
+}
+@media (max-width: 900px) { .fl-jb-top { grid-template-columns: 1fr; } }
+.fl-jb-card {
+  border: 1px solid var(--border, #2a2a3e); border-radius: 10px;
+  padding: 12px; background: var(--panel, #131326); min-width: 0;
+}
+.fl-jb-boxes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.fl-jbb {
+  border: 1px solid var(--border, #2a2a3e); border-radius: 8px; padding: 8px 12px;
+  display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 2px 8px;
+}
+.fl-jbb-on { background: rgba(23,169,127,.08); border-color: rgba(23,169,127,.35); }
+.fl-jbb-l { font-size: 12.5px; color: var(--text-dim, #9aa0b0); }
+.fl-jbb-v { font-family: var(--mono); font-size: 20px; font-weight: 700; text-align: right; }
+.fl-jbb-d {
+  grid-column: 2; font-family: var(--mono); font-size: 11.5px;
+  color: var(--text-mut, #6a6a7a); text-align: right; white-space: nowrap;
+}
+.fl-jb-lc { margin-top: 0; }
+.fl-jb-lc .fl-lc-plot { background: transparent; border: none; padding: 0; }
+.fl-jb-side .fl-jb-dir {
+  margin: 0 0 10px; font-size: 14px; line-height: 1.8; color: var(--text, #e0e0e0);
+}
+/* 線寬：兩條 % 粗、股價細且淡（照截圖的層次） */
+.fl-chart .flc-jb-l, .fl-lc .flc-jb-l { stroke-width: 2.2; }
+.fl-lc .flc-jb-px { stroke-width: 1.1; opacity: .5; }
+.fl-lc .flc-ax-r { opacity: .75; }
+.fl-lc .flc-note-t {
+  font-size: 13px; font-weight: 700;
+  font-family: -apple-system, "Segoe UI", "Noto Sans TC", Roboto, sans-serif;
+  paint-order: stroke; stroke: var(--panel, #131326); stroke-width: 3px; stroke-linejoin: round;
+}
+
 .fl-jb-head { display: grid; gap: 14px; }
 .fl-jb-verdict { font-size: 15px; line-height: 1.8; }
 .fl-jb-head .fl-kvs { margin-top: 4px; }

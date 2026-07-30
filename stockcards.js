@@ -212,34 +212,155 @@ window.StockCards = (function () {
   }
 
   // ═══ 迷你走勢圖（hero 用）════════════════════════════
-  function priceChartHtml(d) {
-    const bars = (d.price || []).slice(-120);
-    if (bars.length < 20) return '';
-    const cs = bars.map(b => b.c), vs = bars.map(b => b.v || 0);
-    const lo = Math.min(...cs), hi = Math.max(...cs), rng = (hi - lo) || 1;
-    const W = 100, H = 46, VH = 12;
-    const x = i => (i / (bars.length - 1)) * W;
-    const y = c => H - ((c - lo) / rng) * H;
-    const ma = (arr, n) => arr.map((_, i) =>
-      i < n - 1 ? null : arr.slice(i - n + 1, i + 1).reduce((a, b) => a + b, 0) / n);
-    const line = (arr) => arr.map((c, i) => c == null ? null : `${x(i)},${y(c)}`)
-      .filter(Boolean).join(' ');
-    const vmax = Math.max(...vs) || 1;
-    const volBars = bars.map((b, i) =>
-      `<rect x="${x(i) - 0.32}" y="${H + VH - (b.v / vmax) * VH}" width="0.64"
-        height="${(b.v / vmax) * VH}" fill="var(--border-hi)" opacity=".5"/>`).join('');
+  //   ⚠️ 這裡刻意用「大 viewBox（像素座標）+ vector-effect:non-scaling-stroke」，
+  //   不要退回小 viewBox(0 0 100 58) + preserveAspectRatio="none"：那樣 X/Y 縮放比
+  //   差 4~5 倍（1560px 寬 ÷ 100 = 15.6× 對 190px 高 ÷ 58 = 3.3×），線寬會被非等比
+  //   拉伸——陡的地方粗成 14px、平的地方細到 3px，整條線腫成「河流」。
+  //   2026-07-30 定案為「乾淨折線」：不做漸層面積填色。主表 sparkSvg() 那條 10 日迷你圖
+  //   有填色是因為圖上只有一條線；這張有 MA20/MA60 穿過，填色會讓均線變濁、看不出交叉，
+  //   而均線交叉正是這張圖最該看清楚的東西。要試填色版把 AREA_FILL 改成 true 即可。
+  //   2026-07-30 改成 FinLab 式歷史折線圖：期間鈕 + 價格軸/格線 + 日期軸 + hover 十字線與 tooltip。
+  //   期間上限是 1Y —— payload 只帶 PRICE_BARS=250 根（見 finlab_port/export_stock_page.py）。
+  //   要 3Y/5Y/ALL 必須調大 PRICE_BARS 重跑，且 web/data/stock 會從 30MB 等比長大（每日推 git）。
+  const RANGES = [['1M', 21], ['3M', 63], ['6M', 126], ['1Y', 250]];
+  const DEF_RANGE = '6M';
+  const _flCharts = {};          // uid -> 完整 bars（期間切換不必重抓資料）
+  let _flChartUid = 0;
 
-    const up = cs[cs.length - 1] >= cs[0];
-    return `<div class="fl-chart">
-      <svg viewBox="0 0 ${W} ${H + VH}" preserveAspectRatio="none" aria-label="近 120 日走勢">
-        ${volBars}
-        <polyline points="${line(ma(cs, 60))}" fill="none" stroke="#8b7bd8" stroke-width="0.5" opacity=".8"/>
-        <polyline points="${line(ma(cs, 20))}" fill="none" stroke="#f5b942" stroke-width="0.5" opacity=".8"/>
-        <polyline points="${line(cs)}" fill="none"
-          stroke="${up ? 'var(--up)' : 'var(--down)'}" stroke-width="0.9"/>
+  // 座標系（像素單位，等比縮放）：右側留價格標籤、下方留量能與日期
+  const CH = { W: 1200, PL: 6, PR: 54, PT: 8, H: 150, GAP: 8, VH: 30, XH: 18 };
+
+  /** 價格刻度：在 1/2/2.5/5×10^n 這些「好看的」間距裡，挑條數最接近 want 的一組。
+      （不能只取「第一個 ≥ span/want 的間距」——會overshoot，出現只剩 2 條格線的圖） */
+  function priceTicks(lo, hi, want) {
+    const span = (hi - lo) || 1;
+    const base = Math.pow(10, Math.floor(Math.log10(span / want)));
+    let best = null;
+    for (const m of [1, 2, 2.5, 5, 10, 20]) {
+      const st = m * base;
+      const first = Math.ceil(lo / st) * st;
+      const cnt = Math.floor((hi - first) / st) + 1;
+      if (cnt < 2) continue;
+      const ts = Array.from({ length: cnt }, (_, i) => first + i * st);
+      const score = Math.abs(cnt - want) + (cnt < 3 ? 6 : 0) + (cnt > 7 ? 6 : 0);
+      if (!best || score < best.score) best = { score, ts, st };
+    }
+    return best ? best : { ts: [], st: span };
+  }
+
+  function maSeries(arr, n) {
+    return arr.map((_, i) => i < n - 1 ? null
+      : arr.slice(i - n + 1, i + 1).reduce((a, b) => a + b, 0) / n);
+  }
+
+  /** 畫出某個期間的 svg + 圖例（期間鈕切換時只換這段） */
+  function chartBody(all, rangeKey) {
+    const nBars = (RANGES.find(r => r[0] === rangeKey) || RANGES[2])[1];
+    // MA 需要前置資料才不會左端斷頭：多取 60 根算完再切掉
+    const start = Math.max(0, all.length - nBars);
+    const warm = Math.max(0, start - 60);
+    const ext = all.slice(warm);
+    const extC = ext.map(b => b.c);
+    const ma20e = maSeries(extC, 20), ma60e = maSeries(extC, 60);
+    const off = start - warm;
+    const bars = ext.slice(off);
+    const cs = bars.map(b => b.c);
+    const ma20 = ma20e.slice(off), ma60 = ma60e.slice(off);
+    const n = bars.length;
+    if (n < 2) return '';
+
+    // Y 範圍：收盤與可見 MA 的極值，上下各留 6% 呼吸空間
+    const all4 = cs.concat(ma20.filter(v => v != null), ma60.filter(v => v != null));
+    let lo = Math.min(...all4), hi = Math.max(...all4);
+    const pad = (hi - lo || hi || 1) * 0.06;
+    lo -= pad; hi += pad;
+    const span = (hi - lo) || 1;
+
+    const { W, PL, PR, PT, H, GAP, VH, XH } = CH;
+    const pw = W - PL - PR;
+    const x = i => PL + (n === 1 ? pw / 2 : (i / (n - 1)) * pw);
+    const y = c => PT + (1 - (c - lo) / span) * H;
+    const pt = (arr) => arr.map((c, i) => c == null ? null
+      : `${x(i).toFixed(1)},${y(c).toFixed(1)}`).filter(Boolean).join(' ');
+
+    // 價格格線（右側標籤）
+    const { ts: ticks, st: step } = priceTicks(lo, hi, 5);
+    const dp = step < 1 ? 2 : (step < 10 ? 1 : 0);
+    const grid = ticks.map(v => {
+      const yy = y(v).toFixed(1);
+      return `<line class="flc-grid" x1="${PL}" y1="${yy}" x2="${PL + pw}" y2="${yy}"/>`
+        + `<text class="flc-ax" x="${PL + pw + 6}" y="${yy}" dominant-baseline="middle">${num(v, dp)}</text>`;
+    }).join('');
+
+    // 日期軸：約 6 個等距標籤，跨年就顯示年份
+    const spanDays = n;
+    const nLab = Math.min(6, n);
+    const yTop = PT + H + GAP + VH;
+    const xLabs = Array.from({ length: nLab }, (_, k) => {
+      const i = Math.round(k * (n - 1) / (nLab - 1));
+      const [Y, M, D] = String(bars[i].d).split('-');
+      const txt = spanDays > 200 ? `${Y.slice(2)}/${M}` : `${M}/${D}`;
+      const anchor = k === 0 ? 'start' : (k === nLab - 1 ? 'end' : 'middle');
+      return `<text class="flc-ax" x="${x(i).toFixed(1)}" y="${yTop + XH - 5}" text-anchor="${anchor}">${txt}</text>`;
+    }).join('');
+
+    // 量柱（紅漲綠跌，跟著當日 K 的方向）
+    const vmax = Math.max(...bars.map(b => b.v || 0)) || 1;
+    const bw = Math.max(1.2, (pw / n) * 0.62);
+    const vTop = PT + H + GAP;
+    const volBars = bars.map((b, i) => {
+      const bh = ((b.v || 0) / vmax) * VH;
+      const rise = b.c >= (b.o != null ? b.o : b.c);
+      return `<rect class="${rise ? 'v-up' : 'v-dn'}" x="${(x(i) - bw / 2).toFixed(1)}"`
+        + ` y="${(vTop + VH - bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}"/>`;
+    }).join('');
+
+    const up = cs[n - 1] >= cs[0];
+    const raw = up ? '#ef5350' : '#26a69a';
+    const chg = (cs[n - 1] / cs[0] - 1) * 100;
+    const H_TOTAL = PT + H + GAP + VH + XH;
+
+    // hover 用：把每點的 x(px 座標系) 與數值塞進 data-，交給 bindChart 讀
+    const hov = bars.map((b, i) => [x(i).toFixed(1), b.d, b.c,
+      ma20[i] == null ? '' : +ma20[i].toFixed(2),
+      ma60[i] == null ? '' : +ma60[i].toFixed(2), b.v || 0].join('|')).join(';');
+
+    return `<div class="flc-plot" data-hov="${hov}" data-w="${W}" data-h="${H_TOTAL}"
+        data-pt="${PT}" data-ph="${H}" data-lo="${lo}" data-span="${span}">
+      <svg viewBox="0 0 ${W} ${H_TOTAL}" aria-label="近 ${rangeKey} 走勢">
+        ${grid}
+        <g class="flc-vol">${volBars}</g>
+        ${xLabs}
+        <polyline class="flc-ma60" points="${pt(ma60)}" fill="none"/>
+        <polyline class="flc-ma20" points="${pt(ma20)}" fill="none"/>
+        <polyline class="flc-px" points="${pt(cs)}" fill="none" stroke="${raw}"/>
       </svg>
-      <div class="fl-chart-lg">近 120 日收盤　<span style="color:#f5b942">MA20</span>
-        　<span style="color:#8b7bd8">MA60</span>　最高 ${num(hi, 1)}／最低 ${num(lo, 1)}</div>
+      <div class="flc-cross" hidden></div>
+      <div class="flc-tip" hidden></div>
+    </div>
+    <div class="fl-chart-lg">近 ${rangeKey}
+      <span class="flc-k" style="color:${raw}">${chg >= 0 ? '+' : ''}${num(chg, 1)}%</span>
+      　<span style="color:#f5b942">MA20</span>　<span style="color:#8b7bd8">MA60</span>
+      　高 ${num(Math.max(...cs), 1)}／低 ${num(Math.min(...cs), 1)}</div>`;
+  }
+
+  function priceChartHtml(d) {
+    const all = (d.price || []).filter(b => b && isNum(b.c));
+    if (all.length < 20) return '';
+    const uid = ++_flChartUid;
+    _flCharts[uid] = all;
+    // 避免長時間使用累積（彈窗每次開都重建一份），只留最近 12 張
+    Object.keys(_flCharts).forEach(k => { if (uid - k > 12) delete _flCharts[k]; });
+
+    const btns = RANGES.map(([k, nb]) => {
+      const ok = all.length >= Math.min(nb, 21);
+      return `<button type="button" class="flc-rb${k === DEF_RANGE ? ' on' : ''}"`
+        + ` data-range="${k}"${ok ? '' : ' disabled'}>${k}</button>`;
+    }).join('');
+
+    return `<div class="fl-chart" data-uid="${uid}">
+      <div class="flc-ranges">${btns}</div>
+      <div class="flc-body">${chartBody(all, DEF_RANGE)}</div>
     </div>`;
   }
 
@@ -686,6 +807,75 @@ window.StockCards = (function () {
       box.querySelectorAll('.fl-pane').forEach(p =>
         p.classList.toggle('on', p.dataset.pane === b.dataset.pane));
     });
+    bindChart(root);
+  }
+
+  /** 走勢圖互動：期間鈕切換 + hover 十字線/tooltip（同樣事件委派，宿主無需額外呼叫） */
+  function bindChart(root) {
+    // 期間鈕
+    root.addEventListener('click', (e) => {
+      const b = e.target.closest('.flc-rb');
+      if (!b || b.disabled) return;
+      const box = b.closest('.fl-chart');
+      const all = _flCharts[box && box.dataset.uid];
+      if (!all) return;
+      box.querySelectorAll('.flc-rb').forEach(x => x.classList.toggle('on', x === b));
+      box.querySelector('.flc-body').innerHTML = chartBody(all, b.dataset.range);
+    });
+
+    const hideAll = () => root.querySelectorAll('.flc-plot').forEach(p => {
+      const c = p.querySelector('.flc-cross'), t = p.querySelector('.flc-tip');
+      if (c) c.hidden = true;
+      if (t) t.hidden = true;
+    });
+
+    // hover：把滑鼠 px 位置換算回圖表座標，找最近的一根
+    const move = (e) => {
+      const plot = e.target.closest ? e.target.closest('.flc-plot') : null;
+      if (!plot) { hideAll(); return; }   // 移出圖表就收起（不用 mouseleave capture，避免掠過子元素時閃動）
+      const hov = plot.__hov || (plot.__hov = (plot.dataset.hov || '').split(';')
+        .filter(Boolean).map(s => {
+          const [px, d, c, m20, m60, v] = s.split('|');
+          return { px: +px, d, c: +c, m20, m60, v: +v };
+        }));
+      if (!hov.length) return;
+      const r = plot.getBoundingClientRect();
+      if (!r.width) return;
+      const W = +plot.dataset.w, sc = r.width / W;
+      const ux = (e.clientX - r.left) / sc;
+      let k = 0, best = Infinity;
+      for (let i = 0; i < hov.length; i++) {
+        const dd = Math.abs(hov[i].px - ux);
+        if (dd < best) { best = dd; k = i; }
+      }
+      const p = hov[k];
+      const lo = +plot.dataset.lo, span = +plot.dataset.span;
+      const PT = +plot.dataset.pt, PH = +plot.dataset.ph;
+      const yUser = PT + (1 - (p.c - lo) / span) * PH;
+
+      const cross = plot.querySelector('.flc-cross');
+      const tip = plot.querySelector('.flc-tip');
+      cross.hidden = false;
+      cross.style.left = (p.px * sc) + 'px';
+      cross.style.setProperty('--dot', (yUser * sc) + 'px');
+
+      const prev = k > 0 ? hov[k - 1].c : p.c;
+      const dpc = prev ? (p.c / prev - 1) * 100 : 0;
+      const cls = dpc > 0 ? 'flc-t-up' : (dpc < 0 ? 'flc-t-dn' : '');
+      tip.hidden = false;
+      tip.innerHTML = `<b>${p.d}</b>`
+        + `<span>收 <i class="${cls}">${num(p.c, 2)}</i>`
+        + `<i class="${cls}">${dpc >= 0 ? '+' : ''}${num(dpc, 2)}%</i></span>`
+        + (p.m20 !== '' ? `<span>MA20 <i style="color:#f5b942">${p.m20}</i></span>` : '')
+        + (p.m60 !== '' ? `<span>MA60 <i style="color:#8b7bd8">${p.m60}</i></span>` : '')
+        + `<span>量 ${int(p.v)} 張</span>`;
+      // tooltip 靠邊時翻到左側，避免被容器裁掉
+      const tw = tip.offsetWidth || 150;
+      const lx = p.px * sc;
+      tip.style.left = (lx + tw + 16 > r.width ? Math.max(0, lx - tw - 12) : lx + 12) + 'px';
+    };
+    root.addEventListener('mousemove', move);
+    root.addEventListener('mouseleave', hideAll);
   }
 
   return {

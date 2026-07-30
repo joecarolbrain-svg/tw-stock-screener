@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260723j" />
+  <link rel="stylesheet" href="style.css?v=20260730b" />
 </head>
 <body>
   <header class="topbar">
@@ -46,6 +46,7 @@
     <!-- 獨立頁面，故用 <a class="tab-link"> 而非 tab-btn，避免被 app.js 的
          tab 切換邏輯當成不存在的 panel -->
     <a class="tab-link" href="stock.html">🔍 個股詳情</a>
+    <a class="tab-link" href="glossary.html" title="每個欄位／徽章／訊號在算什麼、門檻多少（忘記某欄意思時來這）">📖 訊號字典</a>
   </nav>
 
   <section class="tab-panel active" data-panel="dashboard">
@@ -667,7 +668,7 @@
   </div>
 
   <!-- 個股研究卡（finlab_port）：彈窗卡片堆與 stock.html 共用同一份實作 -->
-  <script src="stockcards.js?v=20260726a"></script>
+  <script src="stockcards.js?v=20260730b"></script>
   <script src="app.js?v=20260726a"></script>
   <script src="calc.js?v=20260715a"></script>
 </body>

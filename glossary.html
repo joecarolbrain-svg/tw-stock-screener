@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>贏窟｜訊號字典</title>
+  <link rel="stylesheet" href="style.css?v=20260730b" />
+  <style>
+    /* ── 訊號字典專用版面（沿用 style.css 的設計 token）──────────── */
+    .gl-wrap { max-width: 1500px; margin: 0 auto; padding: 14px 18px 80px; }
+
+    .gl-lead {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 16px; margin-bottom: 14px; line-height: 1.75;
+    }
+    .gl-lead h2 { margin: 0 0 8px; font-size: 15px; color: var(--accent); }
+    .gl-lead p { margin: 0 0 8px; color: var(--text-dim); }
+    .gl-lead p:last-child { margin-bottom: 0; }
+    .gl-lead b { color: var(--text); }
+    .gl-flow {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+      margin: 10px 0 4px; font-size: 12px;
+    }
+    .gl-flow-step {
+      background: var(--panel-3); border: 1px solid var(--border-hi); border-radius: 20px;
+      padding: 5px 12px; color: var(--text);
+    }
+    .gl-flow-arrow { color: var(--text-mut); }
+
+    /* 搜尋 + 分類列（吸頂） */
+    .gl-sticky {
+      position: sticky; top: 0; z-index: 20;
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 12px; margin-bottom: 14px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.45);
+    }
+    .gl-searchbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .gl-search {
+      flex: 1 1 240px; min-width: 200px;
+      background: var(--bg); border: 1px solid var(--border-hi); border-radius: 8px;
+      color: var(--text); font-size: 14px; padding: 9px 12px; font-family: inherit;
+    }
+    .gl-search:focus { outline: none; border-color: var(--accent); }
+    .gl-search::placeholder { color: var(--text-mut); }
+    .gl-count { color: var(--text-mut); font-size: 12px; white-space: nowrap; }
+    .gl-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+    .gl-chip {
+      background: var(--panel-3); border: 1px solid var(--border); border-radius: 20px;
+      color: var(--text-dim); cursor: pointer; font-family: inherit; font-size: 12px;
+      padding: 5px 11px; transition: .12s;
+    }
+    .gl-chip:hover { border-color: var(--border-hi); color: var(--text); }
+    .gl-chip.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+
+    /* 區塊 */
+    .gl-sec { margin-bottom: 22px; scroll-margin-top: 130px; }
+    .gl-sec-h {
+      display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+      border-bottom: 1px solid var(--border); padding-bottom: 7px; margin-bottom: 12px;
+    }
+    .gl-sec-h h3 { margin: 0; font-size: 16px; color: var(--accent); }
+    .gl-sec-h .gl-sec-sub { color: var(--text-mut); font-size: 12px; }
+
+    .gl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 10px; }
+
+    .gl-card {
+      background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--border-hi);
+      border-radius: 8px; padding: 11px 13px;
+    }
+    .gl-card.hot { border-left-color: var(--accent); }
+    .gl-t {
+      font-size: 14px; font-weight: 700; color: var(--text);
+      display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;
+    }
+    .gl-id { font-family: var(--mono); font-size: 11px; color: var(--text-mut); font-weight: 400; }
+    .gl-w { color: var(--text); line-height: 1.65; margin-bottom: 7px; }
+    .gl-h {
+      background: var(--bg); border-radius: 6px; padding: 7px 9px;
+      color: var(--text-dim); font-size: 12px; line-height: 1.7;
+    }
+    .gl-h .gl-h-k { color: var(--accent); font-weight: 700; }
+    .gl-h code, .gl-w code {
+      background: rgba(0,212,170,.10); border-radius: 3px; padding: 1px 4px;
+      font-family: var(--mono); font-size: 11px; color: #7fe6d0;
+    }
+    .gl-n {
+      margin-top: 7px; font-size: 12px; line-height: 1.65;
+      color: var(--warn); border-left: 2px solid var(--warn); padding-left: 8px;
+    }
+    .gl-src { margin-top: 6px; font-family: var(--mono); font-size: 10.5px; color: #5d6270; }
+
+    /* 表格型內容（象限、狀態機…） */
+    .gl-tbl-wrap { overflow-x: auto; }
+    table.gl-tbl { border-collapse: collapse; width: 100%; font-size: 12.5px; min-width: 480px; }
+    table.gl-tbl th, table.gl-tbl td {
+      border: 1px solid var(--border); padding: 6px 9px; text-align: left; vertical-align: top;
+    }
+    table.gl-tbl th { background: var(--panel-2); color: var(--text-dim); white-space: nowrap; }
+    table.gl-tbl td:first-child { white-space: nowrap; font-weight: 700; }
+
+    .gl-empty { color: var(--text-mut); padding: 30px 4px; text-align: center; }
+    .gl-hl { background: rgba(245,185,66,.28); border-radius: 2px; }
+
+    @media (max-width: 760px) {
+      .gl-wrap { padding: 10px 10px 60px; }
+      .gl-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo-mark">贏</span>
+      <span class="title">贏窟</span>
+      <span class="subtitle">訊號字典</span>
+    </div>
+    <div class="meta">
+      <span class="muted">每個欄位／徽章／訊號在算什麼、門檻多少、哪裡看得到</span>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <a class="tab-link" href="index.html">📊 回看板</a>
+    <a class="tab-link" href="stock.html">🔍 個股詳情</a>
+  </nav>
+
+  <div class="gl-wrap">
+    <div class="gl-lead">
+      <h2>先讀這段：一檔股票是怎麼被判出來的</h2>
+      <div class="gl-flow">
+        <span class="gl-flow-step">① 前置閘門 gate<br><span class="muted">股價≥10元、20日均量≥500張</span></span>
+        <span class="gl-flow-arrow">▶</span>
+        <span class="gl-flow-step">② 13 分類各自 100 分制<br><span class="muted">達該分類門檻才入選</span></span>
+        <span class="gl-flow-arrow">▶</span>
+        <span class="gl-flow-step">③ overlay 疊加證據<br><span class="muted">主升／型態／籌碼／族群／延續</span></span>
+        <span class="gl-flow-arrow">▶</span>
+        <span class="gl-flow-step">④ 白話結論 verdict<br><span class="muted">結論／強弱／上方賣壓</span></span>
+      </div>
+      <p><b>分數不是跨分類可比的。</b>每個分類有自己的 100 分制與自己的入選門檻（例如 <code>P_Watch</code> 固定 25 分就入選、<code>N_NearHigh</code> 要 ≥40）。所以「85 分的 A_Coil」跟「40 分的 N_NearHigh」不是同一把尺量出來的，看分數請先看是哪一類。</p>
+      <p><b>overlay 是加證據、不是加分。</b>主升 S1~S5、圓弧底、黃金分割、缺口、支撐壓力這些欄位只是把「這檔還同時符合什麼」標出來，不會改變 ②的分數與入選（唯一例外：族群共振 <code>max_group_z</code> 有餵進評分）。</p>
+      <p><b>判定全在後端 Python，前端只負責呈現與篩選</b>——唯一在前端算的是「⚡共振數」（要把 Hanku 那包資料載進來才能算，所以它會比表格晚一兩秒才出現）。</p>
+    </div>
+
+    <div class="gl-sticky">
+      <div class="gl-searchbar">
+        <input type="text" id="gl-q" class="gl-search" placeholder="搜尋：套牢密度 / max_group_z / 扣抵 / 4T / 沒發買點 / 為什麼…" autocomplete="off" />
+        <span class="gl-count" id="gl-count"></span>
+      </div>
+      <div class="gl-chips" id="gl-chips"></div>
+    </div>
+
+    <div id="gl-body"></div>
+  </div>
+
+<script>
+/* ============================================================
+   訊號字典資料
+   欄位：t 名稱｜id 欄位代號｜w 白話（在說什麼）｜h 實際算法/門檻｜
+        n 注意/雷點｜src 出處程式碼｜hot 重點項
+   內容以程式碼為準（screener_core/config.py、services/*.py、
+   export_to_json.py COLUMN_MAP、web/app.js），文件僅作交叉核對。
+   ============================================================ */
+const GL = [
+{
+  sec: '📊 主表核心欄位', sub: '精簡模式(⊟)看到的那些',
+  items: [
+    { t:'結論', id:'verdict', hot:1,
+      w:'把「分類＋相對強度＋套牢＋出場」壓成一句人話，看不懂其他欄位時先看這欄。',
+      h:'分類白話（如 🔥帶量突破可追 / 🌀量縮蓄力(VCP)、等突破）＋ 修飾語：RS>8 加「強過大盤」、RS<0 加「弱於大盤」、套牢<10 加「上方清爽」、≥30 加「套牢重」、週線亮燈加「週線也亮」。',
+      n:'出場優先：只要出場警示含「跌破MA60」，整欄直接被覆蓋成「⚠ 跌破季線 → 現股該出」，不管原本命中什麼分類。',
+      src:'services/verdict.py' },
+    { t:'強弱', id:'strength',
+      w:'相對強度 RS 的人話版。',
+      h:'RS>8 → 💪強過大盤 +N%；0≤RS≤8 → 持平；RS<0 → 🥀弱於大盤。',
+      src:'services/verdict.py' },
+    { t:'相對強度 RS', id:'rs', hot:1,
+      w:'這檔跟大盤比，多跑了幾個百分點。正數＝比大盤強。',
+      h:'個股 63 日報酬 − 大盤(Y9999) 63 日報酬，單位%。是幾乎每個分類的加權因子。B/S 類要 RS≥5 才收（S_MA3Rider 要 ≥10），A 類只要 RS≥0（不輸大盤即可）。',
+      src:'screener_core/config.py rs_lookback=63' },
+    { t:'套牢密度10%', id:'trap_density', hot:1,
+      w:'現價上方 10% 這段區間，過去一年有多少成交量卡在那裡。<b>越低越好</b>——上方沒人套牢，衝上去阻力小。',
+      h:'現價 ~ 現價×1.10 區間的歷史成交量佔比（回看 252 日）。各分類上限：B≤25、S≤20、A≤25、R≤30，>35 直接打成 D_Skip 不收。',
+      src:'config.py overhead_*' },
+    { t:'上方賣壓', id:'overhead',
+      w:'套牢密度的紅綠燈。',
+      h:'<10 🟢上方清爽／10~30 🟡上方偏中／≥30 🔴套牢多。',
+      src:'services/verdict.py' },
+    { t:'命中數', id:'hits',
+      w:'這檔同時命中幾個分類。<b>≥2 視為強訊號</b>（同一套日線系統裡多個型態同時成立）。',
+      h:'一檔可多重歸類（例如同時是 B_Day0 又是 S_MA5Rider）。主表 ≥2 會標螢光綠。借 DannyQuant Top 10 的概念。',
+      n:'這跟「⚡共振」是<b>兩件不同的事</b>：hits 是同一套日線系統內的多型態，共振是日線 × HANKU 週線兩套系統。',
+      src:'app.js:1170' },
+    { t:'量比', id:'vol_ratio', hot:1,
+      w:'今天的量是近 5 日均量的幾倍。',
+      h:'當日量 ÷ 近 5 日均量。突破確認要 ≥1.5；S 類騎乘只要 ≥0.8；快速鈕「🔊量能跟上」門檻 ≥1.2。B 類算分時 vol_ratio 上限壓在 3.0（再爆也不多給分）。',
+      src:'config.py vol_ratio_*' },
+    { t:'距前高% / 距年高%', id:'dist_high / dist_year_high',
+      w:'現價離「前波高點」「一年最高」還差幾%。越接近＝越靠上緣。',
+      h:'A_VCP 要距 52 週高 ≤8%、R_Breakout ≤20%、S 類距歷史高 ≤15%（S_MA3Rider ≤8%）、P_Watch 反而要 >25%（跌深）。N_NearHigh 要 ≤10% 且還沒突破。',
+      src:'config.py dist_*' },
+    { t:'進場價 / 進場方式', id:'entry_price / entry_method',
+      k:'為什麼 沒有進場價 空白 只寫觀察 買在哪',
+      w:'依「命中的分類」各自算出來的掛價位置，不是統一公式。',
+      h:'B_Day0＝Day0-Chase(實體比≥0.7)或 Day0-Wait；B_Recent＝MA5×1.002；S 類＝MA3×1.001；A 類＝63日高×1.002；R 類＝頸線×1.002~1.003。卡片上沒有價只寫「觀察」＝該分類設計上就不給進場價（P 類要等出關/等突破）。',
+      src:'config.py CLS_META' },
+    { t:'防守價 / 風險%', id:'defense / risk_pct',
+      w:'停損座標與到停損的距離。',
+      h:'B 類＝突破日K棒最低價；S 類＝BO-day low 或 MA4；A_VCP＝最近底部或 MA10；A_Coil/P 類＝MA10；R 類＝底部低點對稱。風險% =(進場−防守)/進場。',
+      src:'config.py CLS_META' },
+    { t:'部位建議%', id:'position_pct',
+      w:'這檔該下多少部位——由停損距離反推，不是憑感覺。',
+      h:'帳戶風險% ÷ 個股風險%。帳戶風險預設 0.5%。所以停損越遠、建議部位越小。',
+      src:'config.py account_risk_pct=0.5' },
+    { t:'R/R比', id:'rr',
+      w:'賺賠比：賺的空間是虧的幾倍。',
+      h:'(目標價−進場)÷(進場−防守)。前端顏色：≥2 綠、1~2 黃、<1 紅。',
+      src:'app.js rrCls' },
+    { t:'出場警示', id:'exit_warn', hot:1,
+      w:'手上有貨的人看這欄——什麼時候該走。',
+      h:'跌破 MA60 → 🔴現股出；跌破 MA20 → ⚠早期警示；都沒破 → 顯示「MA60上 +N%」。回測依據：出場放長 MA20→MA60，期望值 +2.1%→+4.7%。',
+      src:'services/mainup_strategy.py' },
+    { t:'族群集中%', id:'ind_top3_share',
+      w:'這檔所屬族群裡，前 3 大公司佔了多少成交額。太高＝整個族群的行情其實只是那三隻在動。',
+      h:'≥70 標 🚨、≥50 標 ⚠。高的時候要小心你買的是「陪榜的那隻」。',
+      src:'COLUMN_MAP' },
+    { t:'BB收窄', id:'bb_squeeze',
+      w:'布林通道有沒有縮口——縮口＝波動壓縮，常出現在噴出前。',
+      h:'布林帶寬壓縮判定，A 類（量縮整理）常伴隨。',
+      src:'COLUMN_MAP' },
+  ]
+},
+{
+  sec: '🏷️ 13 個分類代碼', sub: '每類獨立 100 分制、獨立門檻；排序先看優先級再看分數',
+  items: [
+    { t:'M_Accumulate 主力吸籌', id:'優先級 0｜門檻 ≥50', hot:1,
+      w:'<b>最早期</b>：還沒漲，但主力已經在底部悄悄買。',
+      h:'近20日主力買超佔流通股 ≥0.5%（35分）＋ 60日橫盤(std/mean ≤6%) ＋ 量縮(vol5/vol60 ≤0.9) ＋ 距252日高 >15%（還沒漲）＋ 距60日低 <15%（在底部）。',
+      src:'config.py accum_*' },
+    { t:'N_NearHigh 接近前高(未突破)', id:'優先級 0｜門檻 ≥40',
+      w:'貼著前高但還沒過——等突破的候選名單。',
+      h:'距前高 ≤10% 且 <b>還沒突破</b>（現價 < 高×0.995）＋ 套牢密度<10%（35分）＋ RS（20分）＋ 距前高<2%（25分）。對標窗口預設 252 日（UI 可切 63/126/252/504/1250/9999）。',
+      src:'config.py near_high_*' },
+    { t:'B_Day0 突破當日', id:'優先級 1｜基礎 60~100+', hot:1,
+      w:'<b>最強訊號</b>：今天當下帶量衝破歷史高點。',
+      h:'今日衝破全歷史/52週/63日高點（0.5% 容忍）＋ 量比≥1.5 ＋ MA60 向上 ＋ 套牢≤25 ＋ RS≥5。進場 Day0-Chase(實體比≥0.7)或 Day0-Wait，停損＝突破日K最低價。',
+      src:'config.py CLS_META' },
+    { t:'B_Recent 近期突破(1~5日)', id:'優先級 2｜基礎 60~100，每日−5',
+      w:'幾天前突破的，現在回測均線＝第二次上車機會。',
+      h:'條件同 B_Day0，但突破發生在 1~5 天前，<b>越久扣越多分（每過一天 −5）</b>。進場 MA5×1.002。',
+      src:'config.py CLS_META' },
+    { t:'A_VCP 量縮整理', id:'優先級 3｜基礎 70',
+      w:'貼著高檔量縮盤整，蓄力等再噴一次。',
+      h:'距 52 週高 ≤8% ＋ 5日均量/20日均量 ≤0.85（量縮）＋ MA60 向上 ＋ 形成更高高或更高低 ＋ RS≥0 ＋ 套牢≤25。距高點越遠扣分。進場＝63日高×1.002。',
+      src:'config.py CLS_META' },
+    { t:'A_Coil 均線糾結', id:'優先級 3｜基礎 72',
+      w:'MA5/10/20 三線黏在一起還全部上彎＝臨界點，一動就有方向。',
+      h:'三線集中在 5% 以內且全向上彎 ＋ 收盤在三線之上 ＋ 量縮<0.9。<b>糾結越緊分數越高</b>。停損 MA10。',
+      src:'config.py CLS_META' },
+    { t:'S_MA3Rider MA3騎乘', id:'優先級 4｜基礎 70',
+      w:'突破後沿著超短均線走的<b>極強勢</b>股，回踩就買。',
+      h:'股價在 MA3/MA5/MA60 之上 ＋ MA3>MA5 ＋ 距歷史高 ≤8% ＋ 量比≥0.8 ＋ <b>RS≥10（比 MA5 版更嚴）</b> ＋ 套牢≤20。進場 MA3×1.001。',
+      src:'config.py CLS_META' },
+    { t:'S_MA5Rider MA5騎乘', id:'優先級 5｜基礎 60',
+      w:'突破後沿 MA5 續攻，持有管理型。',
+      h:'股價在 MA5/MA10/MA60 之上 ＋ MA5 斜率向上 ＋ 距歷史高 ≤15% ＋ 量比≥0.8 ＋ RS≥5。進場 MA3×1.001（若在MA3之上）或 MA5。',
+      src:'config.py CLS_META' },
+    { t:'R_Breakout 圓弧底突破', id:'優先級 6｜固定 75 − 套牢',
+      w:'底部圓弧整理很久，今天帶量突破頸線。',
+      h:'突破頸線且收盤≥頸線 ＋ 量比≥1.5 ＋ 距52週高 ≤20% ＋ 形成更高高更高低 ＋ 套牢≤30。進場＝頸線×1.002，停損＝底部低點對稱。',
+      src:'config.py CLS_META' },
+    { t:'R_Neckline 頸線附近候補', id:'優先級 7｜固定 55 − 套牢',
+      w:'圓弧底走到頸線下面了，但<b>還沒突破</b>、量還沒到——候補名單。',
+      h:'同 R_Breakout 但未突破頸線、距頸線 ≤5%、量能未達門檻。等突破確認。',
+      src:'config.py CLS_META' },
+    { t:'P_PunishExit 處置出關倒數', id:'優先級 8｜固定 35',
+      w:'強勢股被處置關禁閉，快要出關了。',
+      h:'強勢型處置 ＋ 出關倒數 10 日內 ＋ 量比≥1.2 ＋ 低點不創新低。<b>進場方式＝觀察出關後再進</b>（所以沒有進場價）。',
+      src:'config.py CLS_META, days_to_exit_P=10' },
+    { t:'P_PostExit 剛出關(1~3日)', id:'優先級 9｜固定 40',
+      w:'處置剛解除，回到正常交易的頭三天。',
+      h:'處置解除 1~3 日 ＋ 站上 MA10 ＋ 低點不創新低。進場＝出關後第一根收紅確認，停損＝出關當日低點。',
+      src:'config.py CLS_META' },
+    { t:'P_Watch 止跌觀察', id:'優先級 10｜固定 25',
+      w:'<b>觀察名單而已</b>，跌深後看起來止穩了，訊號還沒成立。',
+      h:'距 52 週高 >25% ＋ 量縮<0.75 ＋ 低點止穩且站上 MA10。<b>等突破再進場</b>。',
+      src:'config.py CLS_META' },
+    { t:'D_Skip 排除', id:'優先級 99',
+      w:'被濾掉的，不會出現在榜上。',
+      h:'主要是套牢密度 >35 直接淘汰。',
+      src:'config.py overhead_gate=35' },
+  ]
+},
+{
+  sec: '🎓 朱家泓主升 overlay', sub: '飆股 5 訊號 + 高勝率 3 條件；全市場 2 萬筆回測驗證過',
+  items: [
+    { t:'S1 長底', id:'s1',
+      w:'底部橫很久了——箱型整理，沒有破底。',
+      h:'近 120 日 (最高−最低)/最低 ≤ 30%。',
+      src:'mainup_strategy.py W_BASE=120, BASE_RANGE=0.30' },
+    { t:'S2 爆量', id:'s2', hot:1,
+      w:'底部突然爆出大量＝有人開始收貨。<b>回測認定的兩個核心訊號之一。</b>',
+      h:'量 ÷ 120日安靜均量 ≥ <b>3 倍</b>，且同時創 60 日新高，近 10 日內發生過即算。',
+      n:'測過改成「教學版 5日×2倍」，test 段(2022-06後) edge 從 +1.05 掉到 +0.92，<b>沒採用</b>，維持 120日×3倍。',
+      src:'mainup_strategy.py VMULT=3.0' },
+    { t:'S3 多排', id:'s3', hot:1,
+      w:'四條均線由上到下排好、還一起往上＝趨勢已成形。<b>另一個核心訊號。</b>',
+      h:'MA5>MA10>MA20>MA60 <b>且四線都比 5 日前高</b>（同步上揚）。',
+      n:'測過改成 3 線多排，test edge 從 +1.00 掉到 +0.40，<b>沒採用</b>，維持四線。',
+      src:'mainup_strategy.py' },
+    { t:'S4 突破', id:'s4',
+      w:'今天收盤創 60 日新高。',
+      h:'收盤 ≥ 前 60 日最高。',
+      src:'mainup_strategy.py' },
+    { t:'S5 題材', id:'s5',
+      w:'這檔屬於當下的熱門題材。<b>五個訊號裡唯一能提升精準度的槓桿。</b>',
+      h:'本檔所屬概念 ∩ 熱門概念清單 ≠ 空。',
+      n:'回測結論：籌碼、距底部距離、族群家數對飆股<b>沒有預測力（別加）</b>；題材是唯一的 precision 槓桿。',
+      src:'mainup_strategy.py' },
+    { t:'C1 多頭', id:'c1',
+      w:'走勢真的是多頭：頭比頭高、底比底高，而且在季線之上。',
+      h:'近30日最高 > 前30日最高（頭頭高）＋ 近30日最低 > 前30日最低（底底高）＋ 收盤 > MA60。',
+      src:'mainup_strategy.py cond1_bull' },
+    { t:'C2 黃金交叉', id:'c2',
+      w:'月線站上季線，而且兩條都在往上。',
+      h:'MA20 > MA60，且 MA20、MA60 都比 5 日前高。',
+      src:'mainup_strategy.py cond2_gx' },
+    { t:'C3 進場點', id:'c3', hot:1,
+      w:'<b>今天就是朱家泓認可的兩個起漲位置之一</b>——這是「今天能不能買」的欄位。',
+      h:'（回後買上漲 或 盤整突破）＋ MA20向上 ＋ KD多排 ＋ 不是追高 ＋ <b>量比≥1.3</b>。<br>‧回後買上漲：近20日曾拉回破MA5 ＋ 沒破前波低(近40日低×0.995) ＋ 中長紅K(實體≥2.5%) 收盤突破前一天最高。<br>‧盤整突破：近20日窄幅(≤18%) ＋ 中長紅K 收盤突破盤整上緣。',
+      n:'量增門檻 1.3 是 2026-07-11 OOS 驗證後才加的（edge +0.49→+0.59）；「不破前波低點」同批取代舊的「曾破MA5」（edge +0.49→+0.55）。',
+      src:'mainup_strategy.py C3_VOL_RATIO=1.3' },
+    { t:'進場型態', id:'mainup_entry', hot:1,
+      w:'C3 成立時告訴你是哪一種進場；也可能反過來警告你別追。',
+      h:'「回後買上漲」／「盤整突破」／<b>「⚠過高勿追」</b>。過高勿追＝創 120 日新高<b>且</b>距 120 日底部已漲 ≥40% — 朱的紀律是「絕不追突破高點」。',
+      n:'卡片上 ⚠過高勿追 是<b>紅旗</b>，其他進場型態是綠旗。',
+      src:'mainup_strategy.py OVERHI_RUN=0.40' },
+    { t:'主升標籤', id:'mainup_tag',
+      w:'把訊號組合壓成一個標籤。',
+      h:'S2+S3+S5 → <b>Z_主升飆股🔥</b>（技術＋題材最強）；S2+S3 → Z_主升核心；C1+C2 → Z_鎖股觀察（等進場點）。都不符合＝空白。',
+      src:'mainup_strategy.py' },
+    { t:'主升訊號數 / 高勝率數', id:'mainup_n / win_n',
+      w:'5 訊號中了幾個 / 3 條件中了幾個。',
+      h:'mainup_n = S1~S5 成立數（0~5）；win_n = C1~C3 成立數（0~3）。篩選器「A穩健」模式＝win_n≥3 且非出貨。',
+      src:'mainup_strategy.py' },
+    { t:'出貨警訊', id:'mainup_dist',
+      w:'高檔爆量但收弱＝可能有人在倒貨（益安 6499 型）。',
+      h:'距 120 日底部已漲 ≥40%，<b>且</b>近 5 日內出現過「量比≥5 且收盤在K棒下半部(<50%)」。',
+      src:'mainup_strategy.py s_distribution' },
+    { t:'季線突破', id:'mainup_ma60',
+      w:'長期被季線壓著的股，今天帶量站上去了（欣興 3037 型）。',
+      h:'近 20 日有 ≥60% 天數在 MA60 之下 ＋ MA60 平或下彎 ＋ 今天收盤站上 MA60、昨天還在下面 ＋ 量比≥1.5。',
+      src:'mainup_strategy.py s_ma60_breakout' },
+  ]
+},
+{
+  sec: '🧩 型態與價格結構 overlay', sub: '各集教學規則的量化版；都是「加證據」不改分數',
+  items: [
+    { t:'黃金回檔 / 黃金狀態', id:'fib_retrace / fib_state', hot:1,
+      w:'漲一段後回檔了多少——回得淺＝強勢，回太深＝失效。',
+      h:'分級：≤0.30 → 0.236 極強；≤0.44 → <b>0.382 首選</b>；≤0.56 → 0.5 一般；≤0.70 → 0.618 偏弱。狀態＝回檔中／🔥黃金買點／破低失效。',
+      n:'<b>只有 ≤0.44 才會發 🔥黃金買點。</b>看到標「0.5一般」卻沒發買點是<b>正常設計不是漏判</b>——2026-07-04 全市場 45,351 筆分層回測顯示 0.5 區(+1.66%)相對對照組(+1.79%)沒有超額，門檻從 0.56 收緊到 0.44。',
+      src:'services/pattern_fibo.py FIB_BUY_MAX=0.44' },
+    { t:'圓弧底分數 / 狀態 / 目標價', id:'rounding_*',
+      w:'碗型底的成熟度，以及現在走到碗的哪一段。',
+      h:'狀態＝鎖股／突破／回後買點（ep14 事件）。目標價＝頸線 + 碗深（等幅測幅）。',
+      src:'services/pattern_rounding.py' },
+    { t:'N字狀態 / N字目標價', id:'nbase_*',
+      w:'N 字底型態（上-回-再上）的階段與等幅目標。',
+      h:'狀態＝鎖股／突破／回後。目標價＝L2+(R−L1) 等幅測量。',
+      src:'services/pattern_nbase.py' },
+    { t:'缺口狀態 / 缺口支撐', id:'gap_state / gap_support',
+      w:'跳空缺口有沒有被真的回補，缺口下緣可以當支撐。',
+      h:'「3 日真回補」判定（不是碰到就算）。缺口下緣＝支撐價位。',
+      src:'services/gap_check.py' },
+    { t:'頂部島狀 / 底部島狀', id:'island_top / island_bottom',
+      w:'島狀反轉：兩邊各跳空一個缺口把一段K線孤立起來，通常是轉折。',
+      h:'頂部島狀＝出場/做空訊號；底部島狀＝進場/做多訊號。',
+      src:'services/pattern_island.py' },
+    { t:'支撐位 / 支撐狀態 / 疊撐數', id:'sr_support / sr_state / sr_confluence',
+      w:'最近的支撐在哪、現在守不守得住、有幾層支撐疊在一起。',
+      h:'狀態＝撐住／回測中／⛔跌破。疊撐數＝支撐 ±1.5% 內重疊了幾層（越多層越硬）。',
+      n:'這是<b>風控座標，不是買訊</b>——別看到「撐住」就當進場理由。',
+      src:'services/sr_levels.py' },
+    { t:'上檔狀態', id:'sr_overhead',
+      w:'頭上還有沒有壓力。',
+      h:'✅無壓（實證 +1.7pp 真 edge）／⚠壓力黑K／距前高 N%。',
+      src:'services/sr_levels.py' },
+    { t:'突破狀態 / 突破量能 / 突破前高', id:'bo_state / bo_vol / bo_prior_high', hot:1,
+      w:'突破前高是<b>真的</b>還是假突破，以及當天量能健不健康。',
+      h:'狀態＝✅突破／⚠訊號弱／✅回測撐住／⛔假突破。量能＝無量創高✨／正常／爆量⚠／巨量⚠／收黑長上影⚠。',
+      n:'<b>這裡顛覆了「放量突破才是好突破」的直覺。</b>11 年校準實證：量越大越糟（巨量>5倍中位報酬 −1.26%）。真正有效的是「強K + 濾掉爆量」。所以看到「無量創高✨」不要當缺點。',
+      src:'services/breakout_filter.py' },
+    { t:'扣抵上彎數 / 扣抵向 / 扣抵轉揚', id:'deduct_up_n / deduct_dir / deduct_turn', hot:1,
+      w:'<b>前瞻</b>均線方向：不是看均線現在的斜率，而是算出「明天」均線會往上還往下。',
+      h:'看扣抵值（即將被移出計算窗的那根K棒）。扣抵上彎數＝MA5/20/60 明日將上彎的條數(0~3)；扣抵向如 <code>5↑ 20↑ 60↓</code>；<b>扣抵轉揚＝三線皆將上彎</b>＝領先多排一步。',
+      n:'這才是朱家泓「均線上彎」的正解——看斜率是落後的，看扣抵值是領先的。實證扣抵轉揚 edge +1.2 且單調。卡片標 🔥扣抵轉揚 綠旗。',
+      src:'services/deduct_ma.py' },
+    { t:'扣抵警訊 / 季線展望', id:'deduct_warn / deduct_ma60_out',
+      w:'<b>陰跌預警</b>：價格還沒跌，但均線已經注定要下彎。',
+      h:'警訊＝季線/月線陰跌（價未跌但均線將下彎）。季線展望＝MA60 未來：續彎上／n 日後轉下。',
+      n:'卡片上當紅旗徽章。同分數的股票裡，有陰跌警訊的那批表現較弱。',
+      src:'services/deduct_ma.py' },
+    { t:'洗盤反彈', id:'washout',
+      w:'剛被洗一波後彈起來。',
+      h:'C3 overlay 之一。',
+      src:'services/mainup_strategy.py' },
+    { t:'週線亮燈', id:'weekly_lit',
+      w:'週線級別也同時亮燈＝大小週期同向。',
+      h:'布林 1/0。成立時「結論」欄會加上「週線也亮」。',
+      src:'COLUMN_MAP ★B1' },
+  ]
+},
+{
+  sec: '💰 籌碼欄位', sub: '法人連買天數 × 融資散戶，四象限建議',
+  items: [
+    { t:'外資/投信/自營/法人 連買天數', id:'*_streak', hot:1,
+      w:'連續買了幾天。<b>正數＝連買 N 天，負數＝連賣 N 天。</b>',
+      h:'主訊號用連買天數而不是絕對張數——方向的持續性跟股本大小無關，對大小型股都公平（5000 張對小型股是天量、對台積電是雜訊）。',
+      src:'services/chip_loader.py compute_inst_streaks' },
+    { t:'外資/投信 5日合計', id:'*_sum5',
+      w:'近 5 日累計買賣超張數。',
+      h:'<b>只做同向確認與量級標註，不單獨當門檻。</b>與連買天數同向 +1 分、背離 −1 分。',
+      src:'app.js _chipSideScore' },
+    { t:'💰 籌碼面建議（四象限）', id:'chipAdvice', hot:1,
+      w:'卡片上 💰 那一行。<b>法人軸（外資+投信連買）× 散戶軸（融資5日增減）</b> 交叉出 10 種結構。',
+      h:'每邊 −7~+7：連≥5日給6分、≥3日給4分、≥2日給2分、1日只給1分（單日是雜訊）；5日累計同向 +1、背離 −1。兩邊相加＝total。',
+      tbl:[['結構','判定條件','含義'],
+           ['🟢 法人買·散戶退場','total≥4 且 融資減','籌碼由散戶轉到法人手上，結構<b>最乾淨</b>，回檔可承接'],
+           ['🟢 法人強力同買','total≥8','外資投信同方向加碼，籌碼扎實'],
+           ['🟢 法人偏買','total≥4','籌碼偏多，可順技術面訊號進場'],
+           ['🟡 法人買·融資追高','total≥4 且 融資暴增','浮額變多，容易被洗盤 → 部位放小、停損抓緊'],
+           ['🟡 融資急增·法人未進場','法人無方向 且 融資暴增','散戶單邊加碼法人沒跟 → 籌碼鬆散不宜追'],
+           ['🟡 法人分歧','一邊≥2日買、另一邊≥2日賣','籌碼未歸邊 → 減量、抓緊停損'],
+           ['⚪ 法人無明顯方向','−4<total<4','籌碼中性，勝負看技術面與族群'],
+           ['🔴 法人偏賣','total≤−4','籌碼轉弱，反彈不宜追價'],
+           ['🔴 法人賣·散戶接刀','total≤−4 且 融資增','<b>最差的籌碼結構，避開</b>'],
+           ['🔴 法人同步棄守','total≤−8','外資投信同步調節，不宜作多']],
+      n:'快速鈕「💰籌碼偏多」＝只收前三種綠燈。自營商雜訊高（含權證避險部位），只在連≥3日時列出<b>且不參與判定</b>。',
+      src:'app.js CHIP_ADVICE_MAP / chipAdvice()' },
+    { t:'主力買超 / 近20主力 / 近60主力', id:'broker_net / broker_net_20 / broker_net_60',
+      w:'券商分點的主力進出，如「元大(+28482張)」。',
+      h:'字串欄不是數字欄（曾誤宣告成 number 導致永遠空白，2026-07-20 修）。',
+      n:'<b>分點資料來源已停更</b>，卡片上會標「⚠️ 分點主力籌碼資料僅到 YYYY-MM-DD」。看到日期比法人/融資舊是已知狀況不是 bug。',
+      src:'services/broker_chip_loader.py' },
+    { t:'融資5日增減% / 融資使用率%', id:'margin_chg5_pct / margin_util',
+      w:'散戶槓桿在進還是在退。融資增＝散戶在追。',
+      h:'官方融資融券檔（2015 起零缺口）。融資使用率＝已用融資額度佔比。是籌碼四象限的散戶軸。',
+      src:'COLUMN_MAP' },
+    { t:'券資比', id:'short_margin_ratio',
+      w:'融券÷融資。偏高＝空方壓力大，但也可能是軋空燃料。',
+      h:'官方檔直取。',
+      src:'COLUMN_MAP' },
+    { t:'🩸 融資斷頭級', id:'only-maint-alert',
+      w:'融資維持率已到／逼近<b>這檔自己</b>在關稅崩盤低點的水位。',
+      h:'維持率 = 收盤 ÷ (推估平均融資成本 × 0.6)，跟自己在 <b>2025-04-09</b> 的維持率比，且全期百分位 ≤10%。<b>不是統一門檻</b>——137% 只對台積電成立，國巨的歷史地板是 107%、聯電 121%。',
+      n:'這是<b>風險溫度計不是買訊</b>。維持率到位是必要非充分條件。',
+      src:'export_margin_maint.py' },
+  ]
+},
+{
+  sec: '🌊 族群與資金流向', sub: '三大法人的錢往哪流；唯一會回頭影響選股分數的 overlay',
+  items: [
+    { t:'族群最高z', id:'max_group_z', hot:1,
+      w:'這檔所屬的各種族群裡，最熱那一個的熱度。<b>z≥1 就算在熱區。</b>',
+      h:'算出「大產業 / 細產業 / CMoney類股 / CMoney概念」各自的資金流 z-score，取<b>最高的那一個</b>。同時提供熱產業／熱類股／前 3 熱題材名稱。窗口 20 日。',
+      n:'<b>這是唯一有餵進選股評分的族群欄位，不只是顯示。</b>「族群連動策略」＝ max_z≥1 即命中。改這個引擎會改到選股結果（bit-exact 風險點）。',
+      src:'services/industry_flow_service.py get_group_resonance()' },
+    { t:'淨買超(億)', id:'net',
+      w:'族群收到多少法人的錢。',
+      h:'三大法人<b>合計</b>張數 × 還原收盤 ÷ 1e5。回測顯示合計優於外資/投信分離。',
+      src:'services/sector_flow_service.py' },
+    { t:'加速度 accel', id:'accel', hot:1,
+      w:'錢流進來的速度是在<b>加速</b>還是<b>放緩</b>——四象限的 Y 軸。',
+      h:'net5/5 − net20/20（近5日均速 − 近20日均速），單位 億/天。',
+      src:'services/sector_flow_service.py' },
+    { t:'RFI', id:'rfi',
+      w:'資金流入相對這個族群本身的規模大不大——解決「大族群永遠霸榜」。',
+      h:'net5(億) ÷ 族群近 20 日均成交額(億)。',
+      src:'services/sector_flow_service.py' },
+    { t:'position (族群)', id:'position',
+      w:'這個族群現在站在自己 63 日區間的哪個位置（0~100）。',
+      h:'族群等權價值在 63 日高低區間的位置。黑馬要 <40、偷偷布局要 <60。',
+      src:'services/sector_flow_service.py' },
+    { t:'族群四象限', id:'quadrant', hot:1,
+      w:'族群現在的資金狀態。',
+      h:'',
+      tbl:[['象限','條件','含義'],
+           ['🟢 主力','net5>0 且 accel>0','加速流入（<b>最強，全 regime 都贏母體</b>）'],
+           ['🟡 輪動','net5>0 且 accel≤0','流入但放緩'],
+           ['⚪ 觀望','−0.5<net5≤0','沉寂未定向'],
+           ['🔴 退潮','net5≤−0.5億','流出']],
+      src:'services/sector_flow_service.py' },
+    { t:'🐎 黑馬', id:'dark_horse',
+      w:'低位階、被連續偷偷買、但價格還沒動的族群。',
+      h:'rfi>0 且 position<40 且 連續淨買≥3日 且 chg5<2%。',
+      n:'<b>Regime-Gate：只在空頭顯示。</b>多頭時是毒藥（fwd20 −0.99%），空頭才有效（+2.82%）。',
+      src:'services/sector_flow_service.py' },
+    { t:'★ 領頭股', id:'leader',
+      w:'熱族群裡真正在領漲的那隻。',
+      h:'主力族群內、position 高且自身 net5>0。',
+      src:'services/sector_flow_service.py' },
+    { t:'真強 / 假強', id:'strong_view',
+      w:'漲了，但法人到底有沒有進來。',
+      h:'💪強勢視圖：綠＝真強（漲且法人買）；黃＝<b>假強（漲但法人沒進）</b>。',
+      src:'web/sector.html' },
+    { t:'分類 taxonomy 三選', id:'industry / sector / concept',
+      w:'「族群」有三種切法，覆蓋率和乾淨度不同。',
+      h:'MoneyDJ 產業（~100% 覆蓋，<b>預設</b>，但權值股會多重歸屬）／CMoney 類股（~51%，單一歸屬最乾淨）／CMoney 概念（~38%，題材）。',
+      src:'services/industry_service.py' },
+  ]
+},
+{
+  sec: '⚡ 共振與排名延續', sub: '跨系統驗證 × 跨日期變化',
+  items: [
+    { t:'⚡ 共振', id:'_reso', hot:1,
+      k:'雙框架共振 跨策略 兩套 hits差別',
+      w:'<b>兩套完全獨立的系統同時點名同一檔</b>——日線右側突破 × HANKU 週線波段。',
+      h:'共振數 = (日線 hits≥1 ? 1 : 0) + (該檔在 HANKU actionable 清單 ? 1 : 0)。<b>=2 才叫共振。</b>快速鈕「⚡只看共振」＝過濾共振數<2。市場快照磁磚「⚡多策略共振 N 檔」同一算法。',
+      n:'這是<b>唯一在前端算</b>的判定，要等 Hanku 那包 json 載完才會出現，所以剛開頁面時計數可能是 0 或 --，過一兩秒會自己刷。<br>別跟「命中數 hits」搞混：hits 是同一套日線系統內多型態，共振是跨系統。',
+      src:'app.js _resoCount()' },
+    { t:'連續上榜', id:'board_streak', hot:1,
+      w:'從今天往前算，連續幾個交易日都在榜上。',
+      h:'跨日讀 <code>web/data/daily/*/latest.json.gz</code> 對齊，<b>只對命中股計算</b>，上限約 30 日。徽章：≥5 日燙、≥3 日中溫。',
+      n:'歷史日期的快照不含延續四欄（只有重新 export 過的日期有），看最新日一定有。',
+      src:'services/persistence.py' },
+    { t:'分類軌跡', id:'cat_path',
+      w:'這檔在榜上是怎麼「長大」的——主分類的移動路徑。',
+      h:'去重連續後的路徑，如 <code>M→N→B</code>（吸籌→接近前高→突破）。hover 可看完整軌跡。',
+      src:'services/persistence.py' },
+    { t:'階梯', id:'stage_move', hot:1,
+      w:'setup 的成熟度是在<b>升級</b>還是<b>退化</b>。',
+      h:'成熟度階梯 M(1)→A(2)→N/R頸線(3)→R突破(4)→B近期(5)→B當日(6)→S騎乘(7)，比較今日與昨日：🔼升階／⬇️降階／🆕新進／➡️同階。',
+      n:'這個階梯<b>跟排序用的 CLASS_ORDER 是兩套東西</b>，別對照。P_處置觀察系列不列階梯（留白）。',
+      src:'services/persistence.py' },
+    { t:'Δ分', id:'score_delta',
+      w:'今天的分數比昨天多幾分。',
+      h:'對前一交易日同分類分數差。正綠負紅。',
+      src:'services/persistence.py' },
+    { t:'🆕今日上榜 / 🔥加溫 / ⚠️轉弱', id:'persistBucket',
+      w:'延續狀態的三個互斥快捷鈕，跟卡片分組同一標準。',
+      h:'今日上榜＝board_streak≤1（昨日不在榜，含斷檔後回歸）；加溫＝連續≥2日且加分或升階；轉弱＝連續≥2日但掉分或降階；其餘＝持平。',
+      src:'app.js persistBucket()' },
+  ]
+},
+{
+  sec: '🌀 HANKU 週線波段', sub: '週線級別的客觀狀態機；跟日線互補',
+  items: [
+    { t:'週4 / 週9', id:'w4 / w9', hot:1,
+      w:'週收盤的 4 週、9 週均線。<b>金叉＝進場側，死叉＝出場側。</b>',
+      h:'金叉＝上週 w4≤w9 且本週 w4>w9。死叉反之，<b>死叉是硬出場</b>。',
+      src:'services/hanku_overlay.py' },
+    { t:'進場條件（要全中）', id:'entry',
+      w:'不是金叉就算進場，五個條件缺一不可。',
+      h:'',
+      tbl:[['條件','門檻'],
+           ['金叉','上週 w4≤w9、本週 w4>w9'],
+           ['量確認','週量 ÷ 近4週均量 ≥ 1.2'],
+           ['大盤確認','<code>mainup_index.bull == 1</code>（大盤多頭）'],
+           ['發散確認','gap=(w4−w9)/w9 ≥ <b>1.0%</b> 才算真進場'],
+           ['價格下限','≥10 元（濾低價假訊號）'],
+           ['進場時點','金叉週的<b>次一交易日</b>']],
+      src:'services/hanku_overlay.py' },
+    { t:'六個狀態', id:'state', hot:1,
+      w:'這檔現在在波段的哪一段。',
+      h:'🟢發散進場／🟡金叉待發散／🔵守4週持有／⚠️跌破4週整理／⚠️持倉破47預警／🔴死叉出場。',
+      src:'services/hanku_overlay.py' },
+    { t:'gap 發散', id:'gap',
+      w:'兩條線分開了多少——黏在一起的金叉不算數。',
+      h:'(w4−w9)/w9。≥1.0% 才算真進場（🟢發散進場），還不到就是 🟡金叉待發散。',
+      src:'services/hanku_overlay.py' },
+    { t:'4T / 週9停損 / 距9週', id:'w4_down / w9_stop / dist_w9',
+      w:'4T＝週4線的方向（下彎＝⚠️警訊）；週9停損＝持倉時的固定死點價位；距9週＝現價離停損還有幾%。',
+      h:'守線：週收<週4 → 整理警示。硬停損掛在週9線。',
+      src:'services/hanku_overlay.py' },
+    { t:'日47 破季線預警', id:'warn47',
+      w:'日線 MA47——比週線快，可以提前約 2 天警告你要破位了。',
+      h:'現價 < 日47 → ⚠️破47。',
+      src:'services/hanku_overlay.py' },
+    { t:'進場新鮮度徽章', id:'entry_days',
+      w:'這個訊號發出來幾天了——太舊的別當新訊號追。',
+      h:'0天 🆕今日進場／1~3天 🟢／4~10天 🔵（仍在觀察窗內）／>10天 不標（狀態已轉「守4週持有」）。',
+      src:'app.js _hankuFreshBadge()' },
+    { t:'HANKU 該怎麼用', id:'—',
+      w:'—',
+      h:'回測結論：<b>機械化績效 ≈ 大盤，強項是空頭抗跌</b>。當「指標」用，不要當保證超額的策略。',
+      src:'看板設計 §3.1' },
+  ]
+},
+{
+  sec: '🏷️ 卡片徽章 / emoji 速查', sub: '看到那個小標籤是什麼意思',
+  items: [
+    { t:'量能徽章', id:'volBadgeHtml',
+      w:'卡片上的量能標註，有優先順序。',
+      h:'',
+      tbl:[['徽章','條件','意思'],
+           ['⚖️處置','is_disposition','處置股：分盤撮合、量能失真，<b>量門檻豁免</b>。此時不顯示倍數（會誤導）'],
+           ['⚡一字','is_limit_locked','一字鎖漲停：買不到、量自然小，但<b>最強</b>'],
+           ['🔊爆量N.Nx','量比≥1.5','≥1.5 倍 5 日均量'],
+           ['🔊放量N.Nx','量比≥1.2','≥1.2 倍 5 日均量']],
+      src:'app.js volBadgeHtml()' },
+    { t:'期 / 小期', id:'stf / stf_mini',
+      w:'有沒有個股期貨可以操作。',
+      h:'「期」＝大型個股期貨（每口 2000 股）；「小期」＝小型（每口 100 股）。<b>小型 ⊂ 大型</b>，有小型會兩個都標。',
+      src:'app.js stfBadgeHtml()' },
+    { t:'紅旗（警告）', id:'flags',
+      w:'卡片上紅色的旗子＝扣分項，看到要停一下。',
+      h:'⚠過高勿追（創120日新高且距底部漲≥40%）／⚠盤頭・出貨（出貨訊號）／⚠上方套牢（上方賣壓含壓力・套牢・重）／扣抵警訊（均線將陰跌）。',
+      src:'app.js mainCardHtml()' },
+    { t:'綠旗（加分）', id:'flags',
+      w:'卡片上綠色的旗子＝正面證據。',
+      h:'進場型態（回後買上漲／盤整突破）／🔥扣抵轉揚（三線明日皆將上彎）。',
+      src:'app.js mainCardHtml()' },
+    { t:'延續徽章', id:'persistBadgesHtml',
+      w:'榜上資歷。',
+      h:'🆕今日上榜（streak=1，此時沒有 Δ分）／連N日（≥5燙、≥3中溫）／🔼升階・⬇️降階／±N分。',
+      src:'app.js persistBadgesHtml()' },
+    { t:'分數走勢 sparkline', id:'score_hist',
+      w:'彈窗延續面板裡那排小方塊＝分數的歷史走勢。',
+      h:'用 unicode <code>▁▂▃▄▅▆▇█</code> 把 score_hist 正規化畫出來，舊→新。',
+      src:'app.js persistSparkline()' },
+  ]
+},
+{
+  sec: '🎛️ 快速篩選鈕', sub: '第一層那排勾選；每顆後面的數字＝今天有幾檔符合',
+  items: [
+    { t:'⚡ 只看共振', id:'only-resonance',
+      w:'只留下同時被 ≥2 策略看好的（突破命中＋Hanku）。',
+      h:'_resoCount(r) ≥ 2。',
+      src:'app.js QUICK_COUNT_DEFS' },
+    { t:'🌊 族群z≥1', id:'only-hot-group',
+      w:'只留族群在熱區的。',
+      h:'max_group_z ≥ 1。',
+      src:'app.js QUICK_COUNT_DEFS' },
+    { t:'🏦 法人買超', id:'only-inst-buy',
+      w:'只留今天外資或投信站在買方的。',
+      h:'foreign_streak ≥1 或 trust_streak ≥1（最新一日在買方）。',
+      src:'app.js QUICK_COUNT_DEFS' },
+    { t:'💰 籌碼偏多', id:'only-chip-bull',
+      w:'只留籌碼結構為綠燈的（卡片上 💰 那一行）。',
+      h:'chipAdvice 判定為 法人買·散戶退場／法人強力同買／法人偏買 三者之一。',
+      src:'app.js QUICK_COUNT_DEFS' },
+    { t:'🩸 融資斷頭級', id:'only-maint-alert',
+      w:'只留融資維持率逼近自己歷史地板的。<b>風險溫度計不是買訊。</b>',
+      h:'見上面「🩸融資斷頭級」條目。',
+      src:'app.js QUICK_COUNT_DEFS' },
+    { t:'📈 有股期', id:'only-stf',
+      w:'只留有個股期貨可操作的。',
+      h:'stf 或 stf_mini 為真。',
+      src:'app.js QUICK_COUNT_DEFS' },
+    { t:'🔴 收紅K', id:'only-red-k',
+      w:'只留今天收紅的。對應朱家泓「買紅K不買大量黑K」。',
+      h:'is_red_k＝陽線（收>開）<b>或漲停</b>。',
+      src:'app.js QUICK_COUNT_DEFS' },
+    { t:'🔊 量能跟上', id:'only-vol-up',
+      w:'只留量能有跟上的。',
+      h:'量比≥1.2 <b>或</b> 一字鎖漲停（量小但最強）<b>或</b> 處置股（分盤量失真，豁免）。',
+      src:'app.js QUICK_COUNT_DEFS' },
+    { t:'篩選器其他群組', id:'—',
+      w:'第二層的「三階段／維度／門檻」。',
+      h:'三階段＝13 分類勾選 + <b>AND(交集)/OR(聯集)</b> 切換 + 朱家泓一鍵；維度＝產業/類股/題材（維度內 OR、可搜尋）；門檻＝分數≥、RS≥、出貨風險≤、族群最高z≥。主升模式：off／自訂（勾 S1–S5・C1–C3・季線突破全中）／A穩健（win_n≥3 且非出貨）／B獵飆（tag 含飆股）。',
+      src:'index.html' },
+    { t:'⊟精簡 / ⊞完整', id:'btn-table-density',
+      w:'主表欄位密度切換。<b>找不到某一欄先按這顆。</b>',
+      h:'精簡＝14 核心欄；完整＝全部（~100 欄）。記在 localStorage。',
+      src:'app.js applyTableDensity()' },
+  ]
+},
+{
+  sec: '🔍 個股頁五維分數', sub: '彈窗/stock.html 的體質評分（純 TEJ，跟選股是兩條管線）',
+  items: [
+    { t:'五維分數的口徑', id:'*_score', hot:1,
+      w:'<b>85 分 ≠ 85 分及格，而是「贏過全市場 85% 的股票」。</b>',
+      h:'當日全市場橫斷面百分位。品質維度做過 50% 同業校正（不校正的話 ODM/EMS 整族群會一起趴地板，分數只是在重編碼產業）。',
+      src:'finlab_port/scores.py' },
+    { t:'總分不含估值', id:'total_score', hot:1,
+      w:'總分只有 品質＋成長＋動能＋籌碼 四維，<b>估值被刻意排除</b>。',
+      h:'TOTAL_DIMS = qual/grow/mom/chip 的平均。估值高分（便宜）常常正是動能弱的，塞進同一個總分會互相抵銷——台積電曾因此被拉到 59 分。<b>估值是「買貴買便宜」的獨立維度，不是「好壞」的加項。</b>',
+      src:'finlab_port/scores.py TOTAL_DIMS' },
+    { t:'訊號超額 alpha_xs', id:'alpha_xs', hot:1,
+      w:'某個訊號歷史上「比隨機抽一檔好多少」。',
+      h:'基準是<b>當日全市場個股報酬中位數</b>，不是加權指數。用加權指數當基準會讓幾乎所有選股訊號的超額都變負的（指數被權值股拉動，中位數個股本來就跑輸它）。只顯示全市場統計，不看個股自身樣本（常只有 10 幾次，易誤導）。',
+      src:'finlab_port/signals.py' },
+    { t:'訊號卡的勝率', id:'—',
+      w:'訊號卡上的勝率與報酬中位數。',
+      h:'成立中的訊號 + 未成立訊號的歷史統計都會顯示。',
+      n:'實證樣本切到 2026-05-22（還原基準之後未回頭重算），且價格庫只有存續股（<b>缺 242 檔已下市</b>）→ <b>勝率與報酬中位數偏樂觀</b>。卡片內有黃色警語。',
+      src:'finlab_port/README.md' },
+  ]
+},
+{
+  sec: '⚠️ 口徑陷阱與已知資料狀況', sub: '看到「怪數字」時先查這裡，很多不是 bug',
+  items: [
+    { t:'分點主力籌碼日期比較舊', id:'—', hot:1,
+      k:'為什麼 日期不一樣 資料舊 過期 停更 自相矛盾 兩個日期',
+      w:'卡片標「⚠️ 分點主力籌碼資料僅到 YYYY-MM-DD」。',
+      h:'券商分點資料來源已停更，法人/融資是最新的、分點是舊的。<b>兩個都對，只是不同日期。</b>',
+      src:'app.js chipAdviceBlockHtml()' },
+    { t:'0.44~0.56 標「0.5一般」卻沒發黃金買點', id:'—',
+      k:'為什麼 沒發買點 沒有買點 漏判 bug 沒訊號',
+      w:'不是漏判，是設計。',
+      h:'FIB_BUY_MAX=0.44。0.5 一般區回測沒有超額報酬（+1.66% vs 對照 +1.79%），已降級為「回檔中」觀察。',
+      src:'services/pattern_fibo.py' },
+    { t:'「無量創高」不是缺點', id:'—',
+      k:'為什麼 沒量 量太小 無量 缺點 不好嗎',
+      w:'突破量能標「無量創高✨」是<b>好事</b>。',
+      h:'11 年實證：突破量越大反而越差（巨量>5倍 → 中位 −1.26%）。有效的是強K＋濾爆量。',
+      src:'services/breakout_filter.py' },
+    { t:'處置股的量比不能看', id:'—',
+      k:'為什麼 沒有量比 空白 量能看不到 處置',
+      w:'處置股只標 ⚖️處置，不顯示爆量/放量倍數。',
+      h:'分盤撮合（5或20分鐘一次）讓成交量失真，量比沒有意義，所以量門檻對它豁免、倍數也不顯示避免誤導。',
+      src:'app.js volBadgeHtml()' },
+    { t:'共振數剛開頁面是 0', id:'—',
+      k:'為什麼 共振是0 沒有共振 都沒共振 數字不對 刷新',
+      w:'不是沒共振，是還沒載完。',
+      h:'共振是唯一在前端算的判定，需要另外抓 Hanku 的 json；載完會自動重跑篩選與計數。',
+      src:'app.js loadResonanceData()' },
+    { t:'歷史日期沒有延續四欄', id:'—',
+      k:'為什麼 空白 沒有資料 舊日期 延續是空的',
+      w:'切到舊日期時「延續／連續上榜／階梯／Δ分」是空的。',
+      h:'延續是跨日快照計算，只有重新 export 過的日期才有。看最新日一定有。',
+      src:'services/persistence.py' },
+    { t:'分數不能跨分類比', id:'—', hot:1,
+      k:'為什麼 分數低 分數高 分數怎麼看 幾分才能買 及格',
+      w:'85 分的 A_Coil 跟 40 分的 N_NearHigh 不是同一把尺。',
+      h:'每個分類獨立 100 分制、獨立入選門檻（P_Watch 固定 25 就入選、B 類基礎 60~100）。排序是<b>先分類優先級、同級才比分數</b>。',
+      src:'config.py CLASS_ORDER' },
+    { t:'空頭時右側選股 edge 會轉負', id:'regime',
+      w:'大盤 regime 不只是資訊，會回頭影響選股。',
+      h:'regime＝MA200 判定：現價>MA200 且 MA200 近30日上升 → 🟢BULL；現價<MA200 且 MA200 下降 → 🔴BEAR；其他 ⚪NEUTRAL。空頭時核心右側分類器 edge 轉負、BPS 市況係數 ×0.8、黑馬只在空頭顯示。',
+      n:'「跌深低接加分」(bear_deepdip_boost) <b>預設是關的</b>，屬 opt-in 實驗。',
+      src:'config.py regime_ma=200' },
+    { t:'還原價基準與存活者偏誤', id:'—', hot:1,
+      k:'為什麼 假跌 除權息 回測不準 偏樂觀 勝率高',
+      w:'回測數字整體<b>偏樂觀</b>，這是已知的。',
+      h:'還原價基準＝匯出當日，跨季匯出接不起來；2026-05-22 之後的除權息會變成「假跌」（約 23% 股票）。價格庫缺 242 檔已下市公司 → 既有回測結論偏樂觀。',
+      src:'memory: finmind_adj_basis_survivorship' },
+  ]
+},
+];
+
+/* ── 渲染 ────────────────────────────────────────── */
+const body = document.getElementById('gl-body');
+const chipsEl = document.getElementById('gl-chips');
+const qEl = document.getElementById('gl-q');
+const countEl = document.getElementById('gl-count');
+
+function esc(s) { return String(s).replace(/&(?!(amp|lt|gt|quot|#\d+);)/g, '&amp;'); }
+
+function tblHtml(rows) {
+  if (!rows || !rows.length) return '';
+  const head = rows[0], body_ = rows.slice(1);
+  return `<div class="gl-tbl-wrap"><table class="gl-tbl">
+    <thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+    <tbody>${body_.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function cardHtml(it) {
+  return `<div class="gl-card${it.hot ? ' hot' : ''}">
+    <div class="gl-t">${it.t}${it.id && it.id !== '—' ? `<span class="gl-id">${esc(it.id)}</span>` : ''}</div>
+    ${it.w && it.w !== '—' ? `<div class="gl-w">${it.w}</div>` : ''}
+    ${it.h ? `<div class="gl-h"><span class="gl-h-k">怎麼算 ▸</span> ${it.h}</div>` : ''}
+    ${it.tbl ? tblHtml(it.tbl) : ''}
+    ${it.n ? `<div class="gl-n">⚠️ ${it.n}</div>` : ''}
+    ${it.src ? `<div class="gl-src">${esc(it.src)}</div>` : ''}
+  </div>`;
+}
+
+function render(q = '', secFilter = null) {
+  const needle = q.trim().toLowerCase();
+  let total = 0, shown = 0;
+  const html = GL.map((s, si) => {
+    if (secFilter != null && secFilter !== si) { total += s.items.length; return ''; }
+    const items = s.items.filter(it => {
+      total++;
+      if (!needle) { shown++; return true; }
+      const hay = [it.t, it.id, it.w, it.h, it.n, it.src, it.k,
+                   (it.tbl || []).flat().join(' ')].join(' ').toLowerCase();
+      const ok = hay.includes(needle);
+      if (ok) shown++;
+      return ok;
+    });
+    if (!items.length) return '';
+    return `<section class="gl-sec" id="sec-${si}">
+      <div class="gl-sec-h"><h3>${s.sec}</h3><span class="gl-sec-sub">${s.sub}</span></div>
+      <div class="gl-grid">${items.map(cardHtml).join('')}</div>
+    </section>`;
+  }).join('');
+  body.innerHTML = html || `<div class="gl-empty">找不到「${esc(q)}」。試試：套牢、扣抵、共振、z、停損、為什麼</div>`;
+  countEl.textContent = needle || secFilter != null ? `${shown} / ${total} 項` : `共 ${total} 項`;
+}
+
+let activeSec = null;
+chipsEl.innerHTML = `<button class="gl-chip on" data-s="all">全部</button>` +
+  GL.map((s, i) => `<button class="gl-chip" data-s="${i}">${s.sec}</button>`).join('');
+chipsEl.addEventListener('click', (e) => {
+  const b = e.target.closest('.gl-chip');
+  if (!b) return;
+  chipsEl.querySelectorAll('.gl-chip').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
+  activeSec = b.dataset.s === 'all' ? null : Number(b.dataset.s);
+  render(qEl.value, activeSec);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+let t = null;
+qEl.addEventListener('input', () => {
+  clearTimeout(t);
+  t = setTimeout(() => render(qEl.value, activeSec), 120);
+});
+// 「/」聚焦搜尋、Esc 清空
+document.addEventListener('keydown', (e) => {
+  if (e.key === '/' && document.activeElement !== qEl) { e.preventDefault(); qEl.focus(); }
+  else if (e.key === 'Escape' && document.activeElement === qEl) { qEl.value = ''; render('', activeSec); }
+});
+
+render();
+</script>
+</body>
+</html>

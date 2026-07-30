@@ -1117,8 +1117,61 @@ footer {
 .fl-price { text-align: right; margin-bottom: 10px; font-family: var(--mono); }
 .fl-price b { font-size: 38px; font-weight: 700; }
 .fl-price span { font-size: 18px; margin-left: 12px; }
-.fl-chart svg { width: 100%; height: 190px; display: block; }
+/* 走勢圖：等比縮放（不要 height 定死 + preserveAspectRatio="none"，會把線壓成河流），
+   線寬用 non-scaling-stroke 鎖在作者指定的 px，不隨容器寬度變胖變瘦 */
+.fl-chart svg { width: 100%; height: auto; display: block; }
+.fl-chart svg polyline { vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+.fl-chart .flc-px   { stroke-width: 1.9; }
+.fl-chart .flc-ma20 { stroke: #f5b942; stroke-width: 1; opacity: .85; }
+.fl-chart .flc-ma60 { stroke: #8b7bd8; stroke-width: 1; opacity: .8; }
+.fl-chart .flc-grid {
+  vector-effect: non-scaling-stroke;
+  stroke: var(--border, #2a2a3e); stroke-width: 1; stroke-opacity: .75;
+}
+.fl-chart .flc-ax { fill: var(--text-mut, #6a6a7a); font-size: 12px; font-family: var(--mono); }
+.fl-chart .flc-vol .v-up { fill: var(--up, #ef5350); opacity: .38; }
+.fl-chart .flc-vol .v-dn { fill: var(--down, #26a69a); opacity: .38; }
+
+/* 期間鈕（1M/3M/6M/1Y） */
+.flc-ranges { display: flex; gap: 4px; justify-content: flex-end; margin-bottom: 6px; }
+.flc-rb {
+  background: transparent; border: 1px solid var(--border, #2a2a3e); border-radius: 6px;
+  color: var(--text-dim, #9aa0b0); cursor: pointer; font: inherit; font-size: 12px;
+  padding: 3px 10px; transition: .12s;
+}
+.flc-rb:hover:not(:disabled) { border-color: var(--border-hi, #3a4a7a); color: var(--text, #e0e0e0); }
+.flc-rb.on {
+  background: var(--accent-bg, rgba(0,212,170,.12));
+  border-color: var(--accent, #00d4aa); color: var(--accent, #00d4aa); font-weight: 700;
+}
+.flc-rb:disabled { opacity: .35; cursor: default; }
+
+/* hover 十字線 + tooltip */
+.flc-plot { position: relative; }
+.flc-cross {
+  position: absolute; top: 0; bottom: 18px; width: 1px; pointer-events: none;
+  background: var(--text-mut, #6a6a7a); opacity: .55;
+}
+.flc-cross::after {
+  content: ''; position: absolute; left: -3.5px; top: var(--dot, 0);
+  width: 8px; height: 8px; margin-top: -4px; border-radius: 50%;
+  background: var(--text, #e0e0e0); box-shadow: 0 0 0 2px var(--panel, #131326);
+}
+.flc-tip {
+  position: absolute; top: 6px; z-index: 3; pointer-events: none;
+  background: var(--panel-3, #1a1a2e); border: 1px solid var(--border-hi, #3a4a7a);
+  border-radius: 7px; padding: 7px 10px; box-shadow: 0 6px 18px rgba(0,0,0,.5);
+  font-size: 12px; line-height: 1.6; white-space: nowrap;
+}
+.flc-tip b { display: block; color: var(--text, #e0e0e0); font-family: var(--mono); margin-bottom: 3px; }
+.flc-tip span { display: block; color: var(--text-mut, #6a6a7a); }
+.flc-tip i { font-style: normal; font-family: var(--mono); color: var(--text, #e0e0e0); margin-left: 6px; }
+.flc-tip .flc-t-up { color: var(--up, #ef5350); }
+.flc-tip .flc-t-dn { color: var(--down, #26a69a); }
+
 .fl-chart-lg { font-size: 12px; color: var(--text-mut, #6a6a7a); text-align: right; margin-top: 6px; }
+.fl-chart-lg .flc-k { font-family: var(--mono); font-weight: 700; }
+.fl-chart-lg .flc-mut { opacity: .6; }
 
 /* ── ② 重點結論條列 ─────────────────────────────── */
 .fl-insights { list-style: none; margin: 0; padding: 0; }

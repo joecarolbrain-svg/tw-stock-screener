@@ -593,7 +593,38 @@ function renderSnapshot(d, mkt) {
     </div>`);
   }
 
-  // ⑦ 共振檔數（等 loadResonanceData 完成後由 updateSnapshotReso 填值）
+  // ⑦ 大盤融資維持率（market.json market_maint；產出者是 大盤維持率/run_daily.py [0.6/3]）
+  // ⚠ 這是**全市場加總**的維持率（finlab 口徑），跟個股融資維持率雷達不是同一個數字。
+  const mm = mkt?.market_maint;
+  if (mm?.available && mm.mr != null) {
+    const mr = Number(mm.mr);
+    // 低 = 融資部位承壓（危險），高 = 籌碼擁擠。兩端都標 warn，破 1.40 再加深。
+    const vCls = mr < 1.40 ? 'neg' : ((mr < 1.60 || mr >= 1.80) ? 'warn' : '');
+    const chg = mm.mr_chg;
+    const chgTxt = chg == null ? ''
+      : `${chg >= 0 ? '+' : ''}${(chg * 100).toFixed(1)} pt`;
+    const chgCls = chg == null ? '' : (chg >= 0 ? 'pos' : 'neg');
+    const stale = mm.stale ? ` ⏰${mm.date}` : '';
+    const tip = [
+      `大盤融資維持率 ${mr.toFixed(4)}（${mm.level || '--'}）`,
+      `資料日 ${mm.date}`,
+      mm.mr_ex_etf != null ? `扣除上市 ETF ${Number(mm.mr_ex_etf).toFixed(4)}（${mm.level_ex_etf || '--'}）` : '',
+      mm.collateral != null ? `擔保品市值 ${Math.round(mm.collateral).toLocaleString()} 億` : '',
+      mm.balance != null ? `融資金額餘額 ${Math.round(mm.balance).toLocaleString()} 億` : '',
+      mm.lots != null ? `融資張數 ${(mm.lots / 10000).toFixed(1)} 萬張` +
+        (mm.lots_chg != null ? `（${mm.lots_chg >= 0 ? '+' : ''}${(mm.lots_chg / 10000).toFixed(1)} 萬）` : '') : '',
+      '',
+      '維持率 = Σ(融資今餘張數 × 未還原收盤 × 1000) ÷ 融資金額餘額',
+      '<1.40 極端恐慌／斷頭壓力｜<1.60 偏低｜<1.70 中性｜<1.80 偏熱｜≥1.80 過熱',
+    ].filter(Boolean).join('\n');
+    tiles.push(`<div class="ms-tile ${mr < 1.40 ? 'ms-state-bear' : ''}" data-g="margin" title="${tip.replace(/"/g, '&quot;')}">
+      <span class="ms-k">💳 融資維持率</span>
+      <span class="ms-v ${vCls}">${mr.toFixed(2)}<small>${mm.level || ''}</small></span>
+      <span class="ms-sub">較前日 <span class="${chgCls}">${chgTxt || '--'}</span>｜餘額 ${mm.balance != null ? Math.round(mm.balance).toLocaleString() : '--'} 億${stale}</span>
+    </div>`);
+  }
+
+  // ⑧ 共振檔數（等 loadResonanceData 完成後由 updateSnapshotReso 填值）
   tiles.push(`<div class="ms-tile" data-g="breadth">
     <span class="ms-k">⚡ 多策略共振</span>
     <span class="ms-v accent" id="ms-reso-v">--</span>
@@ -5136,7 +5167,8 @@ function refreshV2Stepper() {
 function v2RestyleSnapshot(el) {
   const wrap = el.querySelector('.ms-tiles');
   if (wrap && !wrap.classList.contains('ms-tiles-v2')) {
-    const GRPS = [['anchor', ''], ['spot', '現貨'], ['deriv', '期權'], ['breadth', '廣度']];
+    const GRPS = [['anchor', ''], ['spot', '現貨'], ['deriv', '期權'],
+                  ['margin', '融資'], ['breadth', '廣度']];
     const frag = document.createDocumentFragment();
     GRPS.forEach(([g, label]) => {
       const tiles = [...wrap.querySelectorAll(`.ms-tile[data-g="${g}"]`)];

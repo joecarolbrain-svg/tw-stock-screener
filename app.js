@@ -87,6 +87,7 @@ async function onDateChange(ev) {
     data._catColor = {};
     data.categories.forEach(c => { data._catColor[c.code] = c.color; });
     buildTickerIndustry(data);
+    syncMaAvailability(data);
     renderMeta(data);
     renderCategoryChips(data.categories);
     renderDimensionOptions();
@@ -176,6 +177,17 @@ const state = {
   islandMode: 'off',
   // 型態訊號（ep10缺口/ep11 N字/ep14圓弧/ep15黃金分割 新欄；勾選任一即入選=群內 OR）
   patternSignals: new Set(),
+  // 📏 均線設定（2026-08-02）：勾哪幾條就必須成立＝AND；key 見 MA_LABEL
+  maAbove: new Set(),     // 收盤須站上這幾條
+  maUp: new Set(),        // 這幾條須上彎（今日值>昨日值；週線=本週>上週）
+};
+
+// 均線 key → 顯示名（順序＝後端 services/ma_lines.py 的 MA_KEYS，卡片照這個順序印）
+const MA_LABEL = {
+  d5: 'MA5', d10: 'MA10', d20: 'MA20', d60: 'MA60', d120: 'MA120', d240: 'MA240',
+  d3: '日3', d18: '日18', d47: '日47',
+  w1: '週1', w4: '週4', w9: '週9',
+  m1: '月1', m4: '月4', m10: '月10', m47: '月47',
 };
 
 // 型態訊號 勾選值 → row 判定（欄位下次 export 才有值，缺值一律不中）
@@ -191,6 +203,29 @@ const PATTERN_SIG_TEST = {
   sr_break:    (row) => /⛔/.test(row.sr_state || ''),
   island_bottom: (row) => !!row.island_bottom,   // 🏝底部島狀(進場/做多)，2026-07-22 併入發動型態
 };
+
+// 📏 均線欄位可用性：2026-08-02 之前 export 的舊快照沒有 ma_above/ma_up，
+// 切到那些日期時若不停用，使用者勾了均線條件會靜默變成 0 檔（很難查）。
+function syncMaAvailability(data) {
+  const has = (data.rows || []).some(r => Array.isArray(r.ma_above));
+  if (!has) { state.maAbove.clear(); state.maUp.clear(); }
+  document.querySelectorAll('input[name="ma-above"],input[name="ma-up"]').forEach(cb => {
+    cb.disabled = !has;
+    if (!has) cb.checked = false;
+  });
+  ['ma-preset-bull', 'ma-preset-hanku', 'ma-preset-mtf', 'ma-clear'].forEach(id => {
+    const b = document.getElementById(id); if (b) b.disabled = !has;
+  });
+  const btn = document.querySelector('.fg-toggle[data-group="ma"]');
+  if (btn) {
+    btn.classList.toggle('fg-na', !has);
+    btn.title = has
+      ? '收盤站上哪幾條均線 / 哪幾條均線上彎（日 5~240 + HANKU 日47・週4・週9）'
+      : '這個交易日的快照是 2026-08-02 之前產的，沒有均線欄位 → 均線篩選已停用';
+  }
+  const hint = document.querySelector('.fg-body[data-group="ma"] .ma-hint');
+  if (hint) hint.classList.toggle('ma-hint-na', !has);
+}
 
 // 代號→產業 對照表（供 hanku 等資料無產業欄的分頁，借主表 row 的 industry）
 let tickerIndustry = {};
@@ -1387,6 +1422,18 @@ function screenRowPass(row) {
       if (!any) return false;
     }
 
+    // 📏 均線設定：勾選的線全部要成立（AND）；缺值(算不出該線)一律不中
+    if (state.maAbove.size) {
+      const ab = row.ma_above;
+      if (!ab) return false;
+      for (const k of state.maAbove) if (!ab.includes(k)) return false;
+    }
+    if (state.maUp.size) {
+      const up = row.ma_up;
+      if (!up) return false;
+      for (const k of state.maUp) if (!up.includes(k)) return false;
+    }
+
     return true;
 }
 
@@ -1446,6 +1493,8 @@ function renderActiveFilters() {
   STAGE_FLAGS.forEach(([, k, label]) => { if (state[k]) add('sf:' + k, label); });
   if (state.islandMode !== 'off') add('island', `島狀:${ISLAND_MODE_LABEL[state.islandMode]}`);
   if (state.patternSignals.size) add('pattern', `型態:${state.patternSignals.size}訊號`);
+  if (state.maAbove.size) add('maAbove', `站上:${[...state.maAbove].map(k => MA_LABEL[k] || k).join('/')}`);
+  if (state.maUp.size) add('maUp', `上彎:${[...state.maUp].map(k => MA_LABEL[k] || k).join('/')}`);
   if (state.dimSelected.size) add('dim', `${DIM_LABEL[state.dim]}:${state.dimSelected.size}`);
   if (state.search) add('search', `搜尋:${state.search}`);
   if (state.scoreMin > 0) add('scoreMin', `分數≥${state.scoreMin}`);
@@ -1488,6 +1537,7 @@ function updateGroupCounts() {
   set('fgc-dim', state.dimSelected.size);
   set('fgc-thresh', (state.scoreMin > 0 ? 1 : 0) + (state.rsMin > 0 ? 1 : 0) +
                     (state.distRiskMax != null ? 1 : 0) + (state.groupZMin != null ? 1 : 0));
+  set('fgc-ma', state.maAbove.size + state.maUp.size);
 }
 
 function removeFilter(key) {
@@ -1541,6 +1591,14 @@ function removeFilter(key) {
     case 'pattern':
       state.patternSignals.clear();
       document.querySelectorAll('input[name="pattern-sig"]').forEach(cb => { cb.checked = false; });
+      break;
+    case 'maAbove':
+      state.maAbove.clear();
+      document.querySelectorAll('input[name="ma-above"]').forEach(cb => { cb.checked = false; });
+      break;
+    case 'maUp':
+      state.maUp.clear();
+      document.querySelectorAll('input[name="ma-up"]').forEach(cb => { cb.checked = false; });
       break;
     case 'dim':
       state.dimSelected.clear();
@@ -1664,6 +1722,33 @@ function bindControls() {
       applyFilters();
     });
   });
+
+  // 📏 均線設定 checkbox（站上 / 上彎，各 9 條）＋ 兩個一鍵組合
+  [['ma-above', 'maAbove'], ['ma-up', 'maUp']].forEach(([nm, sk]) => {
+    document.querySelectorAll(`input[name="${nm}"]`).forEach(cb => {
+      cb.addEventListener('change', e => {
+        if (e.target.checked) state[sk].add(e.target.value);
+        else state[sk].delete(e.target.value);
+        applyFilters();
+      });
+    });
+  });
+  const _maApply = (above, up) => {
+    state.maAbove = new Set(above);
+    state.maUp = new Set(up);
+    document.querySelectorAll('input[name="ma-above"]').forEach(cb => { cb.checked = state.maAbove.has(cb.value); });
+    document.querySelectorAll('input[name="ma-up"]').forEach(cb => { cb.checked = state.maUp.has(cb.value); });
+    applyFilters();
+  };
+  const _maBull = document.getElementById('ma-preset-bull');
+  if (_maBull) _maBull.addEventListener('click', () =>
+    _maApply(['d5', 'd10', 'd20', 'd60'], ['d5', 'd10', 'd20', 'd60']));
+  const _maHanku = document.getElementById('ma-preset-hanku');
+  if (_maHanku) _maHanku.addEventListener('click', () => _maApply(['w4', 'w9', 'd47'], ['w4']));
+  const _maMtf = document.getElementById('ma-preset-mtf');
+  if (_maMtf) _maMtf.addEventListener('click', () => _maApply(['d18', 'w4', 'w9'], ['d18', 'w4', 'w9']));
+  const _maClear = document.getElementById('ma-clear');
+  if (_maClear) _maClear.addEventListener('click', () => _maApply([], []));
 
   document.querySelectorAll('input[name="dim"]').forEach(r => {
     r.addEventListener('change', e => {
@@ -1869,6 +1954,9 @@ function clearAllFilters() {
   clearPersistView();
   state.patternSignals.clear();
   document.querySelectorAll('input[name="pattern-sig"]').forEach(cb => { cb.checked = false; });
+  state.maAbove.clear();
+  state.maUp.clear();
+  document.querySelectorAll('input[name="ma-above"],input[name="ma-up"]').forEach(cb => { cb.checked = false; });
 
   document.querySelectorAll('.cat-chip input').forEach(cb => { cb.checked = false; cb.parentElement.classList.remove('checked'); });
   document.querySelector('input[name="mode"][value="OR"]').checked = true;
@@ -3035,6 +3123,7 @@ function renderThemeHistory() {
     data.categories.forEach(c => { data._catColor[c.code] = c.color; });
 
     buildTickerIndustry(data);
+    syncMaAvailability(data);
     renderMeta(data);
     renderCategoryChips(data.categories);
     renderDimensionOptions();
@@ -3448,6 +3537,10 @@ function mainCardHtml(r, grouped = false) {
     addN('風險', r.risk_pct, 1, '%'); addN('部位', r.position_pct, 1, '%');
     addN('出貨風險', r.dist_risk, 0);
     addT('扣抵', r.deduct_dir); addT('季線展望', r.deduct_ma60_out);
+    // 📏 均線：站上哪幾條 / 哪幾條上彎（順序照 MA_LABEL，全沒中就不顯示該行）
+    const _maFmt = (arr) => (arr || []).length
+      ? Object.keys(MA_LABEL).filter(k => arr.includes(k)).map(k => MA_LABEL[k]).join('/') : null;
+    addT('站上', _maFmt(r.ma_above)); addT('上彎', _maFmt(r.ma_up));
     // 主力買超（券商分點 rank1）：來源已停更，一律帶資料日期避免被當成當日籌碼
     const bkAsof = (state.data && state.data.chip_asof && state.data.chip_asof.broker) || '';
     const bkSuf = bkAsof ? `<span class="sv-mut">（至${bkAsof}）</span>` : '';
@@ -5261,6 +5354,12 @@ function _zeroCands() {
     const s = new Set(state.dimSelected);
     c.push({ key: 'dim', label: `${DIM_LABEL[state.dim]}×${s.size}`, off: () => state.dimSelected.clear(), on: () => s.forEach(x => state.dimSelected.add(x)) });
   }
+  [['maAbove', '站上'], ['maUp', '上彎']].forEach(([sk, pfx]) => {
+    if (!state[sk].size) return;
+    const s = new Set(state[sk]);
+    c.push({ key: sk, label: `${pfx}:${[...s].map(k => MA_LABEL[k] || k).join('/')}`,
+             off: () => state[sk].clear(), on: () => s.forEach(x => state[sk].add(x)) });
+  });
   if (state.mainupMode !== 'off') {
     const m = state.mainupMode;
     c.push({ key: 'mainup', label: `主升:${MAINUP_MODE_LABEL[m]}`, off: () => { state.mainupMode = 'off'; }, on: () => { state.mainupMode = m; } });

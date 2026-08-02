@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260730f" />
+  <link rel="stylesheet" href="style.css?v=20260802a" />
 </head>
 <body>
   <header class="topbar">
@@ -123,6 +123,7 @@
       <button class="fg-toggle" data-group="cat">三階段<span class="fg-count" id="fgc-cat"></span></button>
       <button class="fg-toggle" data-group="dim">維度<span class="fg-count" id="fgc-dim"></span></button>
       <button class="fg-toggle" data-group="thresh">門檻<span class="fg-count" id="fgc-thresh"></span></button>
+      <button class="fg-toggle" data-group="ma">📏 均線<span class="fg-count" id="fgc-ma"></span></button>
       <button id="btn-clear" class="btn btn-ghost">清除全部</button>
       <span class="filler"></span>
       <button id="btn-save-preset" class="btn btn-ghost">💾 組合</button>
@@ -267,6 +268,88 @@
       <div class="filter-group small">
         <label class="filter-label">族群最高z ≥</label>
         <input type="number" id="group-z-min" step="0.1" placeholder="不限" />
+      </div>
+    </div>
+
+    <!-- 📏 均線（2026-08-02）：站上哪幾條 + 哪幾條上彎；一般日線組 + HANKU 線組 -->
+    <div class="fg-body" data-group="ma" hidden>
+      <div class="ma-panel">
+        <div class="ma-hint muted">
+          <b>站上</b>＝今日收盤 &gt; 該均線值　｜　<b>上彎</b>＝該均線今日值 &gt; 前一期值（週線＝本週 &gt; 上週、月線＝本月 &gt; 上月）<br />
+          多條勾選＝<b>AND 全部要成立</b>；資料不足算不出該線的股票會被濾掉（MA240 缺 431 檔、月47 缺 541 檔＝上市未滿約 4 年）。<br />
+          與「🔥扣抵轉揚」不同：扣抵是<b>前瞻版</b>（預判明天彎向），這裡是<b>實際斜率版</b>（今天已經上彎了沒）。<br />
+          <b>週1／月1 沒有「站上」</b>：1 期均線就是當期收盤本身（＝今日收盤），站上自己恆不成立；它們的「上彎」＝本週(月)收盤高於上週(月)，才是有意義的那一半。
+        </div>
+        <div class="ma-grid">
+          <div class="ma-col">
+            <div class="ma-col-h">一般日線</div>
+            <div class="ma-row ma-row-head"><span class="ma-name"></span><span>站上</span><span>上彎</span></div>
+            <div class="ma-row"><span class="ma-name" title="5日均線＝週線價位，短線多空分界">MA5</span>
+              <span><input type="checkbox" name="ma-above" value="d5" /></span>
+              <span><input type="checkbox" name="ma-up" value="d5" /></span></div>
+            <div class="ma-row"><span class="ma-name" title="10日均線＝雙週線">MA10</span>
+              <span><input type="checkbox" name="ma-above" value="d10" /></span>
+              <span><input type="checkbox" name="ma-up" value="d10" /></span></div>
+            <div class="ma-row"><span class="ma-name" title="20日均線＝月線，主力成本區">MA20 月線</span>
+              <span><input type="checkbox" name="ma-above" value="d20" /></span>
+              <span><input type="checkbox" name="ma-up" value="d20" /></span></div>
+            <div class="ma-row"><span class="ma-name" title="60日均線＝季線，中期多空分界">MA60 季線</span>
+              <span><input type="checkbox" name="ma-above" value="d60" /></span>
+              <span><input type="checkbox" name="ma-up" value="d60" /></span></div>
+            <div class="ma-row"><span class="ma-name" title="120日均線＝半年線">MA120 半年線</span>
+              <span><input type="checkbox" name="ma-above" value="d120" /></span>
+              <span><input type="checkbox" name="ma-up" value="d120" /></span></div>
+            <div class="ma-row"><span class="ma-name" title="240日均線＝年線，長期多空分界">MA240 年線</span>
+              <span><input type="checkbox" name="ma-above" value="d240" /></span>
+              <span><input type="checkbox" name="ma-up" value="d240" /></span></div>
+          </div>
+          <div class="ma-col">
+            <div class="ma-col-h">🌀 HANKU 日線 3/18/47</div>
+            <div class="ma-row ma-row-head"><span class="ma-name"></span><span>站上</span><span>上彎</span></div>
+            <div class="ma-row"><span class="ma-name" title="日3T：HANKU 最快的日線，貼著價格走">日3 (3T)</span>
+              <span><input type="checkbox" name="ma-above" value="d3" /></span>
+              <span><input type="checkbox" name="ma-up" value="d3" /></span></div>
+            <div class="ma-row"><span class="ma-name" title="日18T：HANKU 日線中線；「60分200T×日18T×週4/9T 三個壓力點差不多」的匯聚成員">日18 (18T)</span>
+              <span><input type="checkbox" name="ma-above" value="d18" /></span>
+              <span><input type="checkbox" name="ma-up" value="d18" /></span></div>
+            <div class="ma-row"><span class="ma-name" title="日47T 季線：跌破＝持倉破47預警（比週線早2天示警）。註：台指期那邊用的是小數 47.48，個股沿用 hanku_overlay 的整數 47">日47 (47T)</span>
+              <span><input type="checkbox" name="ma-above" value="d47" /></span>
+              <span><input type="checkbox" name="ma-up" value="d47" /></span></div>
+            <div class="ma-col-h" style="margin-top:10px">🌀 HANKU 週線 1/4/9</div>
+            <div class="ma-row ma-row-head"><span class="ma-name"></span><span>站上</span><span>上彎</span></div>
+            <div class="ma-row"><span class="ma-name" title="週1T＝本週收盤本身。沒有「站上」（站上自己恆不成立）；上彎＝本週收盤 > 上週收盤">週1 (1T)</span>
+              <span class="ma-na" title="1期均線＝當期收盤本身，站上自己無意義">—</span>
+              <span><input type="checkbox" name="ma-up" value="w1" /></span></div>
+            <div class="ma-row"><span class="ma-name" title="週4T：HANKU 進出場的快線，跌破＝4週守線警示">週4 (4T)</span>
+              <span><input type="checkbox" name="ma-above" value="w4" /></span>
+              <span><input type="checkbox" name="ma-up" value="w4" /></span></div>
+            <div class="ma-row"><span class="ma-name" title="週9T：HANKU 的慢線/停損線，週4上穿週9＝金叉">週9 (9T)</span>
+              <span><input type="checkbox" name="ma-above" value="w9" /></span>
+              <span><input type="checkbox" name="ma-up" value="w9" /></span></div>
+          </div>
+          <div class="ma-col">
+            <div class="ma-col-h">🌀 HANKU 月線 1/4/10/47</div>
+            <div class="ma-row ma-row-head"><span class="ma-name"></span><span>站上</span><span>上彎</span></div>
+            <div class="ma-row"><span class="ma-name" title="月1T＝本月收盤本身。沒有「站上」；上彎＝本月收盤 > 上月收盤（月K收紅）">月1 (1T)</span>
+              <span class="ma-na" title="1期均線＝當期收盤本身，站上自己無意義">—</span>
+              <span><input type="checkbox" name="ma-up" value="m1" /></span></div>
+            <div class="ma-row"><span class="ma-name" title="月4T：4個月均線">月4 (4T)</span>
+              <span><input type="checkbox" name="ma-above" value="m4" /></span>
+              <span><input type="checkbox" name="ma-up" value="m4" /></span></div>
+            <div class="ma-row"><span class="ma-name" title="月10T：10個月均線">月10 (10T)</span>
+              <span><input type="checkbox" name="ma-above" value="m10" /></span>
+              <span><input type="checkbox" name="ma-up" value="m10" /></span></div>
+            <div class="ma-row"><span class="ma-name" title="月47T：47個月(約4年)均線。位置通常遠低於現價，多頭股幾乎必然站上→篩選力很弱；且 541 檔上市未滿4年算不出來">月47 (47T) ⚠</span>
+              <span><input type="checkbox" name="ma-above" value="m47" /></span>
+              <span><input type="checkbox" name="ma-up" value="m47" /></span></div>
+            <div class="ma-quick">
+              <button type="button" class="btn btn-ghost" id="ma-preset-bull" title="MA5/10/20/60 全部站上且全部上彎＝教科書多頭排列(實際斜率版)">⚡ 日線多頭</button>
+              <button type="button" class="btn btn-ghost" id="ma-preset-hanku" title="站上週4/週9/日47 且週4上彎＝HANKU 波段偏多結構（對應 hanku_overlay 的進場條件）">⚡ HANKU偏多</button>
+              <button type="button" class="btn btn-ghost" id="ma-preset-mtf" title="日18 × 週4 × 週9 三線同時站上且上彎＝Hanku 原話「60分200T×日18T×週4/9T 三個壓力點都差不多」的多週期匯聚">⚡ 多週期匯聚</button>
+              <button type="button" class="btn btn-ghost btn-danger" id="ma-clear">清除均線</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -669,7 +752,7 @@
 
   <!-- 個股研究卡（finlab_port）：彈窗卡片堆與 stock.html 共用同一份實作 -->
   <script src="stockcards.js?v=20260730f"></script>
-  <script src="app.js?v=20260726a"></script>
+  <script src="app.js?v=20260802a"></script>
   <script src="calc.js?v=20260715a"></script>
 </body>
 </html>

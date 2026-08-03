@@ -190,6 +190,9 @@ const MA_LABEL = {
   m1: '月1', m4: '月4', m10: '月10', m47: '月47',
 };
 
+// 1 期均線（＝當期收盤本身）：站上比的是上一期收盤，與上彎等值。見 services/ma_lines.py 坑①
+const MA_ONE_PERIOD = new Set(['w1', 'm1']);
+
 // 型態訊號 勾選值 → row 判定（欄位下次 export 才有值，缺值一律不中）
 const PATTERN_SIG_TEST = {
   gap_hold:    (row) => /✅/.test(row.gap_state || ''),
@@ -223,8 +226,12 @@ function syncMaAvailability(data) {
       ? '收盤站上哪幾條均線 / 哪幾條均線上彎（日 5~240 + HANKU 日47・週4・週9）'
       : '這個交易日的快照是 2026-08-02 之前產的，沒有均線欄位 → 均線篩選已停用';
   }
-  const hint = document.querySelector('.fg-body[data-group="ma"] .ma-hint');
-  if (hint) hint.classList.toggle('ma-hint-na', !has);
+  // 註：v2 把 .ma-panel 整塊搬進左抽屜了，選擇器不能再綁 .fg-body[data-group="ma"]
+  const hint = document.querySelector('.ma-panel .ma-hint');
+  if (hint) {
+    hint.classList.toggle('ma-hint-na', !has);
+    if (!has) hint.hidden = false;   // 停用警告一定要看得到（v2 說明預設收合）
+  }
 }
 
 // 代號→產業 對照表（供 hanku 等資料無產業欄的分頁，借主表 row 的 industry）
@@ -1426,7 +1433,13 @@ function screenRowPass(row) {
     if (state.maAbove.size) {
       const ab = row.ma_above;
       if (!ab) return false;
-      for (const k of state.maAbove) if (!ab.includes(k)) return false;
+      const up = row.ma_up || [];
+      for (const k of state.maAbove) {
+        // 週1/月1 的站上＝今日收盤>上一期收盤，與上彎同義；2026-08-03 以前產的快照
+        // ma_above 裡沒有這兩條（舊版 NO_ABOVE），退回看 ma_up，免得勾了靜默 0 檔。
+        if (MA_ONE_PERIOD.has(k)) { if (!ab.includes(k) && !up.includes(k)) return false; continue; }
+        if (!ab.includes(k)) return false;
+      }
     }
     if (state.maUp.size) {
       const up = row.ma_up;
@@ -5103,6 +5116,31 @@ function buildV2Layout() {
   ['brew', 'launch', 'trend'].forEach((k, i) => {
     if (cols[i]) { cols[i].dataset.v2stage = k; drawer.appendChild(cols[i]); }
   });
+  // ── 📏 均線設定（2026-08-03 user）：整塊從第二排 fg-body 搬進抽屜，
+  //    變成跟三階段一樣的勾選面板。刻意不掛 data-v2stage → 不隨階段勾選隱藏
+  //    （均線是跨階段濾網）。節點是搬移不是複製，原本的事件綁定與 syncMaAvailability 全部照舊。
+  const maPanel = document.querySelector('.fg-body[data-group="ma"] .ma-panel');
+  if (maPanel) {
+    const maCol = document.createElement('div');
+    maCol.className = 'stage-col v2-ma-col';
+    maCol.innerHTML = '<div class="stage-head">📏 均線設定'
+      + '<button type="button" class="btn btn-ghost stage-preset" id="ma-help-toggle"'
+      + ' title="展開／收合站上・上彎的定義說明">ⓘ 說明</button></div>'
+      + '<div class="stage-hint muted">勾選的線全部要成立（AND）；站上＝收盤 &gt; 均線值、上彎＝今日值 &gt; 前一期</div>';
+    maCol.appendChild(maPanel);
+    drawer.appendChild(maCol);
+    const maHint = maPanel.querySelector('.ma-hint');
+    if (maHint) {
+      maHint.hidden = true;   // 說明預設收合（抽屜窄，四行說明會吃掉整個視野）
+      maCol.querySelector('#ma-help-toggle').addEventListener('click', () => {
+        maHint.hidden = !maHint.hidden;
+      });
+    }
+    // 第二排的「📏 均線」分組鈕在 v2 已無內容可開 → 藏起來
+    const maBtn = document.querySelector('.fg-toggle[data-group="ma"]');
+    if (maBtn) maBtn.style.display = 'none';
+  }
+
   const bottom = catBody.querySelector('.stage-bottom');
   if (bottom) { bottom.dataset.v2stage = 'watch'; drawer.appendChild(bottom); }
   const mode = catBody.querySelector('.mode-toggle');

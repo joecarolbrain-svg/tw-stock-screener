@@ -1470,13 +1470,27 @@ table.fl-mx td small { display: block; font-size: 12px; color: var(--text-mut, #
 .fg-toggle.fg-na { opacity: .45; }
 .ma-hint-na::after { content: '⚠️ 這個交易日的快照沒有均線欄位（2026-08-02 之前產的），均線篩選已停用。';
   display: block; color: #ffb347; font-weight: 700; margin-top: 4px; }
-.fg-body[data-group="ma"] input:disabled { opacity: .35; cursor: not-allowed; }
+/* 面板 v2 已把 .ma-panel 搬進左抽屜，選擇器不能綁 .fg-body */
+.ma-panel input:disabled { opacity: .35; cursor: not-allowed; }
 @media (max-width: 1100px) {
   .ma-grid { grid-template-columns: repeat(2, minmax(0, 250px)); }
 }
 @media (max-width: 700px) {
   .ma-grid { grid-template-columns: 1fr; }
 }
+
+/* ── 📏 均線在 v2 左抽屜裡（2026-08-03）：抽屜只有 252px，三欄網格改直排、
+      內層 ma-col 去掉外框（外面 stage-col 已經有框了），列高壓縮 ── */
+.v2-ma-col .ma-hint { margin: 4px 0 6px; }
+.v2-ma-col .ma-grid { grid-template-columns: 1fr; gap: 4px; }
+.v2-ma-col .ma-col {
+  border: none; background: none; padding: 0;
+  border-top: 1px dashed var(--border); padding-top: 6px;
+}
+.v2-ma-col .ma-col:first-child { border-top: none; padding-top: 0; }
+.v2-ma-col .ma-col-h { font-size: 12px; margin-bottom: 3px; }
+.v2-ma-col .ma-row { grid-template-columns: 1fr 42px 42px; padding: 1px 0; }
+.v2-ma-col .ma-quick { margin-top: 8px; padding-top: 6px; }
 
 /* ── 🏛 今日市場快照（dashboard 頂部帶狀區） ─────────── */
 .mkt-snapshot { padding: 12px 20px 0; }

@@ -190,6 +190,21 @@
             <label title="朱家泓⑤：屬於熱門題材（回測唯一precision槓桿）"><input type="checkbox" id="sig-s5" /> S5題材</label>
             <label title="朱家泓C3：回後買上漲∪盤整突破 ∩ MA20上 ∩ KD多排 ∩ 量增 ∩ 不追過高"><input type="checkbox" id="sig-c3" /> C3進場點</label>
             <label title="3037欣興型：被季線壓住後帶量站上季線"><input type="checkbox" id="sig-ma60b" /> 季線突破</label>
+            <span class="stage-sub" style="margin-top:4px">突破幅度%（相對前高；留空＝不限，可只填一邊）</span>
+            <div class="bo-pct">
+              <div class="bo-pct-row">
+                <span class="bo-pct-n" title="與「✅真突破」同一條線：突破當根之前 60 根的最高高點(bo_prior_high)。幅度＝(收盤 ÷ 前高 − 1)×100。⚠ 只有近 20 日內發生過突破事件的股票才有值，其餘一律不中；已拉回收破前高會是負數">60日前高</span>
+                <label>≥<input type="number" id="bo60-min" step="0.5" placeholder="不限" /></label>
+                <label>≤<input type="number" id="bo60-max" step="0.5" placeholder="不限" /></label>
+              </div>
+              <div class="bo-pct-row">
+                <span class="bo-pct-n" title="全期最高高點(排除今日)，即「距前高%」欄的另一面。幅度＝(收盤 ÷ 前高 − 1)×100，>0 代表創歷史新高。每檔都有值，但門檻極高、入選會很少">全期前高</span>
+                <label>≥<input type="number" id="boath-min" step="0.5" placeholder="不限" /></label>
+                <label>≤<input type="number" id="boath-max" step="0.5" placeholder="不限" /></label>
+              </div>
+              <span class="muted" style="font-size:11px">≥0＝已站上前高；下限濾「貼著前高的微突破」(實證訊噪比最差)，上限濾「已噴太遠的追高」。<br />
+                ⚠ 覆蓋率差很多：60日前高只有<b>近 20 日內有突破事件</b>的股票有值(通常僅 20~40 檔)，全期前高則是<b>上榜股</b>才有(約 500 檔)。</span>
+            </div>
             <label title="朱家泓兩個起漲位置：回後買上漲／盤整突破">進場型態
               <select id="mainup-entry">
                 <option value="">不限</option>

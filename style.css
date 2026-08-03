@@ -1658,6 +1658,13 @@ table.fl-mx td small { display: block; font-size: 12px; color: var(--text-mut, #
   font-weight: 700;
   letter-spacing: .5px;
 }
+/* 🚀 突破幅度%（2026-08-03）：兩個前高基準各一列 min/max */
+.bo-pct { display: flex; flex-direction: column; gap: 3px; }
+.bo-pct-row { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; font-size: 12px; }
+.bo-pct-row .bo-pct-n { cursor: help; }
+.bo-pct-row label { display: inline-flex; align-items: center; gap: 2px; color: #8899aa; }
+.bo-pct-row input { width: 52px; font-size: 12px; padding: 1px 4px; }
+
 .stage-pat-row { display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .stage-pat-row label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
 .stage-pats { margin-bottom: 6px; }

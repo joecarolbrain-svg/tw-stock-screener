@@ -180,7 +180,41 @@ const state = {
   // 📏 均線設定（2026-08-02）：勾哪幾條就必須成立＝AND；key 見 MA_LABEL
   maAbove: new Set(),     // 收盤須站上這幾條
   maUp: new Set(),        // 這幾條須上彎（今日值>昨日值；週線=本週>上週）
+  // 🚀 突破幅度%（2026-08-03）：相對前高的百分比區間，null=不限。見 boPct60/boPctAth
+  bo60Min: null, bo60Max: null,     // 基準＝60日前高(bo_prior_high，與 ✅真突破 同一條線)
+  boAthMin: null, boAthMax: null,   // 基準＝全期前高(由 dist_high 換算)
 };
+
+// 突破幅度%＝(收盤 ÷ 前高 − 1)×100，兩種前高基準各一支；算不出來回 null（＝勾了不中）。
+//   ① 60日前高：breakout_filter 的 bo_prior_high，只有近 20 日內有突破事件才有值。
+function boPct60(row) {
+  const h = row.bo_prior_high, c = row.close;
+  if (h == null || c == null || !(h > 0)) return null;
+  return (c / h - 1) * 100;
+}
+//   ② 全期前高：dist_high ＝ (前高−收盤)/收盤×100（分母是收盤！），
+//      換算成同一種「相對前高」語言：(收盤−前高)/前高 = −d/(1+d)，d=dist_high/100。
+//      這不是近似，是恆等式；直接把 dist_high 取負號會有 1~2% 的偏差。
+// 數字輸入 → number|null；空字串、單獨的 "-"、亂打的字都算「不限」（NaN 混進 state 會讓條件靜默失效）
+function _numOrNull(v) {
+  if (v === '' || v == null) return null;
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+// 區間標籤：「≥3%」「≤8%」「3~8%」（給 chips 與零結果放寬建議共用）
+function boRangeLabel(lo, hi) {
+  if (lo != null && hi != null) return `${lo}~${hi}%`;
+  return lo != null ? `≥${lo}%` : `≤${hi}%`;
+}
+
+function boPctAth(row) {
+  const d = row.dist_high;
+  if (d == null) return null;
+  const x = d / 100;
+  if (!(1 + x > 0)) return null;
+  return -x / (1 + x) * 100;
+}
 
 // 均線 key → 顯示名（順序＝後端 services/ma_lines.py 的 MA_KEYS，卡片照這個順序印）
 const MA_LABEL = {
@@ -1447,6 +1481,20 @@ function screenRowPass(row) {
       for (const k of state.maUp) if (!up.includes(k)) return false;
     }
 
+    // 🚀 突破幅度%：兩個基準各自獨立，缺值(算不出幅度)一律不中
+    if (state.bo60Min != null || state.bo60Max != null) {
+      const p = boPct60(row);
+      if (p == null) return false;
+      if (state.bo60Min != null && p < state.bo60Min) return false;
+      if (state.bo60Max != null && p > state.bo60Max) return false;
+    }
+    if (state.boAthMin != null || state.boAthMax != null) {
+      const p = boPctAth(row);
+      if (p == null) return false;
+      if (state.boAthMin != null && p < state.boAthMin) return false;
+      if (state.boAthMax != null && p > state.boAthMax) return false;
+    }
+
     return true;
 }
 
@@ -1502,6 +1550,8 @@ function renderActiveFilters() {
   if (state.weeklyLit) add('weeklyLit', '週線亮燈');
   if (state.instStreak3) add('instStreak3', '法人連買≥3');
   if (state.boGood) add('boGood', '✅真突破');
+  if (state.bo60Min != null || state.bo60Max != null) add('bo60', `突破60日高${boRangeLabel(state.bo60Min, state.bo60Max)}`);
+  if (state.boAthMin != null || state.boAthMax != null) add('boAth', `突破全期高${boRangeLabel(state.boAthMin, state.boAthMax)}`);
   if (state.exclSrBreak) add('exclSrBreak', '排除破支撐');
   STAGE_FLAGS.forEach(([, k, label]) => { if (state[k]) add('sf:' + k, label); });
   if (state.islandMode !== 'off') add('island', `島狀:${ISLAND_MODE_LABEL[state.islandMode]}`);
@@ -1545,6 +1595,8 @@ function updateGroupCounts() {
                  (state.deductTurn ? 1 : 0) + (state.deductUp2 ? 1 : 0) + (state.deductExclWarn ? 1 : 0) +
                  (state.weeklyLit ? 1 : 0) + (state.instStreak3 ? 1 : 0) +
                  (state.boGood ? 1 : 0) + (state.exclSrBreak ? 1 : 0) +
+                 (state.bo60Min != null || state.bo60Max != null ? 1 : 0) +
+                 (state.boAthMin != null || state.boAthMax != null ? 1 : 0) +
                  (state.patternSignals.size ? 1 : 0) +
                  STAGE_FLAGS.filter(f => state[f[1]]).length);
   set('fgc-dim', state.dimSelected.size);
@@ -1612,6 +1664,14 @@ function removeFilter(key) {
     case 'maUp':
       state.maUp.clear();
       document.querySelectorAll('input[name="ma-up"]').forEach(cb => { cb.checked = false; });
+      break;
+    case 'bo60':
+      state.bo60Min = state.bo60Max = null;
+      ['bo60-min', 'bo60-max'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+      break;
+    case 'boAth':
+      state.boAthMin = state.boAthMax = null;
+      ['boath-min', 'boath-max'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
       break;
     case 'dim':
       state.dimSelected.clear();
@@ -1785,6 +1845,11 @@ function bindControls() {
   });
 
   const numBindings = [
+    // 🚀 突破幅度%（空字串/打到一半的 "-" ＝不限；0 是有效值，不能用 || 短路）
+    ['bo60-min',      v => state.bo60Min = _numOrNull(v)],
+    ['bo60-max',      v => state.bo60Max = _numOrNull(v)],
+    ['boath-min',     v => state.boAthMin = _numOrNull(v)],
+    ['boath-max',     v => state.boAthMax = _numOrNull(v)],
     ['score-min',     v => state.scoreMin = parseFloat(v) || 0],
     ['rs-min',        v => state.rsMin = parseFloat(v) || 0],
     ['dist-risk-max', v => state.distRiskMax = (v === '' ? null : parseFloat(v))],
@@ -1962,6 +2027,10 @@ function clearAllFilters() {
   state.weeklyLit = false;
   state.instStreak3 = false;
   state.boGood = false;
+  state.bo60Min = state.bo60Max = state.boAthMin = state.boAthMax = null;
+  ['bo60-min', 'bo60-max', 'boath-min', 'boath-max'].forEach(id => {
+    const e = document.getElementById(id); if (e) e.value = '';
+  });
   state.exclSrBreak = false;
   state.islandMode = 'off';
   clearPersistView();
@@ -5414,6 +5483,14 @@ function _zeroCands() {
     const v = state.persistView;
     c.push({ key: 'persistView', label: PV_LABEL[v], off: () => { state.persistView = null; }, on: () => { state.persistView = v; } });
   }
+  [['bo60', 'bo60Min', 'bo60Max', '突破60日高'], ['boAth', 'boAthMin', 'boAthMax', '突破全期高']]
+    .forEach(([key, lk, hk, name]) => {
+      if (state[lk] == null && state[hk] == null) return;
+      const lo = state[lk], hi = state[hk];
+      c.push({ key, label: `${name}${boRangeLabel(lo, hi)}`,
+               off: () => { state[lk] = state[hk] = null; },
+               on: () => { state[lk] = lo; state[hk] = hi; } });
+    });
   if (state.scoreMin > 0) { const v = state.scoreMin; c.push({ key: 'scoreMin', label: `分數≥${v}`, off: () => { state.scoreMin = 0; }, on: () => { state.scoreMin = v; } }); }
   if (state.rsMin > 0) { const v = state.rsMin; c.push({ key: 'rsMin', label: `RS≥${v}`, off: () => { state.rsMin = 0; }, on: () => { state.rsMin = v; } }); }
   if (state.distRiskMax != null) { const v = state.distRiskMax; c.push({ key: 'distRiskMax', label: `出貨風險≤${v}`, off: () => { state.distRiskMax = null; }, on: () => { state.distRiskMax = v; } }); }

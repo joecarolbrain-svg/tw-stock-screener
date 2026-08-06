@@ -2193,3 +2193,87 @@ body.ui-v2 {
 .fl-cov-good { background: rgba(38, 166, 154, .18); color: var(--up, #26a69a); }
 .fl-cov-warn { background: rgba(245, 185, 66, .16); color: #f5b942; }
 .fl-cov-flat { background: var(--border, #2a2a3e); color: var(--text-mut, #6a6a7a); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   P1 手機版（2026-08-06）
+   目標：窄幕鎖卡片檢視、篩選收成抽屜、100dvh、觸控目標 ≥40px。
+   斷點 640px = 手機直式；平板橫式(>640) 維持既有桌機版型不動。
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── ① 100dvh：iOS 網址列會吃掉 100vh，dvh 才是實際可視高 ── */
+@supports (height: 100dvh) {
+  .v2-drawer { max-height: calc(100dvh - 150px); }
+}
+
+/* ── ② 手機篩選列（JS 注入；桌機不出現）── */
+.m-filterbar { display: none; }
+
+@media (max-width: 640px) {
+  .m-filterbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; margin: 0 -10px 8px;
+    background: var(--panel-2, #15152b);
+    border-bottom: 1px solid var(--border, #2a2a3e);
+    position: sticky; top: 0; z-index: 30;
+  }
+  .m-filterbar .search-box {
+    flex: 1; min-width: 0; width: auto !important;
+    padding: 9px 10px !important; font-size: 16px;   /* 16px 才不會觸發 iOS 自動放大 */
+    border-radius: 8px;
+  }
+  .m-fbtn {
+    flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px;
+    min-height: 40px; padding: 0 14px;
+    background: #14142a; border: 1px solid var(--border, #2a2a3e);
+    border-radius: 8px; color: #cfd3e0;
+    font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;
+  }
+  .m-fbtn.open { background: #1d2748; border-color: var(--border-hi, #3a4a7a); color: #fff; }
+  .m-fbtn .m-fn {
+    min-width: 18px; padding: 0 5px; border-radius: 9px;
+    background: var(--accent, #00d4aa); color: #06121a;
+    font-size: 11px; font-weight: 800; line-height: 18px; text-align: center;
+  }
+  .m-fbtn .m-fn:empty { display: none; }
+
+  /* 篩選本體預設收起，按「篩選」才展開 */
+  .filters .group-bar,
+  .filters .group-bar-2nd { display: none; }
+  .filters.m-open .group-bar,
+  .filters.m-open .group-bar-2nd { display: flex; }
+  /* 收起時連展開中的進階群組一起收，避免關了按鈕還留一大塊 */
+  .filters:not(.m-open) .fg-body { display: none !important; }
+  /* v2 版面的左抽屜（三階段/均線面板，約 700px 高）不在 .filters 內，
+     手機上會整片橫在焦點卡與名單之間 → 一併掛到同一顆「篩選」鈕 */
+  .filters:not(.m-open) ~ .dash-body .v2-drawer { display: none; }
+  .ui-v2 .filters.m-open ~ .dash-body .v2-drawer { margin: 0 0 8px; }
+
+  /* 已套用條件 chip 永遠看得到——收起時才知道自己篩了什麼 */
+  .active-filters { padding: 6px 2px; }
+
+  /* ── ③ 觸控目標：一律 ≥40px 高 ── */
+  .check-toggle { min-height: 40px; padding: 6px 12px; }
+  .fg-toggle,
+  .filters .btn,
+  .topbar .btn,
+  .date-picker,
+  .pv-btn,
+  .preset-select { min-height: 40px; }
+  .tab-btn, .tab-link { padding: 14px 16px; }
+  .top-chip { padding: 7px 12px; }
+  .rk-cell { min-width: 34px; padding: 5px 4px; }
+  .afchip .afx { min-width: 26px; min-height: 26px; }
+
+  /* ── ④ 鎖卡片檢視：表格在 30+ 欄下手機救不回來 ── */
+  .view-toggle { display: none !important; }
+
+  /* ── ⑤ 卡片：單欄 + 收邊距，一屏多看一張 ── */
+  .card-grid { grid-template-columns: 1fr; gap: 8px; padding: 8px 2px; }
+  main { padding: 0 10px; }
+  .filters { padding: 0 10px 10px; }
+
+  /* ── ⑥ 頂欄壓縮 ── */
+  .topbar { padding: 8px 10px; }
+  .title { font-size: 16px; letter-spacing: 1px; }
+  .subtitle { display: none; }
+}

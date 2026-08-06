@@ -1337,7 +1337,7 @@ function buildTable(data) {
     data: data.rows,
     columns: cols,
     layout: 'fitDataStretch',
-    height: 'calc(100vh - 280px)',
+    height: tableHeight(280),
     pagination: true,
     paginationSize: 50,
     paginationSizeSelector: [25, 50, 100, 200],
@@ -1575,6 +1575,9 @@ function renderActiveFilters() {
   if (state.persistView) add('persistView', PV_LABEL[state.persistView]);
   if (state.onlyPinned) add('onlyPinned', '只看勾選');
 
+  // 手機抽屜徽章：搜尋框在抽屜外常駐，不計入
+  updateMobileFilterCount(chips.filter(c => c.key !== 'search').length);
+
   if (!chips.length) {
     bar.innerHTML = '<span class="af-empty">未套用任何篩選</span>';
     return;
@@ -1715,6 +1718,64 @@ function bindGroupToggles() {
       btn.classList.toggle('open', willOpen);
     });
   });
+}
+
+// ── 6.5 手機版 UI（P1, 2026-08-06）─────────────────
+// 窄幕(≤640px)下：篩選列收成抽屜、搜尋框提到常駐 sticky 條、主檢視鎖卡片。
+// 桌機一律不動；跨越斷點時把 #search-input 搬回原位，不重綁事件（listener 綁在元素上，搬家不影響）。
+const MOBILE_MQ = window.matchMedia('(max-width: 640px)');
+const isMobileUI = () => MOBILE_MQ.matches;
+
+// Tabulator 高度：
+//  ① 100vh 在 iOS 會被網址列吃掉一截 → 有 dvh 就用 dvh（實際可視高）
+//  ② max() 保底：手機頂部堆疊比桌機高，原本固定扣 280~430px 會把表格壓到剩幾列
+const _VH = (window.CSS && CSS.supports && CSS.supports('height', '100dvh')) ? 'dvh' : 'vh';
+const tableHeight = (offset, min = 320) => `max(${min}px, calc(100${_VH} - ${offset}px))`;
+
+function initMobileUI() {
+  const filters = document.querySelector('.tab-panel[data-panel="dashboard"] .filters');
+  const search = document.getElementById('search-input');
+  if (!filters || !search) return;
+
+  // 記住搜尋框原本在 group-bar 的位置，切回桌機才放得回去
+  const searchHome = search.parentNode;
+  const searchNext = search.nextSibling;
+
+  const bar = document.createElement('div');
+  bar.className = 'm-filterbar';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'm-fbtn';
+  btn.innerHTML = '⚙ 篩選<span class="m-fn"></span>';
+  bar.appendChild(btn);
+  // active-filters chip 列之後、group-bar 之前
+  const afBar = filters.querySelector('#active-filters');
+  filters.insertBefore(bar, afBar ? afBar.nextSibling : filters.firstChild);
+
+  btn.addEventListener('click', () => {
+    const open = filters.classList.toggle('m-open');
+    btn.classList.toggle('open', open);
+  });
+
+  function syncLayout() {
+    if (isMobileUI()) {
+      if (search.parentNode !== bar) bar.insertBefore(search, btn);
+    } else {
+      if (search.parentNode !== searchHome) searchHome.insertBefore(search, searchNext);
+      filters.classList.remove('m-open');
+      btn.classList.remove('open');
+    }
+  }
+  MOBILE_MQ.addEventListener('change', () => { syncLayout(); refreshMainView(); });
+  syncLayout();
+  updateMobileFilterCount();
+}
+
+// 抽屜收起時，用徽章數字告訴使用者目前套了幾個條件（搜尋不算，它就在旁邊看得到）
+function updateMobileFilterCount(n) {
+  const el = document.querySelector('.m-filterbar .m-fn');
+  if (!el) return;
+  el.textContent = n > 0 ? String(n) : '';
 }
 
 // ── 7. 綁定篩選控制項 ───────────────────────────────
@@ -2182,7 +2243,7 @@ function renderWatchlist() {
   watchState.table = new Tabulator('#watchlist-table', {
     data: rows,
     layout: 'fitColumns',
-    height: 'calc(100vh - 280px)',
+    height: tableHeight(280),
     initialSort: [{ column: 'hits', dir: 'desc' }, { column: 'score', dir: 'desc' }],
     placeholder: '尚未勾選個股',
     columns: [
@@ -3214,6 +3275,7 @@ function renderThemeHistory() {
     loadResonanceData().then(updateSnapshotReso);
     loadMarketSnapshot();
     bindControls();
+    initMobileUI();   // P1 手機版：需在 bindControls 之後（搬 #search-input 前先綁好 listener）
     bindGroupToggles();
     bindTabs();
     bindWatchlistControls();
@@ -3348,7 +3410,7 @@ function renderCB() {
   cbState.table = new Tabulator('#cb-table', {
     data: rows,
     layout: 'fitDataTable',
-    height: 'calc(100vh - 320px)',
+    height: tableHeight(320),
     columns: CB_COLS,
     placeholder: '無符合條件的 CB',
   });
@@ -3751,7 +3813,10 @@ function renderGroupedCards(active) {
 
 function refreshMainView() {
   if (!state.table) return;
-  const view = state.mainView || (state.mainView = getTabView('main', 'card'));
+  // 窄幕強制卡片：主表 30+ 欄，手機只能橫捲，讀不了。
+  // 只覆寫本次渲染，不寫回 state/localStorage，轉回桌機仍是使用者原本選的檢視。
+  const pref = state.mainView || (state.mainView = getTabView('main', 'card'));
+  const view = isMobileUI() ? 'card' : pref;
   syncViewToggle('main-viewtoggle', view);
   const cardsEl = document.getElementById('main-cards');
   const tableEl = document.getElementById('main-table');
@@ -3897,7 +3962,7 @@ function renderHanku() {
     hankuState.table = new Tabulator('#hanku-table', {
       data: rows,
       layout: 'fitDataTable',
-      height: 'calc(100vh - 320px)',
+      height: tableHeight(320),
       columns: HANKU_COLS,
       placeholder: '無符合條件的個股',
     });
@@ -4002,7 +4067,7 @@ function renderSectorFlow() {
 
   if (sectorFlowState.table) sectorFlowState.table.destroy();
   sectorFlowState.table = new Tabulator('#sf-table', {
-    data: rows, layout: 'fitDataTable', height: 'calc(100vh - 430px)',
+    data: rows, layout: 'fitDataTable', height: tableHeight(430),
     columns: SECTORFLOW_COLS, placeholder: '無符合條件的族群',
     initialSort: [{ column: 'net_5d', dir: 'desc' }],
   });

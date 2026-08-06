@@ -106,7 +106,13 @@
 
     @media (max-width: 760px) {
       .gl-wrap { padding: 10px 10px 60px; }
-      .gl-grid { grid-template-columns: 1fr; }
+      /* 1fr = minmax(auto,1fr)，auto 會被卡片內的長字串（欄位名/公式）撐爆軌道，
+         手機上整頁跟著橫捲 → 要 minmax(0,1fr) + min-width:0 + 長字換行 */
+      .gl-grid { grid-template-columns: minmax(0, 1fr); }
+      .gl-card { min-width: 0; }
+      .gl-card .gl-t, .gl-card .gl-w, .gl-card .gl-h, .gl-card .gl-src {
+        overflow-wrap: anywhere;
+      }
     }
   </style>
 </head>

@@ -11,7 +11,7 @@ window.MarketStructure = (function () {
   'use strict';
 
   const state = {
-    data: null, chips: null, date: null,
+    data: null, chips: null, txf: null, date: null,
     heatMarket: 'TSE', kwTab: 'hot', biasMa: 'ma60',
     chapter: 'structure',      // structure(一) / options(二) / trend(三) / players(四) / board(五)
   };
@@ -22,6 +22,7 @@ window.MarketStructure = (function () {
     ['trend', '③ 市場趨勢結構'],
     ['players', '④ 市場參與者'],
     ['board', '⑤ 籌碼綜合儀表板'],
+    ['txf', '⑥ 台指期結構地圖'],
   ];
 
   // ── 小工具 ────────────────────────────────────────────────
@@ -693,6 +694,116 @@ window.MarketStructure = (function () {
       </div>`;
   }
 
+  // ══ 第六章：台指期結構地圖 ════════════════════════════════
+  // 🛑 這一章刻意不寫方向、不給勝率。庫內 1,406 日回測顯示 14 個撐壓來源對
+  //    「觸及後反轉」全部無預測力 → 只當地圖，不當訊號。改動時請維持這個定位。
+  function txfChartSvg(t) {
+    const bars = (t.bars || []).filter(b => isNum(b.c));
+    if (bars.length < 2) return '<div class="ms-spark-empty">無 K 線資料</div>';
+    const W = 1000, H = 480, padL = 8, padR = 62, padT = 10, padB = 26;
+    const lv = [...(t.above || []), ...(t.below || [])];
+    const prices = bars.flatMap(b => [b.h, b.l]).concat(lv.map(x => x.price)).filter(isNum);
+    let lo = Math.min(...prices), hi = Math.max(...prices);
+    const pad = (hi - lo) * 0.04; lo -= pad; hi += pad;
+    const X = i => padL + i * (W - padL - padR) / (bars.length - 1);
+    const Y = p => padT + (1 - (p - lo) / (hi - lo || 1)) * (H - padT - padB);
+    const bw = Math.max(1.2, (W - padL - padR) / bars.length * 0.62);
+
+    // 結構帶：厚度跟 score 走（強度越高越粗），顏色只分上下不分多空
+    const bands = lv.map(x => {
+      const th = Math.max(3, Math.min(14, (x.score || 0) * 0.45));
+      const y = Y(x.price);
+      const up = x.price > t.current;
+      return `<g class="ms-band">
+        <rect x="0" y="${(y - th / 2).toFixed(1)}" width="${W - padR}" height="${th.toFixed(1)}"
+          fill="${up ? '#ef5350' : '#26a69a'}" opacity="0.16"/>
+        <line x1="0" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}"
+          stroke="${up ? '#ef5350' : '#26a69a'}" stroke-width="0.8" stroke-dasharray="5 4"
+          opacity="0.7"/>
+        <text x="${W - padR + 4}" y="${(y + 3.5).toFixed(1)}" class="ms-lvlab"
+          fill="${up ? '#ef5350' : '#26a69a'}">${int(x.price)}</text>
+        <title>${int(x.price)}（${esc(x.kind)}）強度 ${x.score}｜${x.n} 個來源：${esc((x.members || []).join('、'))}</title>
+      </g>`;
+    }).join('');
+
+    // 每個 session 的分隔線
+    const seps = [];
+    let lastDay = null;
+    bars.forEach((b, i) => {
+      const day = String(b.t).slice(0, 10);
+      if (lastDay && day !== lastDay) {
+        seps.push(`<line x1="${X(i)}" y1="${padT}" x2="${X(i)}" y2="${H - padB}"
+          stroke="#4a4a63" stroke-dasharray="2 4"/>
+          <text x="${X(i) + 3}" y="${H - padB + 14}" class="ms-hb-x">${day.slice(5)}</text>`);
+      }
+      lastDay = day;
+    });
+
+    const candles = bars.map((b, i) => {
+      const x = X(i), up = b.c >= b.o;
+      const c = up ? 'var(--up)' : 'var(--down)';
+      const yO = Y(b.o), yC = Y(b.c);
+      return `<g><line x1="${x.toFixed(1)}" y1="${Y(b.h).toFixed(1)}" x2="${x.toFixed(1)}"
+          y2="${Y(b.l).toFixed(1)}" stroke="${c}" stroke-width="0.7"/>
+        <rect x="${(x - bw / 2).toFixed(1)}" y="${Math.min(yO, yC).toFixed(1)}"
+          width="${bw.toFixed(1)}" height="${Math.max(Math.abs(yC - yO), 0.8).toFixed(1)}"
+          fill="${c}"/></g>`;
+    }).join('');
+
+    const cy = Y(t.current);
+    return `<svg class="ms-txf" viewBox="0 0 ${W} ${H}">
+      ${bands}${seps.join('')}${candles}
+      <line x1="0" y1="${cy.toFixed(1)}" x2="${W - padR}" y2="${cy.toFixed(1)}"
+        stroke="#f5b942" stroke-width="1"/>
+      <rect x="${W - padR + 1}" y="${(cy - 8).toFixed(1)}" width="${padR - 3}" height="16"
+        fill="#f5b942" rx="2"/>
+      <text x="${W - padR + 5}" y="${(cy + 4).toFixed(1)}" class="ms-lvlab"
+        fill="#141420">${int(t.current)}</text>
+    </svg>`;
+  }
+
+  function renderTxf(t) {
+    if (!t) {
+      return `<div class="ms-empty">台指期結構地圖未產生。<br><span class="muted">
+        跑 <code>python export_txf_map.py</code>（讀 Finmind\\minute_kbar\\futures 的 1 分 K）</span></div>`;
+    }
+    // 只有夜盤也要示警：session 標的是下一個交易日，但那天的日盤還沒進資料，
+    // 標題數字會被誤讀成該日收盤價。
+    const stale = (t.stale_days || 0) >= 2 || t.session_partial;
+    const lvRow = x => `<tr>
+      <td class="n"><b>${int(x.price)}</b></td>
+      <td class="n ${cls(x.dist_pct)}">${pct(x.dist_pct)}</td>
+      <td>${esc(x.kind)}</td>
+      <td class="n">${num(x.score, 1)}</td>
+      <td class="muted" title="${esc((x.members || []).join('、'))}">${x.n} 源
+        ${(x.tfs || []).length ? '· ' + esc(x.tfs.join('/')) : ''}</td></tr>`;
+    const tbl = (rows, title, tone) => `<div class="ms-ct-col">
+      <div class="ms-ct-h ${tone}">${title}</div>
+      <table class="ms-tb"><thead><tr><th class="n">點位</th><th class="n">距現價</th>
+        <th>性質</th><th class="n">強度</th><th>來源</th></tr></thead>
+      <tbody>${rows.map(lvRow).join('')}</tbody></table></div>`;
+
+    return `
+      ${stale ? `<div class="ms-stale">⚠️ ${t.session_partial
+    ? `${esc(t.session)} 這個 session <b>只有夜盤</b>，日盤尚未進資料`
+    : `資料落後 ${t.stale_days} 天`}（1 分 K 只到 ${esc(t.data_asof)}）
+        ${t.current_note ? `<br>${esc(t.current_note)}` : ''}
+        <span class="muted">更新：跑 Finmind\\_update_txf_1min.py（需 Shioaji 登入，
+        WARP 開著會擋）</span></div>` : ''}
+      <div class="ms-note ms-warnnote">🛑 ${esc(t.disclaimer)}</div>
+      <div class="ms-grid ms-grid-1">
+        ${card(`台指期 ${esc(t.bar_rule)} K｜session ${esc(t.session)}`, txfChartSvg(t),
+    `<b>${int(t.current)}</b><small class="muted">資料至 ${esc(t.data_asof)}</small>`,
+    'ms-card-wide')}
+      </div>
+      <div class="ms-grid ms-grid-1">
+        ${card('結構清單', `<div class="ms-ct ms-ct-2">
+          ${tbl(t.above || [], '現價上方', 'up')}
+          ${tbl(t.below || [], '現價下方', 'down')}</div>`,
+    '<small class="muted">強度＝結構分數（與現價無關，可跨日比較）；帶狀厚度同步反映強度</small>')}
+      </div>`;
+  }
+
   // ══ 主渲染 ════════════════════════════════════════════════
   function render() {
     const el = document.getElementById('ms-body');
@@ -710,6 +821,7 @@ window.MarketStructure = (function () {
     else if (state.chapter === 'trend') body = renderTrend(d);
     else if (state.chapter === 'options') body = renderOptions(c);
     else if (state.chapter === 'players') body = renderPlayers(c);
+    else if (state.chapter === 'txf') body = renderTxf(state.txf);
     else body = renderBoard(d, c);
 
     el.innerHTML = `
@@ -754,6 +866,7 @@ window.MarketStructure = (function () {
     el.innerHTML = '<div class="ms-empty">載入中…</div>';
     // 籌碼那包（第二/四/五章）缺了不該擋住第一/三章 → 各自 catch
     state.chips = await fetchJsonGz(dailyPath('market_chips')).catch(() => null);
+    state.txf = await fetchJsonGz(dailyPath('txf_map')).catch(() => null);
     try {
       state.data = await fetchJsonGz(dailyPath('market_structure'));
       state.date = currentDate;

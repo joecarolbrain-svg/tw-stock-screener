@@ -241,6 +241,23 @@
 .ms-pnl { width: 100%; height: auto; display: block; }
 .warn { color: var(--warn); }
 
+/* ── 第六章：台指期結構地圖 ── */
+.ms-txf { width: 100%; height: auto; display: block; }
+.ms-lvlab { font-size: 10px; font-family: var(--mono); font-weight: 700; }
+.ms-band:hover rect { opacity: .30; }
+.ms-stale {
+  padding: 9px 12px; margin-bottom: 10px; border-radius: 8px; font-size: 12.5px;
+  background: rgba(245, 185, 66, .12); border: 1px solid rgba(245, 185, 66, .45);
+  color: var(--warn); font-weight: 600;
+}
+.ms-stale .muted { font-weight: 400; display: block; margin-top: 2px; }
+.ms-warnnote {
+  border-color: rgba(255, 82, 82, .35);
+  background: rgba(255, 82, 82, .07);
+  font-weight: 400; font-size: 12px; line-height: 1.5; display: block;
+}
+.ms-ct-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
 /* ── 窄幕 ── */
 @media (max-width: 1200px) {
   .ms-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }

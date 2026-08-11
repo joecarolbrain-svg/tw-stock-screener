@@ -10,7 +10,19 @@
 window.MarketStructure = (function () {
   'use strict';
 
-  const state = { data: null, date: null, heatMarket: 'TSE', kwTab: 'hot' };
+  const state = {
+    data: null, chips: null, date: null,
+    heatMarket: 'TSE', kwTab: 'hot', biasMa: 'ma60',
+    chapter: 'structure',      // structure(一) / options(二) / trend(三) / players(四) / board(五)
+  };
+
+  const CHAPTERS = [
+    ['structure', '① 市場整體結構'],
+    ['options', '② 選擇權結構'],
+    ['trend', '③ 市場趨勢結構'],
+    ['players', '④ 市場參與者'],
+    ['board', '⑤ 籌碼綜合儀表板'],
+  ];
 
   // ── 小工具 ────────────────────────────────────────────────
   const esc = s => String(s == null ? '' : s)
@@ -23,6 +35,9 @@ window.MarketStructure = (function () {
   const num = (v, nd = 2) => !isNum(v) ? '--' : Number(v).toLocaleString('en-US',
     { minimumFractionDigits: nd, maximumFractionDigits: nd });
   const int = v => !isNum(v) ? '--' : Math.round(v).toLocaleString('en-US');
+  /** 帶正負號的整數。⚠ 不可寫成 sign(int(v))：int() 會加千分位逗號，
+   *  再進 isNum() 就變成 NaN，四位數以上全部顯示 '--'。 */
+  const signInt = v => !isNum(v) ? '--' : (v > 0 ? '+' : '') + int(v);
 
   /** 熱力圖配色：台股紅漲綠跌，越深越極端（±7% 打底） */
   function heatColor(ret) {
@@ -329,25 +344,40 @@ window.MarketStructure = (function () {
         <tbody>${list}</tbody></table>`;
   }
 
-  // ── 主渲染 ────────────────────────────────────────────────
-  function render() {
-    const el = document.getElementById('ms-body');
-    if (!el) return;
-    const d = state.data;
-    if (!d) { el.innerHTML = '<div class="ms-empty">此日尚無市場結構資料。</div>'; return; }
+  // ══ 共用卡片外殼 ══════════════════════════════════════════
+  const card = (title, body, extra = '', wide = '') =>
+    `<section class="ms-card ${wide}"><div class="ms-card-h">${title}${extra}</div>
+      <div class="ms-card-b">${body}</div></section>`;
 
-    const card = (title, body, extra = '', wide = '') =>
-      `<section class="ms-card ${wide}"><div class="ms-card-h">${title}${extra}</div>
-        <div class="ms-card-b">${body}</div></section>`;
+  /** 水位條：把數值在近 N 日的百分位畫成一條（期天「籌碼強弱分析」那排） */
+  function levelBar(label, pct, value, sub) {
+    const p = isNum(pct) ? Math.max(0, Math.min(100, pct)) : null;
+    const tone = p == null ? '' : (p >= 70 ? 'hi' : p <= 30 ? 'lo' : 'mid');
+    return `<div class="ms-lv">
+      <span class="ms-lv-l">${esc(label)}</span>
+      <span class="ms-lv-v">${value}</span>
+      <div class="ms-lv-bar"><i class="${tone}" style="width:${p == null ? 0 : p}%"></i>
+        ${p == null ? '' : `<b style="left:${p}%"></b>`}</div>
+      <span class="ms-lv-p">${p == null ? '--' : p.toFixed(0) + '%'}</span>
+      ${sub ? `<span class="ms-lv-s">${sub}</span>` : ''}</div>`;
+  }
 
+  /** 淨額磚：數值 + 今日增減（期天那種一格一格的） */
+  function netTile(label, net, chg, unit = '口') {
+    return `<div class="ms-nt">
+      <span class="ms-nt-l">${esc(label)}</span>
+      <span class="ms-nt-v ${cls(net)}">${int(net)}<small>${unit}</small></span>
+      ${isNum(chg) ? `<span class="ms-nt-c ${cls(chg)}">今日 ${signInt(chg)}</span>` : ''}
+    </div>`;
+  }
+
+  // ══ 第一章 ════════════════════════════════════════════════
+  function renderStructure(d) {
     const mkBtns = ['TSE', 'OTC'].map(m =>
       `<button class="ms-mk ${state.heatMarket === m ? 'active' : ''}" data-mk="${m}">
         ${m === 'TSE' ? '上市' : '上櫃'}</button>`).join('');
 
-    el.innerHTML = `
-      <div class="ms-note">📅 ${d.trading_date}　收盤資料
-        <span class="muted">${esc(d.basis.price)}</span></div>
-
+    return `
       <div class="ms-grid ms-grid-2">
         ${card('盤面總覽', kpiHtml(d) + `<div class="ms-gauges">
             ${gaugeSvg(d.mood.market.score, '盤面氣氛')}
@@ -398,13 +428,310 @@ window.MarketStructure = (function () {
 
       <div class="ms-grid ms-grid-1">${card('熱門股關鍵字', keywordsHtml(d))}</div>
     `;
+  }
+
+  // ══ 第三章：市場趨勢結構 ══════════════════════════════════
+  function renderTrend(d) {
+    const a = d.amplitude_rank || {};
+    const ampHist = (a.hist || []);
+    const maxA = Math.max(1, ...ampHist.map(h => h.n));
+    const ampBars = ampHist.map(h => `<div class="ms-hbar">
+      <span class="ms-hbar-l">${h.label}</span>
+      <div class="ms-hbar-t"><i style="width:${h.n / maxA * 100}%"></i></div>
+      <span class="ms-hbar-n">${h.n}</span></div>`).join('');
+    const ampTop = (a.top || []).map(r => `<tr data-code="${esc(r.code)}" data-name="${esc(r.name)}">
+      <td class="c">${esc(r.code)}</td><td>${esc(r.name)}</td>
+      <td class="n">${num(r.close, 2)}</td><td class="n ${cls(r.ret)}">${pct(r.ret)}</td>
+      <td class="n warn">${num(r.amp, 2)}%</td><td class="n">${num(r.amount, 1)}</td></tr>`).join('');
+
+    const bias = d.bias || {};
+    const maBtns = ['ma20', 'ma60'].map(k =>
+      `<button class="ms-mk ${state.biasMa === k ? 'active' : ''}" data-bias="${k}">
+        ${k === 'ma20' ? '月線 MA20' : '季線 MA60'}</button>`).join('');
+    const b = bias[state.biasMa] || {};
+    const biasCols = ['TSE', 'OTC'].map(mk => {
+      const x = b[mk];
+      if (!x) return '';
+      const mx = Math.max(1, ...x.hist.map(h => h.n));
+      return `<div class="ms-tr-col">
+        <div class="ms-tr-h">${mk === 'TSE' ? '上市' : '上櫃'}
+          <small>中位數 <b class="${cls(x.median)}">${pct(x.median)}</b>
+          站上 <b class="up">${x.above}</b>／跌破 <b class="down">${x.below}</b></small></div>
+        ${x.hist.map(h => {
+    const neg = String(h.label).startsWith('<') || String(h.label).startsWith('-');
+    return `<div class="ms-hbar"><span class="ms-hbar-l">${h.label}</span>
+          <div class="ms-hbar-t"><i class="${neg ? 'neg' : 'pos'}"
+            style="width:${h.n / mx * 100}%"></i></div>
+          <span class="ms-hbar-n">${h.n}</span></div>`;
+  }).join('')}</div>`;
+    }).join('');
+
+    return `
+      <div class="ms-grid ms-grid-1">${card('市場個股趨勢（同第一章）', trendHtml(d),
+    '<small class="muted">站上週／月／季線家數與多頭排列</small>')}</div>
+      <div class="ms-grid ms-grid-2">
+        ${card('振幅分布', ampBars,
+    `<b>中位數 ${num(a.median, 2)}%　平均 ${num(a.mean, 2)}%</b>`)}
+        ${card('振幅排行前 20', `<table class="ms-tb ms-tb-wide"><thead><tr>
+          <th>代號</th><th>名稱</th><th class="n">收盤</th><th class="n">漲跌</th>
+          <th class="n">振幅</th><th class="n">成交值(億)</th></tr></thead>
+          <tbody>${ampTop}</tbody></table>`)}
+      </div>
+      <div class="ms-grid ms-grid-1">
+        ${card('高低檔及 MA 乖離程度', `<div class="ms-tr">${biasCols}</div>`,
+    `<span class="ms-mks">${maBtns}</span>
+     <small class="muted">期天用小時線；收盤系統改用日線乖離率 (收盤−MA)/MA</small>`)}
+      </div>`;
+  }
+
+  // ══ 第二章：選擇權結構 ════════════════════════════════════
+  function oiChartSvg(rows, spot) {
+    const r = (rows || []).filter(x => isNum(x.k));
+    if (!r.length) return '<div class="ms-spark-empty">無資料</div>';
+    const W = 900, H = 420, padL = 58, padR = 8, padT = 10, padB = 22;
+    const max = Math.max(1, ...r.map(x => Math.max(x.c_oi || 0, x.p_oi || 0)));
+    const bh = (H - padT - padB) / r.length;
+    const half = (W - padL - padR) / 2;
+    const mid = padL + half;
+    // 標籤最多 ~14 個，否則履約價會疊成一團黑塊
+    const lblEvery = Math.max(1, Math.ceil(r.length / 14));
+    const bars = r.map((x, i) => {
+      const y = padT + i * bh;
+      const cw = (x.c_oi || 0) / max * half, pw = (x.p_oi || 0) / max * half;
+      const atSpot = spot && Math.abs(x.k - spot) < (r[1] ? Math.abs(r[1].k - r[0].k) : 100) / 2;
+      return `<g>
+        ${atSpot ? `<rect x="${padL}" y="${y}" width="${half * 2}" height="${bh}"
+           fill="#ffffff" opacity="0.05"/>` : ''}
+        <rect x="${mid - cw}" y="${y + 0.6}" width="${cw}" height="${Math.max(bh - 1.2, 0.6)}"
+          fill="var(--up)" opacity="0.85"><title>Call ${x.k}：${int(x.c_oi)} 口</title></rect>
+        <rect x="${mid}" y="${y + 0.6}" width="${pw}" height="${Math.max(bh - 1.2, 0.6)}"
+          fill="var(--down)" opacity="0.85"><title>Put ${x.k}：${int(x.p_oi)} 口</title></rect>
+        ${i % lblEvery === 0 ? `<text x="${padL - 5}" y="${y + bh / 2 + 3}" class="ms-hb-x"
+          text-anchor="end">${int(x.k)}</text>` : ''}</g>`;
+    }).join('');
+    return `<svg class="ms-oi" viewBox="0 0 ${W} ${H}">
+      <line x1="${mid}" y1="${padT}" x2="${mid}" y2="${H - padB}" stroke="#3a3a52"/>
+      ${bars}
+      <text x="${mid - half / 2}" y="${H - 6}" class="ms-hb-x" text-anchor="middle">◀ 買權 CALL</text>
+      <text x="${mid + half / 2}" y="${H - 6}" class="ms-hb-x" text-anchor="middle">賣權 PUT ▶</text>
+    </svg>`;
+  }
+
+  function pnlCurveSvg(pts, spot, peak) {
+    const p = (pts || []).filter(x => isNum(x.x) && isNum(x.y));
+    if (p.length < 2) return '<div class="ms-spark-empty">無資料</div>';
+    const W = 460, H = 220, pad = 30;
+    const xs = p.map(o => o.x), ys = p.map(o => o.y);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs);
+    const y0 = Math.min(0, ...ys), y1 = Math.max(0, ...ys);
+    const X = v => pad + (v - x0) / (x1 - x0 || 1) * (W - pad - 8);
+    const Y = v => H - pad - (v - y0) / (y1 - y0 || 1) * (H - pad - 12);
+    const d = p.map((o, i) => `${i ? 'L' : 'M'}${X(o.x).toFixed(1)},${Y(o.y).toFixed(1)}`).join('');
+    const zero = Y(0);
+    return `<svg class="ms-pnl" viewBox="0 0 ${W} ${H}">
+      <line x1="${pad}" y1="${zero}" x2="${W - 8}" y2="${zero}" stroke="#4a4a63" stroke-dasharray="3 3"/>
+      <path d="${d}L${X(x1)},${zero}L${X(x0)},${zero}Z" fill="var(--accent)" opacity="0.13"/>
+      <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.8"/>
+      ${spot ? `<line x1="${X(spot)}" y1="10" x2="${X(spot)}" y2="${H - pad}"
+        stroke="#f5b942" stroke-dasharray="4 3"/>
+        <text x="${X(spot)}" y="8" class="ms-hb-x" text-anchor="middle">現價</text>` : ''}
+      ${peak && isNum(peak.x) ? `<circle cx="${X(peak.x)}" cy="${Y(peak.y)}" r="3.5" fill="#f5b942"/>
+        <text x="${X(peak.x)}" y="${Y(peak.y) + 15}" class="ms-hb-x" text-anchor="middle">
+        最大獲利 ${int(peak.x)}</text>` : ''}
+      <text x="4" y="${Y(y1) + 12}" class="ms-hb-x">${int(y1)}萬</text>
+      <text x="4" y="${zero - 4}" class="ms-hb-x">0</text>
+    </svg>`;
+  }
+
+  function renderOptions(c) {
+    const o = c && c.options;
+    if (!o || !o.available) {
+      return `<div class="ms-empty">選擇權資料未產生。<br><span class="muted">
+        ${esc((o && o.error) || '跑 Finmind\\_ingest_option.py 匯入 TEJ 選擇權，再跑 export_market_chips.py')}
+        </span></div>`;
+    }
+    const a = o.atm || {};
+    const p = c.pcr || {};
+    const heat = o.heat || {};
+    const heatRows = Object.values(heat).map(h => levelBar(
+      h.label, h.pctile, `${int(h.value)}`,
+      `近20日均 ${int(h.avg20)}　${isNum(h.ratio) ? (h.ratio * 100).toFixed(0) + '%' : ''}`)).join('');
+
+    return `
+      <div class="ms-grid ms-grid-4">
+        ${card('價平和', `<div class="ms-big ${''}">${num(a.sum, 1)}</div>
+          <div class="ms-sub">履約價 ${int(a.strike)}　Call ${num(a.call, 1)}／Put ${num(a.put, 1)}</div>`)}
+        ${card('隱含波動率', `<div class="ms-big">${num(a.iv, 2)}%</div>
+          <div class="ms-sub">Call ${num(a.iv_call, 2)}%／Put ${num(a.iv_put, 2)}%</div>`,
+    '<small class="muted" title="' + esc(a.note || '') + '">自算 ⓘ</small>')}
+        ${card('合成遠期價', `<div class="ms-big">${int(a.forward)}</div>
+          <div class="ms-sub ${cls(a.forward - a.spot_index)}">對加權指數
+            ${sign(num(a.forward - a.spot_index, 0))} 點（${a.forward < a.spot_index ? '逆價差' : '正價差'}）</div>`,
+    '<small class="muted" title="由買賣權平價 F = K + (C−P)·e^(rT) 反推">ⓘ</small>')}
+        ${card('Put/Call Ratio', `<div class="ms-big ${p.pcr > 1.3 || p.pcr < 0.7 ? 'warn' : ''}">${num(p.pcr, 3)}</div>
+          <div class="ms-sub">60日均 ${num(p.avg60, 3)}　百分位 ${num(p.pctile, 0)}%</div>`)}
+      </div>
+
+      <div class="ms-grid ms-grid-heat">
+        ${card('OI 口數分布（近月 ' + esc(o.front_month || '') + '）',
+    oiChartSvg(o.oi_by_strike, o.spot),
+    '<small class="muted">左紅＝買權未平倉、右綠＝賣權未平倉；白底列為現價所在履約價</small>',
+    'ms-card-wide')}
+        <div>
+          ${card('主力損益曲線', pnlCurveSvg(o.pnl_curve, o.spot, o.pnl_peak),
+    '<small class="muted">全市場未平倉當賣方組合的到期損益</small>')}
+          ${card('買賣方熱度（贏窟自訂）', heatRows || '<span class="muted">歷史不足</span>',
+    '<small class="muted" title="' + esc(o.heat_note || '') + '">ⓘ</small>')}
+        </div>
+      </div>`;
+  }
+
+  // ══ 第四章：市場參與者 ════════════════════════════════════
+  function renderPlayers(c) {
+    if (!c) return '<div class="ms-empty">籌碼資料未產生。</div>';
+    const eq = c.equity_inst || {};
+    const eqRows = ['TSE', 'OTC'].map(mk => {
+      const x = (eq.markets || {})[mk];
+      if (!x) return '';
+      return `<tr><td>${mk === 'TSE' ? '上市' : '上櫃'}</td>
+        <td class="n ${cls(x.foreign)}">${sign(num(x.foreign, 2))}</td>
+        <td class="n ${cls(x.trust)}">${sign(num(x.trust, 2))}</td>
+        <td class="n ${cls(x.dealer)}">${sign(num(x.dealer, 2))}</td>
+        <td class="n ${cls(x.sum3)}"><b>${sign(num(x.sum3, 2))}</b></td></tr>`;
+    }).join('');
+
+    const dv = c.inst_deriv || {};
+    const futRows = (dv.futures || []).map(f => `<tr><td>${esc(f.label)}</td>
+      ${['外資', '投信', '自營商'].map(w => {
+    const v = f.by[w];
+    return `<td class="n ${v ? cls(v.net) : ''}">${v ? int(v.net) : '--'}
+      ${v && isNum(v.chg) ? `<small class="${cls(v.chg)}">${signInt(v.chg)}</small>` : ''}</td>`;
+  }).join('')}
+      <td class="n ${cls(f.net)}"><b>${int(f.net)}</b></td></tr>`).join('');
+    const optRows = (dv.options || []).map(f => `<tr><td>${esc(f.label)}</td>
+      ${['外資', '投信', '自營商'].map(w => {
+    const v = f.by[w];
+    return `<td class="n ${v ? cls(v.net) : ''}">${v ? int(v.net) : '--'}
+      ${v && isNum(v.chg) ? `<small class="${cls(v.chg)}">${signInt(v.chg)}</small>` : ''}</td>`;
+  }).join('')}<td></td></tr>`).join('');
+
+    const lt = c.large_traders || {};
+    const ltCards = (lt.groups || []).map(g => card(`大額交易人 — ${esc(g.label)}`,
+      `<div class="ms-nts">${g.rows.map(r => netTile(r.name, r.net, r.chg)).join('')}</div>
+       <div class="ms-lvs">${g.rows.map(r => levelBar(
+        r.name + ' 留倉水位', r.pctile, int(r.net),
+        `近 ${r.n_hist} 日`)).join('')}</div>
+       <div class="muted" style="margin-top:6px">全市場未沖銷 ${int(g.market_oi)} 口</div>`)).join('');
+
+    const rt = c.retail || {};
+    const rtCards = (rt.rows || []).map(r => card(`散戶多空 — ${esc(r.label)}`,
+      `<div class="ms-big ${cls(r.ratio)}">${pct(r.ratio)}</div>
+       <div class="ms-sub">散戶淨 <b class="${cls(r.retail_net)}">${signInt(r.retail_net)}</b> 口
+         ${isNum(r.retail_chg) ? `（今日 ${signInt(r.retail_chg)}）` : ''}</div>
+       ${levelBar('多空比水位', r.pctile, pct(r.ratio), `60日均 ${pct(r.avg60)}`)}
+       <div class="muted">全市場未沖銷 ${int(r.market_oi)} 口</div>`)).join('');
+
+    return `
+      <div class="ms-grid ms-grid-2">
+        ${card('三大法人買賣超（現貨）', `<table class="ms-tb ms-tb-wide">
+          <thead><tr><th>市場</th><th class="n">外資</th><th class="n">投信</th>
+          <th class="n">自營</th><th class="n">合計</th></tr></thead>
+          <tbody>${eqRows}</tbody></table>
+          <div class="muted" style="margin-top:6px">${esc(eq.note || '')}</div>`,
+    '<small class="muted">單位：億元</small>')}
+        ${card('三大法人期貨未平倉', `<table class="ms-tb ms-tb-wide">
+          <thead><tr><th>契約</th><th class="n">外資</th><th class="n">投信</th>
+          <th class="n">自營</th><th class="n">合計</th></tr></thead>
+          <tbody>${futRows}${optRows}</tbody></table>
+          <div class="muted" style="margin-top:6px">
+            選擇權淨額＝(買權淨 − 賣權淨)，即多方曝險，與大額交易人同口徑</div>`,
+    '<small class="muted">單位：口（淨未平倉）</small>')}
+      </div>
+      <div class="ms-grid ms-grid-2">${ltCards}</div>
+      <div class="ms-grid ms-grid-2">${rtCards}</div>`;
+  }
+
+  // ══ 第五章：籌碼綜合儀表板 ════════════════════════════════
+  function renderBoard(d, c) {
+    if (!c) return '<div class="ms-empty">籌碼資料未產生。</div>';
+    const eq = (c.equity_inst || {}).markets || {};
+    const dv = c.inst_deriv || {};
+    const lt = (c.large_traders || {}).groups || [];
+    const rt = (c.retail || {}).rows || [];
+    const p = c.pcr || {};
+    const txf = (dv.futures || []).find(f => f.code === 'TX');
+    const fo = txf && txf.by['外資'];
+
+    const kpis = [
+      ['三大法人上市買賣超', eq.TSE ? sign(num(eq.TSE.sum3, 2)) + ' 億' : '--',
+        eq.TSE ? cls(eq.TSE.sum3) : ''],
+      ['三大法人上櫃買賣超', eq.OTC ? sign(num(eq.OTC.sum3, 2)) + ' 億' : '--',
+        eq.OTC ? cls(eq.OTC.sum3) : ''],
+      ['外資期貨淨未平倉', fo ? int(fo.net) + ' 口' : '--', fo ? cls(fo.net) : ''],
+      ['散戶小台多空比', rt[0] ? pct(rt[0].ratio) : '--', rt[0] ? cls(rt[0].ratio) : ''],
+      ['散戶微台多空比', rt[1] ? pct(rt[1].ratio) : '--', rt[1] ? cls(rt[1].ratio) : ''],
+      ['Put/Call Ratio', num(p.pcr, 3), p.pcr > 1.3 || p.pcr < 0.7 ? 'warn' : ''],
+    ].map(([l, v, t]) => `<div class="ms-k"><span class="ms-k-l">${l}</span>
+      <span class="ms-k-v ${t}">${v}</span></div>`).join('');
+
+    // 籌碼強弱：把能算百分位的全部排成一排水位條
+    const levels = [];
+    lt.forEach(g => g.rows.forEach(r =>
+      levels.push([`${g.label}・${r.name}`, r.pctile, int(r.net) + ' 口'])));
+    rt.forEach(r => levels.push([`散戶・${r.label}`, r.pctile, pct(r.ratio)]));
+    if (isNum(p.pctile)) levels.push(['選擇權・PCR', p.pctile, num(p.pcr, 3)]);
+    const levelHtml = levels.map(([l, pc, v]) => levelBar(l, pc, v)).join('');
+
+    return `
+      <div class="ms-grid ms-grid-1">
+        ${card('籌碼快照', `<div class="ms-kpis">${kpis}</div>`,
+    `<small class="muted">${esc(c.trading_date)}</small>`)}
+      </div>
+      <div class="ms-grid ms-grid-1">
+        ${card(`籌碼強弱分析（近 ${c.window} 日留倉水位百分位）`, levelHtml,
+    '<small class="muted">0%＝窗格內最低、100%＝最高。純描述性，未經預測力檢定</small>')}
+      </div>`;
+  }
+
+  // ══ 主渲染 ════════════════════════════════════════════════
+  function render() {
+    const el = document.getElementById('ms-body');
+    if (!el) return;
+    const d = state.data;
+    if (!d) { el.innerHTML = '<div class="ms-empty">此日尚無市場結構資料。</div>'; return; }
+    const c = state.chips;
+
+    const nav = CHAPTERS.map(([k, lbl]) =>
+      `<button class="ms-ch ${state.chapter === k ? 'active' : ''}" data-ch="${k}">${lbl}</button>`
+    ).join('');
+
+    let body;
+    if (state.chapter === 'structure') body = renderStructure(d);
+    else if (state.chapter === 'trend') body = renderTrend(d);
+    else if (state.chapter === 'options') body = renderOptions(c);
+    else if (state.chapter === 'players') body = renderPlayers(c);
+    else body = renderBoard(d, c);
+
+    el.innerHTML = `
+      <div class="ms-note">📅 ${d.trading_date}　收盤資料
+        <span class="muted">${esc(d.basis.price)}</span></div>
+      <nav class="ms-chs">${nav}</nav>
+      ${body}`;
     bind();
   }
 
   function bind() {
     const el = document.getElementById('ms-body');
     if (!el) return;
-    el.querySelectorAll('.ms-mk').forEach(b => b.addEventListener('click', () => {
+    el.querySelectorAll('.ms-ch').forEach(b => b.addEventListener('click', () => {
+      state.chapter = b.dataset.ch; render();
+      document.getElementById('ms-body').scrollIntoView({ block: 'start' });
+    }));
+    el.querySelectorAll('[data-bias]').forEach(b => b.addEventListener('click', () => {
+      state.biasMa = b.dataset.bias; render();
+    }));
+    // 只綁有 data-mk 的：第三章的 MA20/MA60 切換也用 .ms-mk 外觀，但走 data-bias
+    el.querySelectorAll('.ms-mk[data-mk]').forEach(b => b.addEventListener('click', () => {
       state.heatMarket = b.dataset.mk; render();
     }));
     el.querySelectorAll('.ms-kwt').forEach(b => b.addEventListener('click', () => {
@@ -425,6 +752,8 @@ window.MarketStructure = (function () {
     if (!el) return;
     if (state.date === currentDate && state.data) { render(); return; }
     el.innerHTML = '<div class="ms-empty">載入中…</div>';
+    // 籌碼那包（第二/四/五章）缺了不該擋住第一/三章 → 各自 catch
+    state.chips = await fetchJsonGz(dailyPath('market_chips')).catch(() => null);
     try {
       state.data = await fetchJsonGz(dailyPath('market_structure'));
       state.date = currentDate;

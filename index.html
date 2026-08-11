@@ -14,6 +14,7 @@
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
   <link rel="stylesheet" href="style.css?v=20260802a" />
+  <link rel="stylesheet" href="market.css?v=20260811a" />
 </head>
 <body>
   <header class="topbar">
@@ -35,6 +36,7 @@
 
   <nav class="tabs">
     <button class="tab-btn active" data-tab="dashboard">📊 每日看板</button>
+    <button class="tab-btn" data-tab="market-structure">🌡 市場結構</button>
     <button class="tab-btn" data-tab="watchlist">⭐ 自選股</button>
     <button class="tab-btn" data-tab="hanku">🌀 Hanku波段</button>
     <button class="tab-btn" data-tab="sector-flow">💸 族群資金流向</button>
@@ -384,6 +386,12 @@
   </div>
 
   </section><!-- /panel dashboard -->
+
+  <!-- 市場整體結構：版面複製「期天台指盤前規劃」第一章，資料全部自算
+       （export_market_structure.py → market_structure.json.gz） -->
+  <section class="tab-panel" data-panel="market-structure">
+    <div id="ms-body"></div>
+  </section><!-- /panel market-structure -->
 
   <section class="tab-panel" data-panel="watchlist">
     <div class="filters">
@@ -768,6 +776,7 @@
   <!-- 個股研究卡（finlab_port）：彈窗卡片堆與 stock.html 共用同一份實作 -->
   <script src="stockcards.js?v=20260730f"></script>
   <script src="app.js?v=20260802a"></script>
+  <script src="market.js?v=20260811a"></script>
   <script src="calc.js?v=20260715a"></script>
 </body>
 </html>

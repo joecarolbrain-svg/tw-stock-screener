@@ -107,6 +107,7 @@ async function onDateChange(ev) {
   else if (activeTab === 'flow') loadIndustryFlow();
   else if (activeTab === 'concept') loadThemeFlow();
   else if (activeTab === 'hanku') loadHanku();
+  else if (activeTab === 'market-structure') loadMarketStructure();
 }
 
 // 市場別 -> TradingView 交易所代碼
@@ -2392,6 +2393,9 @@ function bindTabs() {
       }
       if (tab === 'hanku') {
         loadHanku();
+      }
+      if (tab === 'market-structure') {
+        loadMarketStructure();   // market.js
       }
       if (tab === 'sector-flow') {
         // 泡泡圖＝獨立頁 sector.html，首次切入才設 src（lazy，避免未看就抓資料）

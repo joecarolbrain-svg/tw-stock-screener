@@ -1,0 +1,193 @@
+/* ══ 市場結構分頁 ══════════════════════════════════════════ */
+
+#ms-body { padding: 12px 16px 40px; }
+
+.ms-note {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding: 8px 12px; margin-bottom: 12px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+  font-size: 13px; font-weight: 600;
+}
+.ms-note .muted { font-weight: 400; }
+.ms-empty { padding: 60px 20px; text-align: center; color: var(--text-mut); }
+
+/* ── 版面 ── */
+.ms-grid { display: grid; gap: 12px; margin-bottom: 12px; }
+.ms-grid-1 { grid-template-columns: minmax(0, 1fr); }
+.ms-grid-2 { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+.ms-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ms-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ms-grid-heat { grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr); }
+
+.ms-card {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden; min-width: 0;
+}
+.ms-card-h {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 12px; background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px; font-weight: 700; letter-spacing: .5px;
+}
+.ms-card-h b { font-family: var(--mono); font-size: 12.5px; font-weight: 700; }
+.ms-card-h small { font-weight: 400; }
+.ms-card-h > .muted, .ms-card-h > .ms-mks, .ms-card-h > .ms-scale { margin-left: auto; }
+.ms-card-b { padding: 10px 12px 12px; min-width: 0; }
+
+/* ── KPI 磚 ── */
+.ms-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.ms-k {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 10px; background: var(--panel-3);
+  border: 1px solid var(--border); border-radius: 8px; min-width: 0;
+}
+.ms-k-l { font-size: 11px; color: var(--text-dim); }
+.ms-k-v { font-family: var(--mono); font-size: 17px; font-weight: 700; line-height: 1.25; }
+.ms-k-v small { font-size: 12px; font-weight: 400; color: var(--text-mut); }
+.ms-k-s { font-size: 10.5px; color: var(--text-mut); }
+
+.up { color: var(--up); }
+.down { color: var(--down); }
+
+/* ── 儀表 ── */
+.ms-gauges { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.ms-gauge {
+  background: var(--panel-3); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 4px 8px; text-align: center;
+}
+.ms-gauge svg { display: block; }
+.ms-gauge .g-tick { fill: #6b6b85; font-size: 10px; font-family: var(--mono); }
+.ms-gauge-cap { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+.ms-gauge-cap b { font-family: var(--mono); font-size: 16px; margin-left: 6px; }
+.ms-formula {
+  margin-top: 8px; font-size: 10.5px; color: var(--text-mut);
+  border-top: 1px dashed var(--border); padding-top: 6px; cursor: help;
+}
+
+/* ── 走勢 / 圖 ── */
+.ms-spark { width: 100%; height: 96px; display: block; }
+.ms-spark-empty { padding: 30px 0; text-align: center; color: var(--text-mut); font-size: 12px; }
+.ms-hist, .ms-retbars { width: 100%; height: auto; display: block; }
+.ms-hb-n { fill: var(--text-dim); font-size: 8.5px; font-family: var(--mono); }
+.ms-hb-x { fill: #6b6b85; font-size: 8.5px; font-family: var(--mono); }
+.ms-bar-lab { fill: var(--text-dim); font-size: 8.5px; }
+
+/* ── 直方圖下的漲跌家數 ── */
+.ms-bd-bar { display: flex; height: 10px; border-radius: 3px; overflow: hidden; margin: 6px 0 5px; }
+.ms-bd-bar i.up { background: var(--up); }
+.ms-bd-bar i.down { background: var(--down); }
+.ms-bd-bar i.flat { background: #4a4a63; }
+.ms-bf { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; }
+.ms-bf-c {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  background: var(--panel-3); border: 1px solid var(--border);
+  border-radius: 5px; padding: 3px 2px;
+}
+.ms-bf-l { font-size: 9.5px; color: var(--text-mut); }
+.ms-bf-c b { font-family: var(--mono); font-size: 12.5px; }
+
+/* 類股整列那張圖：檔數多，SVG 會很寬，允許橫向捲動 */
+.ms-card-tall .ms-card-b { overflow-x: auto; }
+.ms-card-tall .ms-retbars { min-width: 900px; height: 190px; }
+
+/* ── 創新高低 ── */
+.ms-nh-list { display: flex; flex-direction: column; gap: 5px; }
+.ms-nh { display: grid; grid-template-columns: 34px minmax(0, 1fr) 70px; gap: 8px; align-items: center; }
+.ms-nh-w { font-size: 11px; color: var(--text-dim); font-family: var(--mono); }
+.ms-nh-bar { display: flex; height: 14px; border-radius: 3px; overflow: hidden; background: #22223a; }
+.ms-nh-bar i { display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-family: var(--mono); color: #fff; }
+.ms-nh-bar i.up { background: var(--up); }
+.ms-nh-bar i.down { background: var(--down); opacity: .55; }
+.ms-nh-n { font-family: var(--mono); font-size: 11px; text-align: right; }
+.ms-nh-n small { color: var(--text-mut); margin: 0 2px; }
+.ms-legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 10px; margin-top: 6px; }
+
+/* ── 趨勢概況 ── */
+.ms-tr { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ms-tr-h { font-size: 12px; font-weight: 700; margin-bottom: 6px; color: var(--text-dim); }
+.ms-tr-h small { font-weight: 400; color: var(--text-mut); margin-left: 4px; }
+.ms-tr-row { margin-bottom: 7px; }
+.ms-tr-l { font-size: 11px; color: var(--text-dim); }
+.ms-tr-n { float: right; font-family: var(--mono); font-size: 12px; color: #7fb3ff; font-weight: 700; }
+.ms-tr-n small { color: var(--text-mut); font-weight: 400; }
+.ms-tr-bar { clear: both; height: 5px; background: #22223a; border-radius: 3px; margin-top: 3px; }
+.ms-tr-bar i { display: block; height: 100%; background: #3d7ddb; border-radius: 3px; }
+
+/* ── 熱力圖 ── */
+.ms-card-wide .ms-card-b { padding: 8px; }
+.tm-wrap { position: relative; width: 100%; aspect-ratio: 1000 / 560; min-height: 380px; }
+.tm-cell {
+  position: absolute; overflow: hidden; cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, .55);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; line-height: 1.2; padding: 1px;
+}
+.tm-cell:hover { outline: 1.5px solid var(--accent); outline-offset: -1.5px; z-index: 2; }
+.tm-n { font-size: 11px; font-weight: 700; color: #f0f0f5; white-space: nowrap; }
+.tm-p { font-size: 10.5px; font-family: var(--mono); color: #e8e8f0; }
+.tm-c { font-size: 9.5px; font-family: var(--mono); color: #f5d76e; }
+.ms-mks { display: flex; gap: 4px; }
+.ms-mk {
+  background: var(--panel-3); color: var(--text-dim); border: 1px solid var(--border);
+  border-radius: 5px; padding: 3px 12px; font-size: 11.5px; cursor: pointer;
+}
+.ms-mk.active { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
+.ms-scale { display: flex; gap: 1px; }
+.ms-scale i {
+  font-style: normal; font-size: 9px; font-family: var(--mono);
+  padding: 2px 5px; color: #d5d5e0;
+}
+
+/* ── 表格 ── */
+.ms-ct { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.ms-ct-h { font-size: 11.5px; font-weight: 700; margin-bottom: 3px; }
+.ms-tb { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.ms-tb th {
+  text-align: left; font-weight: 600; color: var(--text-dim); font-size: 10.5px;
+  padding: 3px 5px; border-bottom: 1px solid var(--border);
+}
+.ms-tb td { padding: 2.5px 5px; border-bottom: 1px solid #1e1e33; cursor: pointer; }
+.ms-tb tbody tr:hover td { background: var(--panel-3); }
+.ms-tb td.c, .ms-tb td.n, .ms-tb th.n { font-family: var(--mono); }
+.ms-tb td.c { color: var(--text-mut); }
+.ms-tb td.n, .ms-tb th.n { text-align: right; }
+.ms-tb-wide { margin-top: 8px; }
+
+/* ── 關鍵字 ── */
+.ms-kw-tabs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.ms-kw-tabs .muted { margin-left: auto; font-size: 10.5px; }
+.ms-kwt {
+  background: var(--panel-3); color: var(--text-dim); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 14px; font-size: 12px; cursor: pointer;
+}
+.ms-kwt.active { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
+.ms-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.ms-chip {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  background: var(--panel-3); border: 1px solid var(--border);
+  border-radius: 5px; padding: 3px 8px; font-size: 11.5px;
+}
+.ms-chip small { color: var(--text-mut); font-size: 10px; }
+.ms-chip b { font-family: var(--mono); font-size: 11px; }
+.ms-chip.up { border-color: rgba(239, 83, 80, .5); }
+.ms-chip.up b { color: var(--up); }
+.ms-chip.down { border-color: rgba(38, 166, 154, .5); }
+.ms-chip.down b { color: var(--down); }
+
+/* ── 窄幕 ── */
+@media (max-width: 1200px) {
+  .ms-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ms-grid-heat { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  .ms-grid-2, .ms-grid-3 { grid-template-columns: minmax(0, 1fr); }
+  .ms-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  #ms-body { padding: 10px 8px 32px; }
+  .ms-grid-4 { grid-template-columns: minmax(0, 1fr); }
+  .ms-tr { grid-template-columns: minmax(0, 1fr); }
+  .tm-wrap { aspect-ratio: 3 / 4; }
+  .ms-card-h > .muted, .ms-card-h > .ms-mks, .ms-card-h > .ms-scale { margin-left: 0; }
+}

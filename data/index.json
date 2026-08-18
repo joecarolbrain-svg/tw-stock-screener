@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "generated_at": "2026-08-18T23:26:37+08:00",
+  "generated_at": "2026-08-19T05:59:52+08:00",
   "latest_date": "20260818",
   "dates": [
     {
@@ -43,6 +43,8 @@
     {
       "date": "20260817",
       "has": [
+        "disposition",
+        "hanku",
         "industry_flow",
         "industry_flow_1",
         "industry_flow_10",
@@ -53,13 +55,17 @@
         "industry_ranking",
         "inst_rank",
         "latest",
+        "margin_maint",
+        "market_chips",
+        "market_structure",
         "theme_flow",
         "theme_flow_1",
         "theme_flow_10",
         "theme_flow_3",
         "theme_flow_40",
         "theme_flow_5",
-        "theme_flow_60"
+        "theme_flow_60",
+        "txf_map"
       ]
     },
     {

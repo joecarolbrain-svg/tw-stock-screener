@@ -86,8 +86,7 @@ async function onDateChange(ev) {
     renderDimensionOptions();
     buildTable(data);
     renderFocusStrip(data);
-    loadResonanceData().then(updateSnapshotReso);
-    loadMarketSnapshot();
+    loadResonanceData().then(updateQuickCounts);
     applyFilters();
   } catch (err) {
     console.error(err);
@@ -515,157 +514,6 @@ async function mergeInstNet(data) {
   } catch (_) {
     rows.forEach(row => { row.foreign_net = row.trust_net = row.dealer_net = null; });
   }
-}
-
-// ── 1.5 今日市場快照（大盤籌碼 market.json + 漲跌家數 + 共振數） ──
-function _msFmtZ(z) {
-  if (z == null || isNaN(z)) return '--';
-  return (z >= 0 ? '+' : '') + Number(z).toFixed(1);
-}
-function _msZCls(z) {
-  if (z == null || isNaN(z)) return '';
-  return z > 0 ? 'pos' : (z < 0 ? 'neg' : '');
-}
-
-async function loadMarketSnapshot() {
-  const el = document.getElementById('mkt-snapshot');
-  if (!el) return;
-  // 該日是否有 market.json（index.json 的 has 清單）
-  let mkt = null;
-  const entry = (indexMeta?.dates || []).find(e => e.date === currentDate);
-  if (entry && (entry.has || []).includes('market')) {
-    try { mkt = await fetchJsonGz(dailyPath('market')); }
-    catch (e) { console.warn('market.json 載入失敗', e); }
-  }
-  renderSnapshot(state.data, mkt);
-}
-
-function renderSnapshot(d, mkt) {
-  const el = document.getElementById('mkt-snapshot');
-  if (!el || !d) return;
-  const tiles = [];
-
-  // ① 大盤籌碼狀態（market.json chip_score）
-  const cs = mkt?.chip_score;
-  if (cs?.available) {
-    const score = cs.composite_score;
-    const bull = score != null && score > 0;
-    tiles.push(`<div class="ms-tile ${score != null ? (bull ? 'ms-state-bull' : 'ms-state-bear') : ''}" data-g="anchor">
-      <span class="ms-k">🏛 大盤籌碼</span>
-      <span class="ms-v">${cs.state || '--'}<small>${score != null ? (score >= 0 ? '+' : '') + Number(score).toFixed(1) : ''}</small></span>
-      <span class="ms-sub">現貨 ${cs.equity_date || '--'}｜期貨 ${cs.futures_date || '--'}</span>
-    </div>`);
-  }
-
-  // ② 漲跌家數（latest.json breadth，舊資料日可能沒有）
-  const br = d.breadth;
-  if (br && br.total) {
-    const upPct = (br.up / br.total * 100).toFixed(0);
-    tiles.push(`<div class="ms-tile" data-g="spot">
-      <span class="ms-k">📶 漲跌家數</span>
-      <span class="ms-v"><span class="pos">${br.up}</span><small>／</small><span class="neg">${br.down}</span></span>
-      <div class="ms-bar"><span class="up" style="flex:${br.up}"></span><span class="down" style="flex:${br.down}"></span></div>
-      <span class="ms-sub">上漲 ${upPct}%（共 ${br.total} 檔）</span>
-    </div>`);
-  }
-
-  // ③④⑤ 法人 z 分數
-  if (cs?.available) {
-    tiles.push(`<div class="ms-tile" data-g="spot">
-      <span class="ms-k">🌏 外資現貨 z</span>
-      <span class="ms-v ${_msZCls(cs.fo_z)}">${_msFmtZ(cs.fo_z)}</span>
-      <span class="ms-sub">${cs.fo_value != null ? Number(cs.fo_value).toLocaleString() + ' 百萬' : ''}</span>
-    </div>`);
-    tiles.push(`<div class="ms-tile" data-g="spot">
-      <span class="ms-k">🏦 投信現貨 z</span>
-      <span class="ms-v ${_msZCls(cs.ic_z)}">${_msFmtZ(cs.ic_z)}</span>
-      <span class="ms-sub">${cs.ic_value != null ? Number(cs.ic_value).toLocaleString() + ' 百萬' : ''}</span>
-    </div>`);
-    tiles.push(`<div class="ms-tile" data-g="deriv">
-      <span class="ms-k">📜 外資期貨 z</span>
-      <span class="ms-v ${_msZCls(cs.fu_z)}">${_msFmtZ(cs.fu_z)}</span>
-      <span class="ms-sub">${cs.fu_value != null ? '淨OI ' + Number(cs.fu_value).toLocaleString() + ' 口' : ''}</span>
-    </div>`);
-    if (cs.pcr != null) {
-      const pcrCls = (cs.pcr > 1.3 || cs.pcr < 0.7) ? 'warn' : '';
-      tiles.push(`<div class="ms-tile" data-g="deriv">
-        <span class="ms-k">⚖️ PCR</span>
-        <span class="ms-v ${pcrCls}">${Number(cs.pcr).toFixed(2)}</span>
-        <span class="ms-sub">${cs.pcr > 1.3 ? '偏空保護濃' : cs.pcr < 0.7 ? '過度樂觀' : '中性'}</span>
-      </div>`);
-    }
-  }
-
-  // ⑥ 法人連買廣度（export_market 的 inst_breadth；連買/連賣 ≥3 天家數）
-  const ib = mkt?.inst_breadth;
-  if (ib && ib.universe) {
-    tiles.push(`<div class="ms-tile" data-g="breadth">
-      <span class="ms-k">🌏 外資連買廣度</span>
-      <span class="ms-v"><span class="pos">${ib.foreign_buy3}</span><small>／</small><span class="neg">${ib.foreign_sell3}</span></span>
-      <span class="ms-sub">連買≥3天／連賣≥3天（共 ${ib.universe} 檔）</span>
-    </div>`);
-    tiles.push(`<div class="ms-tile" data-g="breadth">
-      <span class="ms-k">🏦 投信連買廣度</span>
-      <span class="ms-v"><span class="pos">${ib.trust_buy3}</span><small>／</small><span class="neg">${ib.trust_sell3}</span></span>
-      <span class="ms-sub">連買≥3天／連賣≥3天（共 ${ib.universe} 檔）</span>
-    </div>`);
-  }
-
-  // ⑦ 大盤融資維持率（market.json market_maint；產出者是 大盤維持率/run_daily.py [0.6/3]）
-  // ⚠ 這是**全市場加總**的維持率（finlab 口徑），跟個股融資維持率雷達不是同一個數字。
-  const mm = mkt?.market_maint;
-  if (mm?.available && mm.mr != null) {
-    const mr = Number(mm.mr);
-    // 低 = 融資部位承壓（危險），高 = 籌碼擁擠。兩端都標 warn，破 1.40 再加深。
-    const vCls = mr < 1.40 ? 'neg' : ((mr < 1.60 || mr >= 1.80) ? 'warn' : '');
-    const chg = mm.mr_chg;
-    const chgTxt = chg == null ? ''
-      : `${chg >= 0 ? '+' : ''}${(chg * 100).toFixed(1)} pt`;
-    const chgCls = chg == null ? '' : (chg >= 0 ? 'pos' : 'neg');
-    const stale = mm.stale ? ` ⏰${mm.date}` : '';
-    const tip = [
-      `大盤融資維持率 ${mr.toFixed(4)}（${mm.level || '--'}）`,
-      `資料日 ${mm.date}`,
-      mm.mr_ex_etf != null ? `扣除上市 ETF ${Number(mm.mr_ex_etf).toFixed(4)}（${mm.level_ex_etf || '--'}）` : '',
-      mm.collateral != null ? `擔保品市值 ${Math.round(mm.collateral).toLocaleString()} 億` : '',
-      mm.balance != null ? `融資金額餘額 ${Math.round(mm.balance).toLocaleString()} 億` : '',
-      mm.lots != null ? `融資張數 ${(mm.lots / 10000).toFixed(1)} 萬張` +
-        (mm.lots_chg != null ? `（${mm.lots_chg >= 0 ? '+' : ''}${(mm.lots_chg / 10000).toFixed(1)} 萬）` : '') : '',
-      '',
-      '維持率 = Σ(融資今餘張數 × 未還原收盤 × 1000) ÷ 融資金額餘額',
-      '<1.40 極端恐慌／斷頭壓力｜<1.60 偏低｜<1.70 中性｜<1.80 偏熱｜≥1.80 過熱',
-    ].filter(Boolean).join('\n');
-    tiles.push(`<div class="ms-tile ${mr < 1.40 ? 'ms-state-bear' : ''}" data-g="margin" title="${tip.replace(/"/g, '&quot;')}">
-      <span class="ms-k">💳 融資維持率</span>
-      <span class="ms-v ${vCls}">${mr.toFixed(2)}<small>${mm.level || ''}</small></span>
-      <span class="ms-sub">較前日 <span class="${chgCls}">${chgTxt || '--'}</span>｜餘額 ${mm.balance != null ? Math.round(mm.balance).toLocaleString() : '--'} 億${stale}</span>
-    </div>`);
-  }
-
-  // ⑧ 共振檔數（等 loadResonanceData 完成後由 updateSnapshotReso 填值）
-  tiles.push(`<div class="ms-tile" data-g="breadth">
-    <span class="ms-k">⚡ 多策略共振</span>
-    <span class="ms-v accent" id="ms-reso-v">--</span>
-    <span class="ms-sub">突破＋Hanku命中 ≥2</span>
-  </div>`);
-
-  // 評論列（market.json commentary + signals，最多 4 則）
-  const notes = [...(mkt?.commentary || []), ...(mkt?.signals || [])].slice(0, 4)
-    .map(n => `<span class="ms-note ${n.level || ''}">${n.text}</span>`).join('');
-
-  el.innerHTML = `<div class="ms-tiles">${tiles.join('')}</div>` +
-                 (notes ? `<div class="ms-notes">${notes}</div>` : '');
-  if (UI_V2) v2RestyleSnapshot(el);   // P2-①②：定調錨點+KPI分組、訊號依嚴重度排序
-  el.hidden = false;
-  updateSnapshotReso();
-}
-
-function updateSnapshotReso() {
-  const v = document.getElementById('ms-reso-v');
-  if (!v || !state.data) return;
-  const n = (state.data.rows || []).filter(r => _resoCount(r) >= 2).length;
-  v.textContent = `${n} 檔`;
-  updateQuickCounts();   // 共振資料到位 → 快速鈕「只看共振」計數才正確
 }
 
 // ── 2. 初始化 Header / Meta ─────────────────────────
@@ -1620,18 +1468,18 @@ function removeFilter(key) {
       break;
     case 'dim':
       state.dimSelected.clear();
-      [...document.getElementById('dim-select').options].forEach(o => o.selected = false);
+      { const e = document.getElementById('dim-select'); if (e) [...e.options].forEach(o => o.selected = false); }
       if (state.data) renderDimensionOptions();
       break;
     case 'search':
-      state.search = ''; document.getElementById('search-input').value = '';
+      state.search = ''; { const e = document.getElementById('search-input'); if (e) e.value = ''; }
       break;
     case 'scoreMin': state.scoreMin = 0; document.getElementById('score-min').value = 0; break;
     case 'rsMin': state.rsMin = 0; document.getElementById('rs-min').value = 0; break;
     case 'distRiskMax': state.distRiskMax = null; document.getElementById('dist-risk-max').value = ''; break;
     case 'groupZMin': state.groupZMin = null; document.getElementById('group-z-min').value = ''; break;
-    case 'onlyResonance': state.onlyResonance = false; document.getElementById('only-resonance').checked = false; break;
-    case 'onlyHotGroup': state.onlyHotGroup = false; document.getElementById('only-hot-group').checked = false; break;
+    case 'onlyResonance': state.onlyResonance = false; { const e = document.getElementById('only-resonance'); if (e) e.checked = false; } break;
+    case 'onlyHotGroup': state.onlyHotGroup = false; { const e = document.getElementById('only-hot-group'); if (e) e.checked = false; } break;
     case 'onlyInstBuy': state.onlyInstBuy = false; { const e = document.getElementById('only-inst-buy'); if (e) e.checked = false; } break;
     case 'onlyChipBull': state.onlyChipBull = false; { const e = document.getElementById('only-chip-bull'); if (e) e.checked = false; } break;
     case 'onlyMaintAlert': state.onlyMaintAlert = false; { const e = document.getElementById('only-maint-alert'); if (e) e.checked = false; } break;
@@ -1726,7 +1574,7 @@ function bindControls() {
     r.addEventListener('change', e => { state.mode = e.target.value; applyFilters(); });
   });
 
-  document.getElementById('search-input').addEventListener('input', e => {
+  document.getElementById('search-input')?.addEventListener('input', e => {
     state.search = e.target.value.trim(); applyFilters();
   });
 
@@ -1831,18 +1679,18 @@ function bindControls() {
       state.dim = e.target.value;
       state.dimSelected.clear();           // 切換維度後清空已選
       state.dimSearch = '';
-      document.getElementById('dim-search').value = '';
+      { const e = document.getElementById('dim-search'); if (e) e.value = ''; }
       renderDimensionOptions();
       applyFilters();
     });
   });
 
-  document.getElementById('dim-search').addEventListener('input', e => {
+  document.getElementById('dim-search')?.addEventListener('input', e => {
     state.dimSearch = e.target.value.trim();
     renderDimensionOptions();
   });
 
-  document.getElementById('dim-select').addEventListener('change', e => {
+  document.getElementById('dim-select')?.addEventListener('change', e => {
     state.dimSelected = new Set(Array.from(e.target.selectedOptions).map(o => o.value));
     applyFilters();
   });
@@ -1865,9 +1713,9 @@ function bindControls() {
   });
 
   document.getElementById('btn-clear').addEventListener('click', clearAllFilters);
-  document.getElementById('btn-save-preset').addEventListener('click', saveCurrentPreset);
-  document.getElementById('preset-select').addEventListener('change', loadPreset);
-  document.getElementById('btn-delete-preset').addEventListener('click', deleteCurrentPreset);
+  document.getElementById('btn-save-preset')?.addEventListener('click', saveCurrentPreset);
+  document.getElementById('preset-select')?.addEventListener('change', loadPreset);
+  document.getElementById('btn-delete-preset')?.addEventListener('click', deleteCurrentPreset);
 
   const hotChk = document.getElementById('only-hot-group');
   if (hotChk) {
@@ -2061,14 +1909,14 @@ function clearAllFilters() {
     const e = document.getElementById(id); if (e) e.checked = false; });
   const islOff = document.querySelector('input[name="island-mode"][value="off"]'); if (islOff) islOff.checked = true;
   document.querySelector('input[name="dim"][value="industry"]').checked = true;
-  document.getElementById('dim-search').value = '';
+  { const e = document.getElementById('dim-search'); if (e) e.value = ''; }
   renderDimensionOptions();
-  document.getElementById('search-input').value = '';
+  { const e = document.getElementById('search-input'); if (e) e.value = ''; }
   document.getElementById('score-min').value = 0;
   document.getElementById('rs-min').value = 0;
   document.getElementById('dist-risk-max').value = '';
   document.getElementById('group-z-min').value = '';
-  document.getElementById('preset-select').value = '';
+  { const e = document.getElementById('preset-select'); if (e) e.value = ''; }
   applyFilters();
 }
 
@@ -2083,6 +1931,7 @@ function setPresets(p) {
 }
 function refreshPresetSelect() {
   const sel = document.getElementById('preset-select');
+  if (!sel) return;
   const current = sel.value;
   sel.innerHTML = '<option value="">-- 載入組合 --</option>';
   Object.keys(getPresets()).forEach(name => {
@@ -2108,7 +1957,7 @@ function saveCurrentPreset() {
     groupZMin: state.groupZMin,
   };
   setPresets(presets);
-  document.getElementById('preset-select').value = name;
+  { const e = document.getElementById('preset-select'); if (e) e.value = name; }
 }
 function loadPreset(e) {
   const name = e.target.value;
@@ -2134,7 +1983,7 @@ function loadPreset(e) {
   document.querySelector(`input[name="mode"][value="${state.mode}"]`).checked = true;
   document.querySelector(`input[name="dim"][value="${state.dim}"]`).checked = true;
   renderDimensionOptions();
-  document.getElementById('search-input').value = state.search;
+  { const e = document.getElementById('search-input'); if (e) e.value = state.search; }
   document.getElementById('score-min').value = state.scoreMin;
   document.getElementById('rs-min').value = state.rsMin;
   document.getElementById('dist-risk-max').value = state.distRiskMax ?? '';
@@ -2143,6 +1992,7 @@ function loadPreset(e) {
 }
 function deleteCurrentPreset() {
   const sel = document.getElementById('preset-select');
+  if (!sel) return;
   const name = sel.value;
   if (!name) { alert('請先選擇要刪除的組合'); return; }
   if (!confirm(`刪除組合「${name}」？`)) return;
@@ -2389,8 +2239,7 @@ function _top1Cell(row) {
     renderDimensionOptions();
     buildTable(data);
     renderFocusStrip(data);
-    loadResonanceData().then(updateSnapshotReso);
-    loadMarketSnapshot();
+    loadResonanceData().then(updateQuickCounts);
     bindControls();
     initMobileUI();   // P1 手機版：需在 bindControls 之後（搬 #search-input 前先綁好 listener）
     bindGroupToggles();
@@ -4300,59 +4149,6 @@ function refreshV2Stepper() {
     }
     el.innerHTML = `${n}${d}`;
   });
-}
-
-// P2-①②：大盤快照 v2 重排——定調錨點 + 現貨/期權/廣度分組；訊號偏空排前
-function v2RestyleSnapshot(el) {
-  const wrap = el.querySelector('.ms-tiles');
-  if (wrap && !wrap.classList.contains('ms-tiles-v2')) {
-    const GRPS = [['anchor', ''], ['spot', '現貨'], ['deriv', '期權'],
-                  ['margin', '融資'], ['breadth', '廣度']];
-    const frag = document.createDocumentFragment();
-    GRPS.forEach(([g, label]) => {
-      const tiles = [...wrap.querySelectorAll(`.ms-tile[data-g="${g}"]`)];
-      if (!tiles.length) return;
-      const box = document.createElement('div');
-      if (g === 'anchor') {
-        box.className = 'ms-anchor';
-        tiles.forEach(t => box.appendChild(t));
-      } else {
-        box.className = 'ms-grp';
-        box.innerHTML = `<span class="ms-grp-label">${label}</span><div class="ms-grp-tiles"></div>`;
-        const inner = box.querySelector('.ms-grp-tiles');
-        tiles.forEach(t => inner.appendChild(t));
-      }
-      frag.appendChild(box);
-    });
-    [...wrap.querySelectorAll('.ms-tile')].forEach(t => frag.appendChild(t));  // 未分組保險
-    wrap.innerHTML = '';
-    wrap.appendChild(frag);
-    wrap.classList.add('ms-tiles-v2');
-  }
-  // 訊號 chips 依嚴重度排序：偏空 → 留意 → 資訊 → 偏多（風險優先）
-  // 並補上 mockup 的立場標籤（偏空/留意/資訊/偏多）
-  const notesEl = el.querySelector('.ms-notes');
-  if (notesEl) {
-    const rank = { bear: 0, warn: 1, info: 2, bull: 3 };
-    const TAG = { bear: '偏空', warn: '留意', info: '資訊', bull: '偏多' };
-    [...notesEl.children]
-      .sort((a, b) => {
-        const lv = n => { const c = [...n.classList].find(x => x in rank); return c != null ? rank[c] : 2; };
-        return lv(a) - lv(b);
-      })
-      .forEach(n => {
-        notesEl.appendChild(n);
-        if (!n.querySelector('.ms-tag')) {
-          const c = [...n.classList].find(x => x in TAG);
-          if (c) {
-            const t = document.createElement('span');
-            t.className = `ms-tag ms-tag-${c}`;
-            t.textContent = TAG[c];
-            n.insertBefore(t, n.firstChild);
-          }
-        }
-      });
-  }
 }
 
 // ═════════════════════════════════════════════════════════

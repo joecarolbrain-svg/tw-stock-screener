@@ -51,7 +51,6 @@
 
   <section class="tab-panel active" data-panel="dashboard">
 
-  <div id="mkt-snapshot" class="mkt-snapshot" hidden></div>
 
   <div id="focus-strip" class="focus-strip" hidden></div>
 
@@ -62,30 +61,11 @@
     <!-- 工具列：搜尋 + 分組收合 toggle + 動作 -->
     <!-- 第一層：常用（搜尋/檢視/排序/快速開關） -->
     <div class="filter-row group-bar">
-      <input type="text" id="search-input" class="search-box" placeholder="🔍 代號/名稱（例 2330）" />
       <div class="view-toggle" id="main-viewtoggle">
         <button type="button" class="vt-btn" data-view="table">≣ 表格</button>
         <button type="button" class="vt-btn active" data-view="card">▦ 卡片</button>
       </div>
-      <select id="main-card-sort" class="inline-select" title="卡片排序／分組">
-        <option value="persist_group" selected>▦ 依延續分組</option>
-        <option value="hits">↕ 命中數→分數</option>
-        <option value="reso">↕ 共振數</option>
-        <option value="score">↕ 分數</option>
-        <option value="rs">↕ RS</option>
-        <option value="chg_pct">↕ 漲幅</option>
-        <option value="rr">↕ RR賺賠比</option>
-        <option value="max_group_z">↕ 族群z</option>
-        <option value="foreign">↕ 外資連買</option>
-        <option value="trust">↕ 投信連買</option>
-      </select>
       <span class="qt-sep"></span>
-      <label class="check-toggle" title="只看同時被 ≥2 策略看好的股（突破命中＋Hanku）">
-        <input type="checkbox" id="only-resonance" /> ⚡ 只看共振
-      </label>
-      <label class="check-toggle" title="只顯示族群最高 z ≥ 1 的個股（族群在熱區）">
-        <input type="checkbox" id="only-hot-group" /> 🌊 族群z≥1
-      </label>
       <label class="check-toggle" title="只看今日外資或投信買超的股（連買天數≥1＝最新一日站買方；配合命中＝法人×篩選共振）">
         <input type="checkbox" id="only-inst-buy" /> 🏦 法人買超
       </label>
@@ -93,9 +73,6 @@
         <input type="checkbox" id="only-chip-bull" /> 💰 籌碼偏多
       </label>
       <span class="qt-sep"></span>
-      <label class="check-toggle" title="只看融資維持率已達/逼近該股自己在 2025-04-09 關稅崩盤低點的水位（且全期百分位≤10%）。這是風險溫度計不是買訊——維持率到位是必要非充分條件。">
-        <input type="checkbox" id="only-maint-alert" /> 🩸 融資斷頭級
-      </label>
       <label class="check-toggle" title="只看有個股期貨（大型每口2000股／小型每口100股）的標的，可用期貨操作">
         <input type="checkbox" id="only-stf" /> 📈 有股期
       </label>
@@ -103,14 +80,6 @@
       <label class="check-toggle" title="只看今日收紅K（陽線：收盤>開盤；或漲停），對應朱家泓「買紅K不買大量黑K」">
         <input type="checkbox" id="only-red-k" /> 🔴 收紅K
       </label>
-      <label class="check-toggle" title="只看量能跟上：量比≥1.2×5日均量（放量），例外納入一字鎖漲停(量小但最強)與處置股(分盤量失真、豁免量門檻)。卡片標註 爆量≥1.5/放量/⚡一字/⚖️處置">
-        <input type="checkbox" id="only-vol-up" /> 🔊 量能跟上
-      </label>
-      <div class="persist-views" id="persist-views" title="排名延續快捷（互斥，與卡片依延續分組同標準）：今日上榜 / 延續加溫 / 延續轉弱">
-        <button type="button" class="pv-btn" data-pv="new" title="今日(重)上榜：board_streak=1（昨日不在榜）">🆕今日上榜</button>
-        <button type="button" class="pv-btn" data-pv="surge" title="延續加溫：連續在榜≥2日且加分或升階">🔥加溫</button>
-        <button type="button" class="pv-btn" data-pv="fade" title="延續轉弱：連續在榜≥2日但掉分或降階">⚠️轉弱</button>
-      </div>
       <span class="diff-wrap">
         <span id="diff-summary" class="diff-summary" hidden></span>
         <div id="diff-panel" class="diff-panel" hidden></div>
@@ -121,16 +90,10 @@
     <!-- 第二層：進階條件與管理 -->
     <div class="filter-row group-bar group-bar-2nd">
       <button class="fg-toggle" data-group="cat">三階段<span class="fg-count" id="fgc-cat"></span></button>
-      <button class="fg-toggle" data-group="dim">維度<span class="fg-count" id="fgc-dim"></span></button>
       <button class="fg-toggle" data-group="thresh">門檻<span class="fg-count" id="fgc-thresh"></span></button>
       <button class="fg-toggle" data-group="ma">📏 均線<span class="fg-count" id="fgc-ma"></span></button>
       <button id="btn-clear" class="btn btn-ghost">清除全部</button>
       <span class="filler"></span>
-      <button id="btn-save-preset" class="btn btn-ghost">💾 組合</button>
-      <select id="preset-select" class="preset-select">
-        <option value="">-- 載入 --</option>
-      </select>
-      <button id="btn-delete-preset" class="btn btn-ghost btn-danger">🗑</button>
       <button id="btn-only-pinned" class="btn btn-ghost" disabled>★ 只看勾選</button>
       <button id="btn-clear-pinned" class="btn btn-ghost btn-danger" disabled>清空</button>
       <span id="pin-summary" class="muted"></span>
@@ -251,20 +214,6 @@
          5訊號/3條件→各階段AND濾網、型態訊號→各階段型態chips、島狀→發動型態+趨勢否決、
          穩健A/獵飆B→🎓朱家泓一鍵按鈕。mainupMode 狀態機保留(A/B按鈕驅動)。 -->
 
-    <!-- 維度 -->
-    <div class="fg-body" data-group="dim" hidden>
-      <div class="filter-group filter-group-dimension">
-        <div class="dim-radio">
-          <label><input type="radio" name="dim" value="industry" checked /> 產業</label>
-          <label><input type="radio" name="dim" value="sector" /> 類股</label>
-          <label><input type="radio" name="dim" value="concept" /> 題材</label>
-        </div>
-        <input type="text" id="dim-search" placeholder="搜尋產業/類股/題材..." class="dim-search-input" />
-        <select id="dim-select" multiple size="6" style="display:none"></select>
-        <div id="dim-cards" class="dim-cards"></div>
-        <span class="muted" id="dim-source"></span>
-      </div>
-    </div>
 
     <!-- 門檻 -->
     <div class="fg-body" data-group="thresh" hidden>

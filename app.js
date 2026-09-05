@@ -1397,6 +1397,16 @@ function updateGroupCounts() {
   set('fgc-thresh', (state.scoreMin > 0 ? 1 : 0) + (state.rsMin > 0 ? 1 : 0) +
                     (state.distRiskMax != null ? 1 : 0) + (state.groupZMin != null ? 1 : 0));
   set('fgc-ma', state.maAbove.size + state.maUp.size);
+  // 右抽屜的條件計數（cat + thresh + ma 全部加總）
+  const totalN = [...document.querySelectorAll('#v2-drawer input[type=checkbox]')]
+                   .filter(c => c.checked).length
+                 + [...document.querySelectorAll('#v2-drawer .cat-chip.checked')].length
+                 + (state.scoreMin > 0 ? 1 : 0) + (state.rsMin > 0 ? 1 : 0)
+                 + (state.distRiskMax != null ? 1 : 0) + (state.groupZMin != null ? 1 : 0);
+  ['v2-cond-n', 'v2-handle-n'].forEach(id => {
+    const e = document.getElementById(id);
+    if (e) { e.textContent = totalN; e.classList.toggle('zero', totalN === 0); }
+  });
 }
 
 function removeFilter(key) {
@@ -3939,6 +3949,33 @@ function initV2Toggle() {
 }
 document.addEventListener('DOMContentLoaded', initV2Toggle);
 
+// ── 右抽屜開關（2026-09-06）─────────────────────────────
+function setDrawerOpen(open) {
+  const d = document.getElementById('v2-drawer');
+  const h = document.getElementById('v2-drawer-handle');
+  if (!d) return;
+  d.classList.toggle('collapsed', !open);
+  document.body.classList.toggle('drawer-collapsed', !open);
+  if (h) h.classList.toggle('active', open);
+  try { localStorage.setItem('v2_drawer_open', open ? '1' : '0'); } catch (_) {}
+}
+
+function initDrawerHandle() {
+  if (document.getElementById('v2-drawer-handle')) return;
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.id = 'v2-drawer-handle'; btn.className = 'v2-drawer-handle';
+  btn.innerHTML = '篩選 <span class="v2-dn" id="v2-handle-n">0</span>';
+  btn.title = '開/關右側篩選抽屜';
+  btn.addEventListener('click', () => {
+    const d = document.getElementById('v2-drawer');
+    setDrawerOpen(d.classList.contains('collapsed'));
+  });
+  document.body.appendChild(btn);
+  let open = true;
+  try { open = localStorage.getItem('v2_drawer_open') !== '0'; } catch (_) {}
+  setDrawerOpen(open);
+}
+
 function buildV2Layout() {
   if (!UI_V2 || v2Built) return;
   const stepper = document.getElementById('v2-stepper');
@@ -3970,9 +4007,11 @@ function buildV2Layout() {
   }
 
   // ── 抽屜：三階段欄位 + 風險底列 + OR/AND 開關 搬進來 ──
-  const cols = [...stageGrid.querySelectorAll('.stage-col')];   // brew / launch / trend
-  ['brew', 'launch', 'trend'].forEach((k, i) => {
-    if (cols[i]) { cols[i].dataset.v2stage = k; drawer.appendChild(cols[i]); }
+  // 2026-09-06：改成矩陣結構後欄位變 6 個（3 個分類階段 + 型態/濾網/朱家泓）。
+  // 帶 data-stage 的才隨「階段」勾選顯示隱藏；訊號矩陣是跨階段濾網，永遠顯示（同均線）。
+  [...stageGrid.querySelectorAll('.stage-col')].forEach(col => {
+    if (col.dataset.stage) col.dataset.v2stage = col.dataset.stage;
+    drawer.appendChild(col);
   });
   // ── 📏 均線設定（2026-08-03 user）：整塊從第二排 fg-body 搬進抽屜，
   //    變成跟三階段一樣的勾選面板。刻意不掛 data-v2stage → 不隨階段勾選隱藏
@@ -3999,11 +4038,21 @@ function buildV2Layout() {
     if (maBtn) maBtn.style.display = 'none';
   }
 
+  // ── 抽屜收合鈕（2026-09-06）：抽屜移到右側後，看盤時可整條收起來 ──
+  const dh = document.createElement('div');
+  dh.className = 'v2-drawer-head';
+  dh.innerHTML = '<b>篩選條件</b><span class="v2-dn" id="v2-cond-n">0</span>'
+    + '<span class="filler"></span>'
+    + '<button type="button" class="btn btn-ghost" id="v2-drawer-close" title="收起篩選（再點右上「篩選」鈕打開）">✕</button>';
+  drawer.insertBefore(dh, drawer.firstChild);
+  dh.querySelector('#v2-drawer-close').addEventListener('click', () => setDrawerOpen(false));
+
   const bottom = catBody.querySelector('.stage-bottom');
   if (bottom) { bottom.dataset.v2stage = 'watch'; drawer.appendChild(bottom); }
   const mode = catBody.querySelector('.mode-toggle');
   if (mode) drawer.appendChild(mode);
   drawer.hidden = false;
+  initDrawerHandle();
 
   // ── 20260723j：第一排三段分工 + ⚙進階收合 + 卡片密度切換 + 分組小標 ──
   const bar1 = document.querySelector('.filter-row.group-bar:not(.group-bar-2nd)');

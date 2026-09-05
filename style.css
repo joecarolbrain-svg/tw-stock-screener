@@ -2277,3 +2277,84 @@ body.ui-v2 {
   .title { font-size: 16px; letter-spacing: 1px; }
   .subtitle { display: none; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════
+   2026-09-06　右抽屜 + 訊號矩陣
+   抽屜從左搬到右（order），可整條收合；矩陣沿用 .ma-row 的
+   「一列一個東西、每格問同一個問題」結構，跟均線面板同語言。
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 抽屜移到右側 ───────────────────────────────────── */
+.ui-v2 .dash-body > .v2-drawer { order: 2; margin: 8px 8px 8px 0; }
+.ui-v2 .dash-body > main { order: 1; }
+.v2-drawer.collapsed { display: none; }
+
+.v2-drawer-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 2px 4px 6px; border-bottom: 1px solid var(--border);
+  font-size: 13px; position: sticky; top: 0; z-index: 2;
+  background: var(--bg, #0e1218);
+}
+.v2-drawer-head .filler { flex: 1; }
+.v2-drawer-head .btn { padding: 0 6px; }
+
+.v2-dn {
+  font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 11px;
+  background: #FFD700; color: #191203; border-radius: 3px;
+  padding: 0 5px; font-weight: 700;
+}
+.v2-dn.zero { background: #2b3444; color: #7b879a; }
+
+.v2-drawer-handle {
+  position: fixed; top: 10px; right: 12px; z-index: 60;
+  display: inline-flex; align-items: center; gap: 7px;
+  background: #161d27; color: #dfe6f0; border: 1px solid #2b3444;
+  border-radius: 4px; padding: 6px 12px; cursor: pointer; font-size: 13px;
+}
+.v2-drawer-handle:hover { border-color: #FFD700; }
+.v2-drawer-handle.active { border-color: #FFD700; }
+
+/* ── 訊號矩陣 ───────────────────────────────────────── */
+.sig-col .stage-head { display: flex; align-items: center; gap: 6px; }
+.rule-tag {
+  font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 9.5px;
+  letter-spacing: .06em; color: #8899aa;
+  border: 1px solid #2b3444; border-radius: 2px; padding: 0 4px; font-weight: 400;
+}
+.edge-tag {
+  font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 9.5px;
+  color: #FFD700; margin-left: 5px; white-space: nowrap; font-weight: 400;
+}
+
+.mx-row {
+  display: grid; grid-template-columns: 1fr 44px 44px;
+  align-items: center; gap: 2px; padding: 3px 0;
+  border-top: 1px solid rgba(255,255,255,.05); font-size: 12.5px;
+}
+.mx-row:first-of-type { border-top: 0; }
+.mx-row > span:not(.mx-name) { text-align: center; }
+.mx-head {
+  color: #8899aa; font-size: 10.5px; font-weight: 700;
+  border-top: 0; padding-bottom: 1px; letter-spacing: .04em;
+}
+.mx-head .c-yes { color: #46b98a; }
+.mx-head .c-no  { color: #d4574e; }
+.mx-name { cursor: help; }
+.mx-sub { opacity: .82; }
+.mx-sub .mx-name { padding-left: 4px; font-size: 12px; color: #8899aa; }
+.mx-na { color: #55606e; opacity: .55; cursor: help; }
+.mx-row input[type="checkbox"] { cursor: pointer; margin: 0; }
+/* 要 = 綠框、不要 = 紅框：靠欄位順序上色，不必給每個 input 加 class */
+.mx-row > span:nth-child(2) input { accent-color: #46b98a; }
+.mx-row > span:nth-child(3) input { accent-color: #d4574e; }
+
+.sig-flow { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.sig-flow label { display: inline-flex; align-items: center; gap: 4px; }
+.conflict { color: #d4574e; font-size: 11px; cursor: help; }
+.sig-col .inline-wrap select { width: 100%; }
+
+@media (max-width: 900px) {
+  .ui-v2 .dash-body > .v2-drawer { margin: 8px; }
+  .v2-drawer-handle { top: auto; bottom: 14px; right: 14px; }
+}

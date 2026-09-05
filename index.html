@@ -107,97 +107,152 @@
         <span class="muted" style="font-size:11px">｜三欄內：型態群內OR、其餘勾選AND疊加；⚡精選＝一鍵套用該階段組合</span>
       </div>
       <div class="stage-grid">
-        <div class="stage-col">
+
+        <!-- ── 分類：三階段（階段是股票的屬性，所以只有分類 chips 按階段分）────── -->
+        <div class="stage-col" data-stage="brew">
           <div class="stage-head">🌱 醞釀(還沒突破)
             <button type="button" id="preset-brew" class="btn btn-ghost stage-preset" title="一鍵＝醞釀分類 ∩ 扣抵轉揚 ∩ 法人連買≥3｜11年bt:蓄勢帶edge+0.60→∩扣抵轉揚+1.09(非轉揚僅+0.28);法人連買資料僅75天未入bt">⚡精選</button></div>
           <div class="stage-hint muted">蓄勢打底+主力吸籌，等的就是轉多前兆</div>
           <div class="stage-chips" id="stage-chips-brew"></div>
-          <div class="stage-sigs stage-pats">
-            <span class="stage-sub">型態 setup（勾任一即入選，群內OR）</span>
-            <div class="stage-pat-row">
-              <label title="N字第二腳成形、等突破上頸線"><input type="checkbox" name="pattern-sig" value="nbase_lock" /> N字鎖股</label>
-              <label title="圓弧底右弧收復碗深50%+、等帶量過頸線"><input type="checkbox" name="pattern-sig" value="round_lock" /> 圓弧鎖股</label>
-            </div>
-          </div>
-          <div class="stage-sigs">
-            <span class="stage-sub">確認訊號（勾＝必須）</span>
-            <label title="MA5/20/60 三線明日皆將上彎＝領先版均線多頭排列（全市場11年實證 fwd20 +2.42%／edge +1.2）"><input type="checkbox" id="deduct-turn-up" /> 🔥扣抵轉揚↑</label>
-            <label title="MA5/20/60 至少兩條明日上彎（較寬條件，實證 edge 0→3 條單調遞增）"><input type="checkbox" id="deduct-up2" /> 上彎≥2條</label>
-            <label title="週爆量∩週多排（B1 週線版訊號，波段視角）"><input type="checkbox" id="weekly-lit" /> 週線亮燈</label>
-            <label title="三大法人合計連續買超 ≥3 天（雜訊過濾門檻）"><input type="checkbox" id="inst-streak3" /> 法人連買≥3日</label>
-            <label title="收盤創120日高＝上方無套牢賣壓（fwd20 +3.09% vs 有壓+1.39%，ep9唯一真edge）"><input type="checkbox" id="sr-clear-and" /> ✅上檔無壓</label>
-            <label title="朱家泓①：近120日箱型打底、籌碼沉澱"><input type="checkbox" id="sig-s1" /> S1長底</label>
-          </div>
         </div>
-        <div class="stage-col">
+
+        <div class="stage-col" data-stage="launch">
           <div class="stage-head">🚀 發動(突破中)
             <button type="button" id="preset-launch" class="btn btn-ghost stage-preset" title="一鍵＝發動分類 ∩ ✅真突破｜11年bt:突破RAW edge+2.51→∩強K非爆量+3.11、勝率50→55%">⚡精選</button></div>
           <div class="stage-hint muted">突破品質濾網：強K+濾爆量（不是放量）</div>
           <div id="bear-hint" class="stage-hint" style="display:none;color:#ff9d00"></div>
           <div class="stage-chips" id="stage-chips-launch"></div>
-          <div class="stage-sigs stage-pats">
-            <span class="stage-sub">型態 setup（勾任一即入選，群內OR）</span>
-            <div class="stage-pat-row">
-              <label title="向上缺口且3日內未被收盤回補＝支撐有效(fwd20 +3.5~+7.2%，全系列分辨力最強)"><input type="checkbox" name="pattern-sig" value="gap_hold" /> ✅缺口未補</label>
-              <label title="N字底突破上頸線(帶量紅K確認)或回後買點"><input type="checkbox" name="pattern-sig" value="nbase_break" /> 🔥N字突破/回後</label>
-              <label title="黃金分割扣板機(只發0.236極強/0.382首選)"><input type="checkbox" name="pattern-sig" value="fib_buy" /> 🔥黃金買點</label>
-              <label title="圓弧底剛突破頸線或回後買點"><input type="checkbox" name="pattern-sig" value="round_buy" /> 🔥圓弧突破/回後</label>
-              <label title="先向下跳空再向上跳空回補、島懸在下方＝底部反轉(進場/做多)"><input type="checkbox" name="pattern-sig" value="island_bottom" /> 🏝底部島狀</label>
-            </div>
-          </div>
-          <div class="stage-sigs">
-            <span class="stage-sub">突破品質（勾＝必須）</span>
-            <label title="突破狀態=✅（強K非爆量的當日突破，或回測前高撐住確認）；⚠訊號弱／⛔假突破不入選"><input type="checkbox" id="bo-good" /> ✅真突破(強K非爆量)</label>
-            <label title="朱家泓②：量/120日均量≥3倍 且 創60日新高（近10日內）"><input type="checkbox" id="sig-s2" /> S2爆量</label>
-            <label title="朱家泓④：收盤創60日新高"><input type="checkbox" id="sig-s4" /> S4突破</label>
-            <label title="朱家泓⑤：屬於熱門題材（回測唯一precision槓桿）"><input type="checkbox" id="sig-s5" /> S5題材</label>
-            <label title="朱家泓C3：回後買上漲∪盤整突破 ∩ MA20上 ∩ KD多排 ∩ 量增 ∩ 不追過高"><input type="checkbox" id="sig-c3" /> C3進場點</label>
-            <label title="3037欣興型：被季線壓住後帶量站上季線"><input type="checkbox" id="sig-ma60b" /> 季線突破</label>
-            <span class="stage-sub" style="margin-top:4px">突破幅度%（相對前高；留空＝不限，可只填一邊）</span>
-            <div class="bo-pct">
-              <div class="bo-pct-row">
-                <span class="bo-pct-n" title="與「✅真突破」同一條線：突破當根之前 60 根的最高高點(bo_prior_high)。幅度＝(收盤 ÷ 前高 − 1)×100。⚠ 只有近 20 日內發生過突破事件的股票才有值，其餘一律不中；已拉回收破前高會是負數">60日前高</span>
-                <label>≥<input type="number" id="bo60-min" step="0.5" placeholder="不限" /></label>
-                <label>≤<input type="number" id="bo60-max" step="0.5" placeholder="不限" /></label>
-              </div>
-              <div class="bo-pct-row">
-                <span class="bo-pct-n" title="全期最高高點(排除今日)，即「距前高%」欄的另一面。幅度＝(收盤 ÷ 前高 − 1)×100，>0 代表創歷史新高。每檔都有值，但門檻極高、入選會很少">全期前高</span>
-                <label>≥<input type="number" id="boath-min" step="0.5" placeholder="不限" /></label>
-                <label>≤<input type="number" id="boath-max" step="0.5" placeholder="不限" /></label>
-              </div>
-              <span class="muted" style="font-size:11px">≥0＝已站上前高；下限濾「貼著前高的微突破」(實證訊噪比最差)，上限濾「已噴太遠的追高」。<br />
-                ⚠ 覆蓋率差很多：60日前高只有<b>近 20 日內有突破事件</b>的股票有值(通常僅 20~40 檔)，全期前高則是<b>上榜股</b>才有(約 500 檔)。</span>
-            </div>
-            <label title="朱家泓兩個起漲位置：回後買上漲／盤整突破">進場型態
-              <select id="mainup-entry">
-                <option value="">不限</option>
-                <option value="回後買上漲">回後買上漲</option>
-                <option value="盤整突破">盤整突破</option>
-                <option value="⚠過高勿追">⚠過高勿追</option>
-              </select>
-            </label>
-          </div>
         </div>
-        <div class="stage-col">
+
+        <div class="stage-col" data-stage="trend">
           <div class="stage-head">📈 趨勢(突破後持有)
             <button type="button" id="preset-trend" class="btn btn-ghost stage-preset" title="一鍵＝趨勢分類 ∩ 無陰跌 ∩ 無出貨 ∩ 未破支撐｜11年bt:陰跌組持有edge歸零(+0.02 vs 乾淨+1.01);出貨組勝率44%=波動標記非均值殺手">⚡體檢</button></div>
           <div class="stage-hint muted">持有體檢：三個否決訊號，複盤手上部位</div>
           <div class="stage-chips" id="stage-chips-trend"></div>
-          <div class="stage-sigs">
-            <span class="stage-sub">趨勢確認（勾＝必須）</span>
-            <label title="朱家泓③：MA5>10>20>60 且四線同步上揚"><input type="checkbox" id="sig-s3" /> S3多排</label>
-            <label title="朱家泓C1：頭頭高+底底高+站上季線"><input type="checkbox" id="sig-c1" /> C1多頭</label>
-            <label title="朱家泓C2：MA20>MA60 且兩者向上"><input type="checkbox" id="sig-c2" /> C2黃金交叉</label>
+        </div>
+
+        <!-- ── 型態 setup 矩陣：一列一個型態，兩格＝等待中／已扣板機（群內 OR）──── -->
+        <div class="stage-col sig-col">
+          <div class="stage-head">🎯 型態 setup <span class="rule-tag">群內 OR</span></div>
+          <div class="stage-hint muted">勾任一即入選；同一型態的兩個狀態並排</div>
+          <div class="mx-row mx-head"><span class="mx-name"></span><span>醞釀</span><span>扣板機</span></div>
+          <div class="mx-row">
+            <span class="mx-name" title="朱家泓 ep11：第一腳反彈≥10%、第二腳低點高於第一腳且回檔≤反彈1/2">N字底</span>
+            <span><input type="checkbox" name="pattern-sig" value="nbase_lock" title="N字鎖股：第二腳成形、等突破上頸線" /></span>
+            <span><input type="checkbox" name="pattern-sig" value="nbase_break" title="🔥N字突破：紅K＋量比≥1.5 過頸線；或回測頸線不破的回後買點" /></span>
           </div>
-          <div class="stage-sigs">
-            <span class="stage-sub">持有否決（勾＝剔除）</span>
-            <label title="剔除「價未跌但月/季線將下彎」的陰跌股（實證同級多頭中 fwd20 少約1pp）"><input type="checkbox" id="deduct-excl-warn" /> 排除陰跌⚠</label>
-            <label title="剔除高檔爆量收弱的出貨警訊股"><input type="checkbox" id="mainup-excl-dist" /> 排除出貨⚠</label>
-            <label title="剔除收盤跌破最近支撐(⛔)的股票"><input type="checkbox" id="excl-srbreak" /> 排除破支撐⛔</label>
-            <label title="剔除缺口3日被補/已補的股票（實證被補 fwd20 −3.4~−8.6%）"><input type="checkbox" id="excl-gapfill" /> 排除缺口被補⛔</label>
-            <label title="剔除頂部島狀反轉（出場/做空訊號）的股票"><input type="checkbox" id="excl-islandtop" /> 排除頂部島狀⛔</label>
+          <div class="mx-row">
+            <span class="mx-name" title="二次曲線擬合碗底＋盤底量縮；頸線＝左弧高點">圓弧底</span>
+            <span><input type="checkbox" name="pattern-sig" value="round_lock" title="圓弧鎖股：右弧收復碗深50%+、等帶量過頸線" /></span>
+            <span><input type="checkbox" name="pattern-sig" value="round_buy" title="🔥圓弧突破：紅K＋量比≥1.5 過頸線；或突破後回測不破的回後買點" /></span>
+          </div>
+          <div class="mx-row">
+            <span class="mx-name" title="ep15：上漲段≥20% 後的回檔比例；只有 0.236/0.382 兩級會發訊號">黃金分割</span>
+            <span class="mx-na" title="回檔中本身不發訊號，扣板機才算">—</span>
+            <span><input type="checkbox" name="pattern-sig" value="fib_buy" title="🔥黃金買點：回檔區止跌後 紅K＋量比≥1.5＋站上MA5＋突破止跌K高點" /></span>
+          </div>
+          <div class="mx-row">
+            <span class="mx-name" title="向上實缺口≥1%，3日內收盤沒跌破下緣＝支撐有效">缺口<span class="edge-tag">勝率差25~30pp</span></span>
+            <span class="mx-na">—</span>
+            <span><input type="checkbox" name="pattern-sig" value="gap_hold" title="✅缺口未補：3日內未被收盤實體回補（實證 fwd20 +3.5~+7.2%）" /></span>
+          </div>
+          <div class="mx-row">
+            <span class="mx-name" title="島狀區被前後兩個跳空缺口夾住、孤立於趨勢外">島狀反轉</span>
+            <span class="mx-na">—</span>
+            <span><input type="checkbox" name="pattern-sig" value="island_bottom" title="🏝底部島狀：島區最高 < 島前一日最低，且 < 缺口日最低（做多）" /></span>
           </div>
         </div>
+
+        <!-- ── 訊號濾網矩陣：一列一個引擎，兩格＝要／不要（AND）──────────────── -->
+        <div class="stage-col sig-col">
+          <div class="stage-head">⚙ 訊號濾網 <span class="rule-tag">AND</span></div>
+          <div class="stage-hint muted">同一個引擎的正反兩面並排；「不要」＝把有這毛病的剔除</div>
+          <div class="mx-row mx-head"><span class="mx-name"></span><span class="c-yes">要 ✓</span><span class="c-no">不要 ✗</span></div>
+          <div class="mx-row">
+            <span class="mx-name" title="前瞻版均線方向：看明天被扣掉的舊價 vs 現價，比斜率早一步">扣抵值<span class="edge-tag">edge +1.2</span></span>
+            <span><input type="checkbox" id="deduct-turn-up" title="🔥扣抵轉揚↑：MA5/20/60 三線明日皆將上彎（fwd20 +2.42%）" /></span>
+            <span><input type="checkbox" id="deduct-excl-warn" title="排除陰跌⚠：價未跌但月/季線將下彎（同級多頭中 fwd20 少約1pp）" /></span>
+          </div>
+          <div class="mx-row mx-sub">
+            <span class="mx-name" title="較寬條件，實證 0→3 條單調遞增">└ 放寬：上彎≥2條</span>
+            <span><input type="checkbox" id="deduct-up2" title="MA5/20/60 至少兩條明日上彎" /></span>
+            <span class="mx-na">—</span>
+          </div>
+          <div class="mx-row">
+            <span class="mx-name" title="不設放量下限：實證量比>5 的突破 fwd20 −1.26%，是全場最爛">突破品質<span class="edge-tag">+2.51→+3.11</span></span>
+            <span><input type="checkbox" id="bo-good" title="✅真突破：強K非爆量的當日突破，或回測前高撐住確認" /></span>
+            <span><input type="checkbox" id="excl-gapfill" title="排除缺口被補⛔：向上缺口3日內被收盤補掉（實證 fwd20 −3.4~−8.6%）" /></span>
+          </div>
+          <div class="mx-row">
+            <span class="mx-name" title="ep9 撐壓引擎：上檔無壓是七個元件裡唯一的真 edge">撐壓<span class="edge-tag">+1.7pp</span></span>
+            <span><input type="checkbox" id="sr-clear-and" title="✅上檔無壓：收盤創120日高（fwd20 +3.09% vs 有壓 +1.39%）" /></span>
+            <span><input type="checkbox" id="excl-srbreak" title="排除破支撐⛔：收盤跌破最近支撐" /></span>
+          </div>
+          <div class="mx-row">
+            <span class="mx-name" title="頂部島狀＝出場訊號；底部島狀在左邊「型態 setup」那欄">島狀反轉</span>
+            <span class="mx-na" title="底部島狀在型態 setup 欄（那格是 OR 群成員）">↖</span>
+            <span><input type="checkbox" id="excl-islandtop" title="排除頂部島狀⛔：島區最低 > 島前一日最高（出場/做空訊號）" /></span>
+          </div>
+          <div class="mx-row">
+            <span class="mx-name" title="6499益安型：距120日底部已漲≥40% + 近5日爆量收弱">出貨<span class="edge-tag">勝率44%＝波動標記</span></span>
+            <span class="mx-na">—</span>
+            <span><input type="checkbox" id="mainup-excl-dist" title="排除出貨⚠：高檔爆量收弱。注意這是波動標記不是均值殺手" /></span>
+          </div>
+          <div class="mx-row">
+            <span class="mx-name" title="B1 週線版訊號：週量/前26週均量≥1.8 且 週MA5>10>20">週線</span>
+            <span><input type="checkbox" id="weekly-lit" title="週線亮燈：週爆量 ∩ 週多排（波段視角）" /></span>
+            <span class="mx-na">—</span>
+          </div>
+          <div class="mx-row">
+            <span class="mx-name" title="三大法人合計淨買超連續天數">法人<span class="edge-tag">資料僅75天</span></span>
+            <span><input type="checkbox" id="inst-streak3" title="法人連買≥3日（雜訊過濾門檻；此欄未進回測）" /></span>
+            <span class="mx-na">—</span>
+          </div>
+        </div>
+
+        <!-- ── 朱家泓訊號 ────────────────────────────────────────────── -->
+        <div class="stage-col sig-col">
+          <div class="stage-head">🎓 朱家泓訊號 <span class="rule-tag">AND</span></div>
+          <div class="stage-hint muted">五訊號 + 高勝率三條件；勾＝必須成立</div>
+          <div class="stage-sigs sig-flow">
+            <label title="①近120日箱型打底(區間≤30%)、籌碼沉澱"><input type="checkbox" id="sig-s1" /> S1長底</label>
+            <label title="②量/120日均量≥3倍 且 創60日新高（近10日內）。⚠ 與「突破品質・真突破」邏輯打架：一個要爆量、一個把爆量當扣分"><input type="checkbox" id="sig-s2" /> S2爆量<b class="conflict">⚠</b></label>
+            <label title="③MA5>10>20>60 且四線同步上揚"><input type="checkbox" id="sig-s3" /> S3多排</label>
+            <label title="④收盤創60日新高"><input type="checkbox" id="sig-s4" /> S4突破</label>
+            <label title="⑤屬於熱門題材（回測唯一 precision 槓桿）"><input type="checkbox" id="sig-s5" /> S5題材</label>
+          </div>
+          <div class="stage-sub">高勝率三條件（三條高度重疊，通常擇一）</div>
+          <div class="stage-sigs sig-flow">
+            <label title="C1：頭頭高+底底高+站上季線"><input type="checkbox" id="sig-c1" /> C1多頭</label>
+            <label title="C2：MA20>MA60 且兩者向上"><input type="checkbox" id="sig-c2" /> C2黃金交叉</label>
+            <label title="C3：回後買上漲∪盤整突破 ∩ MA20上 ∩ KD多排 ∩ 量增 ∩ 不追過高"><input type="checkbox" id="sig-c3" /> C3進場點</label>
+            <label title="3037欣興型：被季線壓住後帶量站上季線"><input type="checkbox" id="sig-ma60b" /> 季線突破</label>
+          </div>
+          <div class="stage-sub">進場型態</div>
+          <label class="inline-wrap" title="朱家泓兩個起漲位置：回後買上漲／盤整突破">
+            <select id="mainup-entry">
+              <option value="">不限</option>
+              <option value="回後買上漲">回後買上漲</option>
+              <option value="盤整突破">盤整突破</option>
+              <option value="⚠過高勿追">⚠過高勿追</option>
+            </select>
+          </label>
+          <div class="stage-sub">突破幅度%（相對前高，留空＝不限）</div>
+          <div class="bo-pct">
+            <div class="bo-pct-row">
+              <span class="bo-pct-n" title="突破當根之前 60 根的最高高點。⚠ 只有近 20 日內發生過突破事件的股票才有值（通常僅 20~40 檔）">60日前高</span>
+              <label>≥<input type="number" id="bo60-min" step="0.5" placeholder="不限" /></label>
+              <label>≤<input type="number" id="bo60-max" step="0.5" placeholder="不限" /></label>
+            </div>
+            <div class="bo-pct-row">
+              <span class="bo-pct-n" title="全期最高高點（排除今日）。每檔都有值但門檻極高，入選會很少">全期前高</span>
+              <label>≥<input type="number" id="boath-min" step="0.5" placeholder="不限" /></label>
+              <label>≤<input type="number" id="boath-max" step="0.5" placeholder="不限" /></label>
+            </div>
+            <span class="muted" style="font-size:10.5px">≥0＝已站上前高；下限濾「貼著前高的微突破」，上限濾「已噴太遠的追高」。</span>
+          </div>
+        </div>
+
       </div>
       <div class="stage-bottom">
         <span class="stage-mini-t">👁 風險/觀察</span><div class="stage-chips" id="stage-chips-risk"></div>

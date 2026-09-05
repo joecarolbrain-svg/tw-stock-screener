@@ -754,10 +754,11 @@ function renderDimensionOptions() {
   const d = dims[state.dim];
   const sel = document.getElementById('dim-select');
   const src = document.getElementById('dim-source');
+  if (!sel) return;   // 2026-09-05 維度篩選已從版面移除；沒有 DOM 就整支跳過
   sel.innerHTML = '';
 
   if (!d || !d.options) {
-    src.textContent = '(無此維度資料)';
+    if (src) src.textContent = '(無此維度資料)';
     return;
   }
 

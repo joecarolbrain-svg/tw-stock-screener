@@ -171,8 +171,9 @@ const state = {
   maAbove: new Set(),     // 收盤須站上這幾條
   maUp: new Set(),        // 這幾條須上彎（今日值>昨日值；週線=本週>上週）
   // 🚀 突破幅度%（2026-08-03）：相對前高的百分比區間，null=不限。見 boPct60/boPctAth
-  bo60Min: null, bo60Max: null,     // 基準＝60日前高(bo_prior_high，與 ✅真突破 同一條線)
-  boAthMin: null, boAthMax: null,   // 基準＝全期前高(由 dist_high 換算)
+  // 2026-09-06：原「突破幅度% 4 格」（bo60/boAth 兩組）合併成單一「相對前高」軸。
+  // 負＝還沒到前高、0＝剛好、正＝已突破；口徑由 rhBasis 三選一。
+  rhBasis: 'y252', rhMin: null, rhMax: null,
 };
 
 // 突破幅度%＝(收盤 ÷ 前高 − 1)×100，兩種前高基準各一支；算不出來回 null（＝勾了不中）。
@@ -198,13 +199,22 @@ function boRangeLabel(lo, hi) {
   return lo != null ? `≥${lo}%` : `≤${hi}%`;
 }
 
-function boPctAth(row) {
-  const d = row.dist_high;
+// dist_* 欄位一律是 (前高−收盤)/收盤×100（分母是收盤），換算成「相對前高」＝ −d/(1+d)。
+function _distToRel(d) {
   if (d == null) return null;
   const x = d / 100;
   if (!(1 + x > 0)) return null;
   return -x / (1 + x) * 100;
 }
+function boPctAth(row) { return _distToRel(row.dist_high); }
+
+const RH_BASIS = {
+  d60:  { label: '60日高', fn: boPct60 },
+  y252: { label: '年高',   fn: (r) => _distToRel(r.dist_year_high) },
+  all:  { label: '全期高', fn: boPctAth },
+};
+function rhPct(row) { return (RH_BASIS[state.rhBasis] || RH_BASIS.y252).fn(row); }
+function rhLabel()  { return (RH_BASIS[state.rhBasis] || RH_BASIS.y252).label; }
 
 // 均線 key → 顯示名（順序＝後端 services/ma_lines.py 的 MA_KEYS，卡片照這個順序印）
 const MA_LABEL = {
@@ -1273,17 +1283,11 @@ function screenRowPass(row) {
     }
 
     // 🚀 突破幅度%：兩個基準各自獨立，缺值(算不出幅度)一律不中
-    if (state.bo60Min != null || state.bo60Max != null) {
-      const p = boPct60(row);
+    if (state.rhMin != null || state.rhMax != null) {
+      const p = rhPct(row);
       if (p == null) return false;
-      if (state.bo60Min != null && p < state.bo60Min) return false;
-      if (state.bo60Max != null && p > state.bo60Max) return false;
-    }
-    if (state.boAthMin != null || state.boAthMax != null) {
-      const p = boPctAth(row);
-      if (p == null) return false;
-      if (state.boAthMin != null && p < state.boAthMin) return false;
-      if (state.boAthMax != null && p > state.boAthMax) return false;
+      if (state.rhMin != null && p < state.rhMin) return false;
+      if (state.rhMax != null && p > state.rhMax) return false;
     }
 
     return true;
@@ -1341,8 +1345,7 @@ function renderActiveFilters() {
   if (state.weeklyLit) add('weeklyLit', '週線亮燈');
   if (state.instStreak3) add('instStreak3', '法人連買≥3');
   if (state.boGood) add('boGood', '✅真突破');
-  if (state.bo60Min != null || state.bo60Max != null) add('bo60', `突破60日高${boRangeLabel(state.bo60Min, state.bo60Max)}`);
-  if (state.boAthMin != null || state.boAthMax != null) add('boAth', `突破全期高${boRangeLabel(state.boAthMin, state.boAthMax)}`);
+  if (state.rhMin != null || state.rhMax != null) add('rh', `相對${rhLabel()}${boRangeLabel(state.rhMin, state.rhMax)}`);
   if (state.exclSrBreak) add('exclSrBreak', '排除破支撐');
   STAGE_FLAGS.forEach(([, k, label]) => { if (state[k]) add('sf:' + k, label); });
   if (state.islandMode !== 'off') add('island', `島狀:${ISLAND_MODE_LABEL[state.islandMode]}`);
@@ -1389,8 +1392,7 @@ function updateGroupCounts() {
                  (state.deductTurn ? 1 : 0) + (state.deductUp2 ? 1 : 0) + (state.deductExclWarn ? 1 : 0) +
                  (state.weeklyLit ? 1 : 0) + (state.instStreak3 ? 1 : 0) +
                  (state.boGood ? 1 : 0) + (state.exclSrBreak ? 1 : 0) +
-                 (state.bo60Min != null || state.bo60Max != null ? 1 : 0) +
-                 (state.boAthMin != null || state.boAthMax != null ? 1 : 0) +
+                 (state.rhMin != null || state.rhMax != null ? 1 : 0) +
                  (state.patternSignals.size ? 1 : 0) +
                  STAGE_FLAGS.filter(f => state[f[1]]).length);
   set('fgc-dim', state.dimSelected.size);
@@ -1469,13 +1471,10 @@ function removeFilter(key) {
       state.maUp.clear();
       document.querySelectorAll('input[name="ma-up"]').forEach(cb => { cb.checked = false; });
       break;
-    case 'bo60':
-      state.bo60Min = state.bo60Max = null;
-      ['bo60-min', 'bo60-max'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
-      break;
-    case 'boAth':
-      state.boAthMin = state.boAthMax = null;
-      ['boath-min', 'boath-max'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    case 'rh':
+      state.rhMin = state.rhMax = null;
+      ['rh-min', 'rh-max'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+      document.querySelectorAll('.rh-quick button').forEach(b => b.classList.remove('active'));
       break;
     case 'dim':
       state.dimSelected.clear();
@@ -1708,10 +1707,8 @@ function bindControls() {
 
   const numBindings = [
     // 🚀 突破幅度%（空字串/打到一半的 "-" ＝不限；0 是有效值，不能用 || 短路）
-    ['bo60-min',      v => state.bo60Min = _numOrNull(v)],
-    ['bo60-max',      v => state.bo60Max = _numOrNull(v)],
-    ['boath-min',     v => state.boAthMin = _numOrNull(v)],
-    ['boath-max',     v => state.boAthMax = _numOrNull(v)],
+    ['rh-min',        v => state.rhMin = _numOrNull(v)],
+    ['rh-max',        v => state.rhMax = _numOrNull(v)],
     ['score-min',     v => state.scoreMin = parseFloat(v) || 0],
     ['rs-min',        v => state.rsMin = parseFloat(v) || 0],
     ['dist-risk-max', v => state.distRiskMax = (v === '' ? null : parseFloat(v))],
@@ -1720,6 +1717,25 @@ function bindControls() {
   numBindings.forEach(([id, setter]) => {
     document.getElementById(id).addEventListener('input', e => {
       setter(e.target.value); applyFilters();
+    });
+  });
+
+  // ── 相對前高：口徑 radio + 快速區間鈕（2026-09-06）──
+  document.querySelectorAll('input[name="rh-basis"]').forEach(r => {
+    r.addEventListener('change', e => { state.rhBasis = e.target.value; applyFilters(); });
+  });
+  document.querySelectorAll('.rh-quick button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const on = btn.classList.contains('active');
+      document.querySelectorAll('.rh-quick button').forEach(b => b.classList.remove('active'));
+      const [lo, hi] = (btn.dataset.rh || ',').split(',');
+      state.rhMin = on ? null : _numOrNull(lo);
+      state.rhMax = on ? null : _numOrNull(hi);
+      if (!on) btn.classList.add('active');
+      const eMin = document.getElementById('rh-min'), eMax = document.getElementById('rh-max');
+      if (eMin) eMin.value = state.rhMin == null ? '' : state.rhMin;
+      if (eMax) eMax.value = state.rhMax == null ? '' : state.rhMax;
+      applyFilters();
     });
   });
 
@@ -1889,8 +1905,8 @@ function clearAllFilters() {
   state.weeklyLit = false;
   state.instStreak3 = false;
   state.boGood = false;
-  state.bo60Min = state.bo60Max = state.boAthMin = state.boAthMax = null;
-  ['bo60-min', 'bo60-max', 'boath-min', 'boath-max'].forEach(id => {
+  state.rhMin = state.rhMax = null;
+  ['rh-min', 'rh-max'].forEach(id => {
     const e = document.getElementById(id); if (e) e.value = '';
   });
   state.exclSrBreak = false;
@@ -4268,11 +4284,11 @@ function _zeroCands() {
     const v = state.persistView;
     c.push({ key: 'persistView', label: PV_LABEL[v], off: () => { state.persistView = null; }, on: () => { state.persistView = v; } });
   }
-  [['bo60', 'bo60Min', 'bo60Max', '突破60日高'], ['boAth', 'boAthMin', 'boAthMax', '突破全期高']]
+  [['rh', 'rhMin', 'rhMax', () => '相對' + rhLabel()]]
     .forEach(([key, lk, hk, name]) => {
       if (state[lk] == null && state[hk] == null) return;
       const lo = state[lk], hi = state[hk];
-      c.push({ key, label: `${name}${boRangeLabel(lo, hi)}`,
+      c.push({ key, label: `${typeof name === 'function' ? name() : name}${boRangeLabel(lo, hi)}`,
                off: () => { state[lk] = state[hk] = null; },
                on: () => { state[lk] = lo; state[hk] = hi; } });
     });

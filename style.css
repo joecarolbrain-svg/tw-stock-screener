@@ -2386,10 +2386,21 @@ body.ui-v2 {
 .rh-quick button:hover { border-color: #8899aa; }
 .rh-quick button.active { border-color: #FFD700; color: #FFD700; background: rgba(255,215,0,.12); }
 
-/* 分類欄：階段小標 + chips（2026-09-06 三欄併一欄） */
-.cat-band { display: flex; align-items: flex-start; gap: 6px; padding: 3px 0; }
+/* 分類欄：階段小標 + chips（2026-09-06 三欄併一欄）
+   小標改成自己一整列（原本是左右並排佔掉 52px，chips 只剩約 290px，
+   「🎯 接近前高(未突破) 123」這種長標籤會被擠成兩三行）。 */
+.cat-band { display: block; padding: 4px 0 6px; }
 .cat-band + .cat-band { border-top: 1px solid rgba(255,255,255,.05); }
 .cat-band-t {
-  flex: 0 0 52px; font-size: 11px; color: #8899aa; padding-top: 3px; cursor: help;
+  display: block; font-size: 10.5px; color: #8899aa;
+  letter-spacing: .05em; margin-bottom: 3px; cursor: help;
 }
-.cat-band .stage-chips { flex: 1; min-width: 0; margin: 0; }
+.cat-band .stage-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; }
+/* chip 本身：不要被壓縮、文字不換行，長的就整個換到下一行 */
+.cat-band .cat-chip {
+  flex: 0 0 auto; max-width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  padding: 3px 8px; border-radius: 10px; font-size: 11.5px; gap: 3px;
+}
+.cat-band .cat-chip .label { overflow: hidden; text-overflow: ellipsis; }
+.cat-band .cat-chip .count { flex: 0 0 auto; }

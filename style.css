@@ -1738,7 +1738,7 @@ table.fl-mx td small { display: block; font-size: 12px; color: var(--text-mut, #
 .ui-v2 .dash-body { display: flex; align-items: flex-start; }
 .ui-v2 .dash-body > main { flex: 1; min-width: 0; }
 .v2-drawer {
-  flex: 0 0 272px;
+  flex: 0 0 360px;   /* 2026-09-06 user：篩選欄加寬 */
   margin: 8px 0 8px 8px;
   max-height: calc(100vh - 150px);
   overflow-y: auto;
@@ -1936,7 +1936,7 @@ body.ui-v2 {
 /* ═══ 20260723h：④階段勾選併進⑥左抽屜（mockup 比例）═══ */
 /* 抽屜常駐（階段勾選在裡面），全不勾只收條件、不收抽屜 */
 .v2-drawer.v2-drawer-empty { display: flex; }
-.v2-drawer { flex-basis: 252px; }
+.v2-drawer { flex-basis: 360px; }
 
 .v2-stagebox {
   border: 1px solid var(--border); border-radius: 10px;

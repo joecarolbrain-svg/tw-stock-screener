@@ -704,7 +704,7 @@ const CAT_GROUPS = [
   { title: '📈 趨勢(突破後持有)', hint: '沿均線續攻、持有管理', el: 'stage-chips-trend',
     codes: ['S_MA3Rider', 'S_MA5Rider'] },
   { title: '👁 風險/觀察',      hint: '謹慎、別追',         el: 'stage-chips-risk',
-    codes: ['P_Watch', 'P_PunishExit', 'P_PostExit'] },
+    codes: ['P_PunishExit', 'P_PostExit'] },
 ];
 
 function _makeCatChip(c) {
@@ -730,7 +730,12 @@ function _makeCatChip(c) {
   return chip;
 }
 
+// 2026-09-06 user 決定移除的分類：後端已停產，但舊日期的快照裡還有 →
+// 前端一併濾掉，切到歷史日期才不會又冒出來（否則會掉進「🏷 其他」）。
+const DROPPED_CATS = new Set(['P_Watch', 'GroupResonance']);
+
 function renderCategoryChips(cats) {
+  cats = (cats || []).filter(c => !DROPPED_CATS.has(c.code));
   // 直立三階段面板：每階段的 chips 填進自己的 .stage-col 容器（標題在靜態 HTML），
   // 只清 chips 容器本身 → 同欄的靜態訊號勾選/精選鈕不受重渲染影響。
   const byCode = {};
@@ -3943,7 +3948,7 @@ const V2_STAGES = [
   { key: 'brew',   label: '🌱 醞釀',     hint: '還沒突破・蓄勢', codes: ['A_VCP', 'A_Coil', 'N_NearHigh', 'R_Neckline', 'M_Accumulate'] },
   { key: 'launch', label: '🚀 發動',     hint: '突破中',         codes: ['B_Day0', 'B_Recent', 'R_Breakout'] },
   { key: 'trend',  label: '📈 趨勢',     hint: '突破後持有',     codes: ['S_MA3Rider', 'S_MA5Rider'] },
-  { key: 'watch',  label: '👁 風險/觀察', hint: '謹慎、別追',     codes: ['P_Watch', 'P_PunishExit', 'P_PostExit'] },
+  { key: 'watch',  label: '👁 風險/觀察', hint: '謹慎、別追',     codes: ['P_PunishExit', 'P_PostExit'] },
 ];
 
 function _stageCount(codes, rows) {

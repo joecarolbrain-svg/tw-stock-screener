@@ -51,21 +51,27 @@
 
   <section class="tab-panel active" data-panel="dashboard">
 
-
-  <div id="focus-strip" class="focus-strip" hidden></div>
-
   <section class="filters">
-    <!-- 已選條件 chip 列 -->
-    <div id="active-filters" class="active-filters"></div>
-
-    <!-- 工具列：搜尋 + 分組收合 toggle + 動作 -->
-    <!-- 第一層：常用（搜尋/檢視/排序/快速開關） -->
+    <!-- 2026-09-06 重排：操作列 → 已選條件 → 今日焦點 → 卡片。
+         原本第二排（三階段/均線/清除/只看勾選）在 v2 版面預設 display:none，
+         而且「三階段」點開是 0 字空殼、「📏均線」被程式主動隱藏
+         —— 兩顆按鈕的內容在載入時就被搬進右抽屜了。整排移除，
+         還活著的「清除全部 / ★只看勾選 / 清空」併進這一列。 -->
     <div class="filter-row group-bar">
       <input type="text" id="search-input" class="search-box" placeholder="🔍 代號/名稱（例 2330）" />
       <div class="view-toggle" id="main-viewtoggle">
         <button type="button" class="vt-btn" data-view="table">≣ 表格</button>
         <button type="button" class="vt-btn active" data-view="card">▦ 卡片</button>
       </div>
+      <select id="main-card-sort" class="inline-select" title="卡片排序／分組">
+        <option value="persist_group" selected>▦ 依延續分組</option>
+        <option value="hits">↕ 命中數→分數</option>
+        <option value="score">↕ 分數</option>
+        <option value="rr">↕ RR賺賠比</option>
+        <option value="rs">↕ RS 相對強度</option>
+        <option value="chg_pct">↕ 今日漲幅</option>
+        <option value="reso">↕ 共振數</option>
+      </select>
       <span class="qt-sep"></span>
       <label class="check-toggle" title="只看今日外資或投信買超的股（連買天數≥1＝最新一日站買方；配合命中＝法人×篩選共振）">
         <input type="checkbox" id="only-inst-buy" /> 🏦 法人買超
@@ -73,31 +79,27 @@
       <label class="check-toggle" title="只看籌碼面偏多：外資＋投信「連買天數」與「5日累計」綜合判定為 法人偏買／法人強力同買（卡片上💰那一行）">
         <input type="checkbox" id="only-chip-bull" /> 💰 籌碼偏多
       </label>
-      <span class="qt-sep"></span>
       <label class="check-toggle" title="只看有個股期貨（大型每口2000股／小型每口100股）的標的，可用期貨操作">
         <input type="checkbox" id="only-stf" /> 📈 有股期
       </label>
-      <span class="qt-sep"></span>
       <label class="check-toggle" title="只看今日收紅K（陽線：收盤>開盤；或漲停），對應朱家泓「買紅K不買大量黑K」">
         <input type="checkbox" id="only-red-k" /> 🔴 收紅K
       </label>
+      <span class="qt-sep"></span>
+      <button id="btn-clear" class="btn btn-ghost">清除全部</button>
+      <button id="btn-only-pinned" class="btn btn-ghost" disabled>★ 只看勾選</button>
+      <button id="btn-clear-pinned" class="btn btn-ghost btn-danger" disabled>清空</button>
       <span class="diff-wrap">
         <span id="diff-summary" class="diff-summary" hidden></span>
         <div id="diff-panel" class="diff-panel" hidden></div>
       </span>
       <span class="filler"></span>
+      <span id="pin-summary" class="muted"></span>
       <span id="filter-summary" class="muted"></span>
     </div>
-    <!-- 第二層：進階條件與管理 -->
-    <div class="filter-row group-bar group-bar-2nd">
-      <button class="fg-toggle" data-group="cat">三階段<span class="fg-count" id="fgc-cat"></span></button>
-      <button class="fg-toggle" data-group="ma">📏 均線<span class="fg-count" id="fgc-ma"></span></button>
-      <button id="btn-clear" class="btn btn-ghost">清除全部</button>
-      <span class="filler"></span>
-      <button id="btn-only-pinned" class="btn btn-ghost" disabled>★ 只看勾選</button>
-      <button id="btn-clear-pinned" class="btn btn-ghost btn-danger" disabled>清空</button>
-      <span id="pin-summary" class="muted"></span>
-    </div>
+
+    <!-- 已選條件 chip 列：貼著結果，不再壓在工具列上方 -->
+    <div id="active-filters" class="active-filters"></div>
 
     <!-- 三階段（2026-07-22 直立重設計：階段 × 各自掛證據，一欄=分類+型態+訊號+⚡精選） -->
     <div class="fg-body" data-group="cat" hidden>
@@ -355,6 +357,7 @@
     <aside id="v2-drawer" class="v2-drawer" hidden></aside>
     <main>
       <!-- P3-⑩ 零結果放寬建議：條件疊到 0 檔時顯示「移除哪個條件能救回幾檔」 -->
+      <div id="focus-strip" class="focus-strip" hidden></div>
       <div id="zero-suggest" class="zero-suggest" hidden></div>
       <div id="main-table"></div>
       <div id="main-cards" class="card-grid" style="display:none"></div>

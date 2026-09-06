@@ -4083,20 +4083,21 @@ function buildV2Layout() {
   // ── 20260723j：第一排三段分工 + ⚙進階收合 + 卡片密度切換 + 分組小標 ──
   const bar1 = document.querySelector('.filter-row.group-bar:not(.group-bar-2nd)');
   const bar2 = document.querySelector('.group-bar-2nd');
+  // 2026-09-06：第二排已整排移除（內容不是搬進右抽屜就是已刪），
+  // 這裡只在它還存在時才掛「⚙ 進階」；卡片密度鈕改成只要有第一排就掛。
   if (bar1 && bar2) {
-    // ⚙ 進階：第二排（維度/門檻/組合/清除/只看勾選）預設收合
     bar2.style.display = 'none';
     const adv = document.createElement('button');
     adv.type = 'button'; adv.className = 'btn btn-ghost'; adv.id = 'adv-toggle';
     adv.textContent = '⚙ 進階';
-    adv.title = '維度 / 門檻 / 組合 / 清除全部 / 只看勾選';
     adv.addEventListener('click', () => {
       const show = bar2.style.display === 'none';
       bar2.style.display = show ? '' : 'none';
       adv.classList.toggle('active', show);
     });
     bar1.appendChild(adv);
-
+  }
+  if (bar1) {
     // 卡片密度：緊湊(mockup三行) ⇄ 完整；v2 預設緊湊、記憶選擇
     const dens = document.createElement('button');
     dens.type = 'button'; dens.className = 'btn btn-ghost'; dens.id = 'density-toggle';

@@ -371,7 +371,7 @@ input:focus, select:focus { outline: 2px solid #00d4aa; outline-offset: -1px; }
 
 /* ── 個股卡片（各分頁卡片檢視共用） ──────────────── */
 .card-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 12px; padding: 12px;
 }
 .stk-card {
@@ -2493,3 +2493,28 @@ body.ui-v2 {
 }
 .nc2 .sc-foot .q-stage { font-family: inherit; }
 .nc2 .sc-foot .sc-spark { margin-left: auto; }
+
+/* 卡片擠壓修正（2026-09-06）：抽屜加寬到 360px 後主區變窄，
+   三欄交易帶與分類列在 300px 卡片裡會把字擠掉。 */
+.nc2 .sc-head { flex-wrap: nowrap; min-width: 0; }
+.nc2 .sc-id { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nc2 .sc-chg { white-space: nowrap; flex: 0 0 auto; }
+
+.nc2 .sc-cats { gap: 3px 7px; line-height: 1.5; }
+.nc2 .sc-cat { white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+.nc2 .sc-tband { gap: 4px 6px; }
+.nc2 .tc { min-width: 0; }
+.nc2 .tc i { white-space: nowrap; }
+.nc2 .tc b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+
+.nc2 .sc-ev { gap: 3px; }
+.nc2 .ev { font-size: 10.5px; padding: 1px 5px; }
+
+.nc2 .sc-foot { gap: 4px 8px; font-size: 10.5px; }
+.nc2 .sc-foot > span { white-space: nowrap; }
+
+/* 很窄的欄寬（手機或多欄）：交易帶退成兩欄，字才不會被壓成兩行 */
+@media (max-width: 640px) {
+  .nc2 .sc-tband { grid-template-columns: repeat(2, 1fr); }
+}

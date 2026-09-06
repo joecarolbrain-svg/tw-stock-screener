@@ -2498,9 +2498,14 @@ function mainCardHtml(r, grouped = false) {
   const pinned = state.pinned.has(r.ticker);
 
   // ── 分類：印中文標籤（原本印 B_Day0 這種原始代碼，跟抽屜裡的中文名對不起來）──
-  const catHtml = (r.categories || []).filter(c => !DROPPED_CATS.has(c)).map(code =>
-    `<span class="sc-cat"><span class="sc-cdot" style="background:${cmap[code] || '#888'}"></span>`
-    + `${lmap[code] || code}</span>`).join('');
+  // 卡片版面窄，把標籤的括號補述拿掉（近期突破(1~5日)→近期突破、量縮蓄力(VCP)→量縮蓄力），
+  // 完整名稱留在 title，滑上去看得到。
+  const _catShort = (t) => String(t).replace(/[（(].*?[)）]/g, '').trim();
+  const catHtml = (r.categories || []).filter(c => !DROPPED_CATS.has(c)).map(code => {
+    const full = lmap[code] || code;
+    return `<span class="sc-cat" title="${full}">`
+      + `<span class="sc-cdot" style="background:${cmap[code] || '#888'}"></span>${_catShort(full)}</span>`;
+  }).join('');
 
   // ── 證據：只印「亮起來的」，正面綠 / 負面紅（取代原本旗標列 + 扣抵行 + 階段證據三處重複）──
   const pos = [], neg = [];
@@ -2538,7 +2543,7 @@ function mainCardHtml(r, grouped = false) {
     <span class="tc"><i>停損</i><b>${r.stop_loss != null ? _cardNum(r.stop_loss) : '--'}</b></span>
     <span class="tc"><i>目標</i><b>${r.target != null ? _cardNum(r.target) : '--'}</b></span>
     <span class="tc"><i>風險</i><b>${r.risk_pct != null ? _cardNum(r.risk_pct, 1) + '%' : '--'}</b></span>
-    <span class="tc"><i>建議部位</i><b>${r.position_pct != null ? _cardNum(r.position_pct, 1) + '%' : '--'}</b></span>
+    <span class="tc"><i>部位</i><b>${r.position_pct != null ? _cardNum(r.position_pct, 1) + '%' : '--'}</b></span>
     <span class="tc"><i>RR</i><b class="${rrCls}">${rr == null ? '--' : Number(rr).toFixed(2)}</b></span>
   </div>`;
 

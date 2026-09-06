@@ -78,7 +78,11 @@ async function onDateChange(ev) {
     await mergeInstNet(data);
     await loadMarginMaint();
     data._catColor = {};
-    data.categories.forEach(c => { data._catColor[c.code] = c.color; });
+    data._catLabel = {};
+    data.categories.forEach(c => {
+      data._catColor[c.code] = c.color;
+      data._catLabel[c.code] = c.label || c.code;   // 卡片印中文，不再印 B_Day0 這種代碼
+    });
     buildTickerIndustry(data);
     syncMaAvailability(data);
     renderMeta(data);
@@ -2262,7 +2266,11 @@ function _top1Cell(row) {
 
     // 建分類顏色 lookup（供命中策略欄渲染色塊用）
     data._catColor = {};
-    data.categories.forEach(c => { data._catColor[c.code] = c.color; });
+    data._catLabel = {};
+    data.categories.forEach(c => {
+      data._catColor[c.code] = c.color;
+      data._catLabel[c.code] = c.label || c.code;   // 卡片印中文，不再印 B_Day0 這種代碼
+    });
 
     buildTickerIndustry(data);
     syncMaAvailability(data);
@@ -2486,108 +2494,72 @@ function volBadgeHtml(r) {
 
 function mainCardHtml(r, grouped = false) {
   const cmap = (state.data && state.data._catColor) || {};
-  const catTags = (r.categories || []).map(code =>
-    `<span class="cat-tag" style="background:${cmap[code] || '#888'}">${code}</span>`).join('');
+  const lmap = (state.data && state.data._catLabel) || {};
   const pinned = state.pinned.has(r.ticker);
 
-  // 可交易性：進場(無價→觀察) / 目標 / RR
+  // ── 分類：印中文標籤（原本印 B_Day0 這種原始代碼，跟抽屜裡的中文名對不起來）──
+  const catHtml = (r.categories || []).filter(c => !DROPPED_CATS.has(c)).map(code =>
+    `<span class="sc-cat"><span class="sc-cdot" style="background:${cmap[code] || '#888'}"></span>`
+    + `${lmap[code] || code}</span>`).join('');
+
+  // ── 證據：只印「亮起來的」，正面綠 / 負面紅（取代原本旗標列 + 扣抵行 + 階段證據三處重複）──
+  const pos = [], neg = [];
+  if (r.deduct_turn === 1) pos.push('🔥扣抵轉揚');
+  if (r.bo_state && String(r.bo_state).startsWith('✅')) pos.push('✅真突破');
+  if (r.gap_state && String(r.gap_state).includes('未補')) pos.push('✅缺口未補');
+  if (r.sr_overhead && String(r.sr_overhead).includes('✅')) pos.push('✅上檔無壓');
+  if (r.weekly_lit === 1) pos.push('週線亮燈');
+  if ((r.inst_streak ?? 0) >= 3) pos.push(`法人連買${r.inst_streak}日`);
+  if (r.foreign_streak >= 3) pos.push(`外資連買${r.foreign_streak}日`);
+  else if (r.foreign_streak <= -3) neg.push(`外資連賣${-r.foreign_streak}日`);
+  if (r.trust_streak >= 3) pos.push(`投信連買${r.trust_streak}日`);
+  else if (r.trust_streak <= -3) neg.push(`投信連賣${-r.trust_streak}日`);
+  if (r.mainup_entry === '⚠過高勿追') neg.push('⚠過高勿追');
+  else if (r.mainup_entry) pos.push(r.mainup_entry);
+  if (r.deduct_warn) neg.push('⚠' + String(r.deduct_warn).split('(')[0].replace(/^⚠/, ''));
+  if (r.dist_signal && /盤頭|出貨/.test(r.dist_signal)) neg.push('⚠' + r.dist_signal);
+  if (r.overhead && /壓力|套牢|重/.test(r.overhead)) neg.push('⚠上方套牢');
+  if (r.sr_state && String(r.sr_state).includes('⛔')) neg.push('⛔破支撐');
+  if (r.gap_state && /已補|被補/.test(String(r.gap_state))) neg.push('⛔缺口被補');
+  const evHtml = (pos.length || neg.length)
+    ? `<div class="sc-ev">`
+      + pos.map(t => `<span class="ev ev-pos">${t}</span>`).join('')
+      + neg.map(t => `<span class="ev ev-neg">${t}</span>`).join('')
+      + `</div>`
+    : `<div class="sc-ev sc-ev-none">今日無亮起的證據</div>`;
+
+  // ── 交易決策帶：全卡唯一有底色的區塊，提到第二區 ──
   const entry = r.entry_price != null ? _cardNum(r.entry_price)
     : (r.buy_point != null ? _cardNum(r.buy_point) : '觀察');
   const rr = r.rr;
   const rrCls = rr == null ? '' : (rr >= 2 ? 'rr-good' : (rr >= 1 ? 'rr-mid' : 'rr-low'));
+  const tradeHtml = `<div class="sc-tband">
+    <span class="tc${r.entry_price == null && r.buy_point == null ? ' tc-mut' : ''}"><i>進場</i><b>${entry}</b></span>
+    <span class="tc"><i>停損</i><b>${r.stop_loss != null ? _cardNum(r.stop_loss) : '--'}</b></span>
+    <span class="tc"><i>目標</i><b>${r.target != null ? _cardNum(r.target) : '--'}</b></span>
+    <span class="tc"><i>風險</i><b>${r.risk_pct != null ? _cardNum(r.risk_pct, 1) + '%' : '--'}</b></span>
+    <span class="tc"><i>建議部位</i><b>${r.position_pct != null ? _cardNum(r.position_pct, 1) + '%' : '--'}</b></span>
+    <span class="tc"><i>RR</i><b class="${rrCls}">${rr == null ? '--' : Number(rr).toFixed(2)}</b></span>
+  </div>`;
 
-  // 旗標：地雷(紅) + 進場型態(綠)
-  const flags = [];
-  if (r.mainup_entry === '⚠過高勿追') flags.push(['⚠過高勿追', 'f-red']);
-  else if (r.mainup_entry) flags.push([r.mainup_entry, 'f-good']);
-  if (r.dist_signal && /盤頭|出貨/.test(r.dist_signal)) flags.push(['⚠' + r.dist_signal, 'f-red']);
-  if (r.overhead && /壓力|套牢|重/.test(r.overhead)) flags.push(['⚠上方套牢', 'f-warn']);
-  // 扣抵值（前瞻均線方向）：轉揚=綠旗、陰跌警訊=紅旗（實證 edge+1.2 / 陰跌同級中較弱）
-  if (r.deduct_turn === 1) flags.push(['🔥扣抵轉揚', 'f-good']);
-  if (r.deduct_warn) flags.push([String(r.deduct_warn).split('(')[0], 'f-warn']);
-  const flagHtml = flags.map(([t, c]) => `<span class="tag ${c}">${t}</span>`).join('');
-
-  const hot = (r.max_group_z != null && r.max_group_z >= 1)
-    ? '<span class="sc-hot">🔥族群</span>' : '';
-
-  // 排名延續：連續上榜 / 升降階 / Δ分（卡片與主表共用；分組卡片用 slim 版避免與段標重複）
-  const persistInner = persistBadgesHtml(r, grouped);
-  const persistHtml = persistInner
-    ? `<div class="sc-persist" title="分類軌跡 ${r.cat_path || '—'}">${persistInner}</div>` : '';
-
-  // 籌碼面建議一行（結論 + 依據；無法人資料則整行不顯示）
-  const ca = chipAdvice(r);
-  const chipLine = ca.key === 'na' ? ''
-    : `<div class="sc-chip chip-${ca.key}" title="${ca.advice}${ca.detail ? '｜' + ca.detail : ''}">`
-      + `<span class="sc-chip-ico">${ca.icon}</span><b>${ca.label}</b>`
-      + (ca.detail ? `<span class="sc-chip-detail">${ca.detail}</span>` : '') + `</div>`;
-
-  // 法人連買/連賣 ≥3 天才顯示（雜訊過濾）
-  const instBits = [];
-  if (r.foreign_streak >= 3) instBits.push(`<span class="tag tag-good">外資連買${r.foreign_streak}日</span>`);
-  else if (r.foreign_streak <= -3) instBits.push(`<span class="tag tag-warn">外資連賣${-r.foreign_streak}日</span>`);
-  if (r.trust_streak >= 3) instBits.push(`<span class="tag tag-good">投信連買${r.trust_streak}日</span>`);
-  else if (r.trust_streak <= -3) instBits.push(`<span class="tag tag-warn">投信連賣${-r.trust_streak}日</span>`);
-  const instHtml = instBits.join('');
-
-  // 完整模式：卡片展開細節（精簡模式不顯示）
-  let detailHtml = '';
-  if (state.tableFull) {
-    const pairs = [];
-    const addN = (label, v, dp = 2, suf = '') => { if (v != null) pairs.push([label, _cardNum(v, dp) + suf]); };
-    const addT = (label, v) => { if (v != null && String(v).trim() && String(v) !== '—') pairs.push([label, String(v)]); };
-    addN('MA5', r.ma5); addN('MA60', r.ma60);
-    addN('距前高', r.dist_high, 1, '%'); addN('距年高', r.dist_year_high, 1, '%');
-    addN('套牢密度', r.trap_density, 1); addT('上方賣壓', r.overhead);
-    addN('防守', r.defense); addN('停損', r.stop_loss);
-    addN('風險', r.risk_pct, 1, '%'); addN('部位', r.position_pct, 1, '%');
-    addN('出貨風險', r.dist_risk, 0);
-    addT('扣抵', r.deduct_dir); addT('季線展望', r.deduct_ma60_out);
-    // 2026-09-06：卡片不再印「站上/上彎 哪幾條均線」——那是篩選條件不是判讀資訊，
-    //   一檔常同時站上七八條，整行字擠掉了真正要看的價位與風險欄。
-    //   要看均線狀態請用抽屜的 📏 均線面板篩，或點進 K 線。
-    // 主力買超（券商分點 rank1）：來源已停更，一律帶資料日期避免被當成當日籌碼
-    const bkAsof = (state.data && state.data.chip_asof && state.data.chip_asof.broker) || '';
-    const bkSuf = bkAsof ? `<span class="sv-mut">（至${bkAsof}）</span>` : '';
-    if (r.broker_net != null && String(r.broker_net) !== '—') pairs.push(['主力買超', r.broker_net + bkSuf]);
-    if (r.broker_net_20 != null && String(r.broker_net_20) !== '—') pairs.push(['近20主力', r.broker_net_20 + bkSuf]);
-    if (r.foreign_net != null && r.foreign_net !== 0) pairs.push(['外資買超', (r.foreign_net > 0 ? '+' : '') + r.foreign_net.toLocaleString()]);
-    if (r.trust_net != null && r.trust_net !== 0) pairs.push(['投信買超', (r.trust_net > 0 ? '+' : '') + r.trust_net.toLocaleString()]);
-    addT('主升', r.mainup_tag);
-    [['圓弧', r.rounding_state], ['黃金', r.fib_state], ['缺口', r.gap_state],
-     ['N字', r.nbase_state], ['支撐', r.sr_state], ['上檔', r.sr_overhead]]
-      .forEach(([l, v]) => addT(l, v));
-    if (pairs.length) {
-      detailHtml = `<div class="sc-detail">` +
-        pairs.map(([l, v]) => `<span class="d-item"><i>${l}</i>${v}</span>`).join('') + `</div>`;
-    }
-  }
-
-  // 扣抵值一行（前瞻均線方向；有資料的卡片常駐顯示，不藏在細節）
-  const dedLine = r.deduct_dir
-    ? `<div class="sc-deduct" style="font-size:12px;margin:2px 0;color:#9fb4cc"`
-      + ` title="扣抵值＝看「明天要被扣掉的舊價」預判均線彎向（領先斜率）；三線皆上彎=扣抵轉揚，實證fwd20+2.42%/edge+1.2">`
-      + `🧭 <b style="letter-spacing:1px">${r.deduct_dir}</b>`
-      + (r.deduct_ma60_out ? `｜季線${r.deduct_ma60_out}` : '')
-      + (r.deduct_turn === 1 ? ' <span style="color:#3ddc84;font-weight:700">轉揚</span>' : '')
-      + (r.deduct_warn ? ` <span style="color:#ff6b6b">${String(r.deduct_warn).split('(')[0]}</span>` : '')
-      + `</div>`
-    : '';
-
-  // 階段徽章＋證據計數：主分類定階段，數「該階段該看的訊號」亮了幾個（hover 看明細）
+  // ── 階段徽章：三個階段一律「肯定式」計數（2026-09-06）──
+  //   舊版趨勢欄數的是 無陰跌/無出貨/未破支撐，全是否定式：沒有壞消息就得分，
+  //   欄位是 null 也算通過 → 資料不全的股票會拿到綠色滿分。改成要有才得分。
   const _STAGE_IDX = { A_VCP: 0, A_Coil: 0, N_NearHigh: 0, R_Neckline: 0, M_Accumulate: 0,
                        B_Day0: 1, B_Recent: 1, R_Breakout: 1, S_MA3Rider: 2, S_MA5Rider: 2 };
   let stageBadge = '';
   const _si = _STAGE_IDX[r.category_main];
   if (_si != null) {
+    const _above = Array.isArray(r.ma_above) ? r.ma_above : [];
     const _defs = [
       ['🌱醞釀', [[r.deduct_turn === 1, '扣抵轉揚'], [(r.inst_streak ?? 0) >= 3, '法人連買≥3'],
-                  [r.weekly_lit === 1, '週線亮燈'], [!!(r.sr_overhead && String(r.sr_overhead).includes('✅')), '上檔無壓']]],
+                  [r.weekly_lit === 1, '週線亮燈'],
+                  [!!(r.sr_overhead && String(r.sr_overhead).includes('✅')), '上檔無壓']]],
       ['🚀發動', [[!!(r.bo_state && String(r.bo_state).startsWith('✅')), '真突破(強K非爆量)'],
                   [!!(r.gap_state && String(r.gap_state).includes('未補')), '缺口未補'],
                   [!!r.mainup_entry && r.mainup_entry !== '⚠過高勿追', '有進場型態']]],
-      ['📈趨勢', [[!r.deduct_warn, '無陰跌'], [r.mainup_dist !== 1, '無出貨警訊'],
-                  [!(r.sr_state && String(r.sr_state).includes('⛔')), '未破支撐']]],
+      ['📈趨勢', [[_above.includes('d5'), '站上MA5'], [r.deduct_turn === 1, '扣抵三線上彎'],
+                  [(r.vol_ratio || 0) >= 1.2, '量能跟上'], [(r.rs ?? -99) >= 10, 'RS≥10']]],
     ];
     const [_nm, _checks] = _defs[_si];
     const _n = _checks.filter(c => c[0]).length;
@@ -2596,42 +2568,70 @@ function mainCardHtml(r, grouped = false) {
     stageBadge = `<span class="q-stage" style="color:${_c};font-weight:700" title="${_nm}階段證據：${_tip}">${_nm} ${_n}/${_checks.length}</span>`;
   }
 
-  // 跨策略共振徽章
+  // ── 籌碼建議 / 融資維持率 / 排名延續 / Hanku 共振 ──
+  const ca = chipAdvice(r);
+  const chipLine = ca.key === 'na' ? ''
+    : `<div class="sc-chip chip-${ca.key}" title="${ca.advice}${ca.detail ? '｜' + ca.detail : ''}">`
+      + `<span class="sc-chip-ico">${ca.icon}</span><b>${ca.label}</b>`
+      + (ca.detail ? `<span class="sc-chip-detail">${ca.detail}</span>` : '') + `</div>`;
+  const persistInner = persistBadgesHtml(r, grouped);
+  const persistHtml = persistInner
+    ? `<div class="sc-persist" title="分類軌跡 ${r.cat_path || '—'}">${persistInner}</div>` : '';
   const hk = resonance.hanku[r.ticker];
   const resoN = _resoCount(r);
-  const resoBadges =
-    (hk ? `<span class="reso-badge reso-hk">🌀${_stripLeadEmoji(hk)}</span>` : '');
-  const resoRow = resoBadges ? `<div class="sc-reso">${resoBadges}</div>` : '';
-  const zap = resoN >= 2 ? '<span class="sc-zap" title="多策略共振">⚡共振</span>' : '';
+  const resoRow = hk ? `<div class="sc-reso"><span class="reso-badge reso-hk">🌀${_stripLeadEmoji(hk)}</span></div>` : '';
+  const zap = resoN >= 2 ? '<span class="sc-zap" title="多策略共振：日線突破 × HANKU 週線同時點名">⚡共振</span>' : '';
+  const hot = (r.max_group_z != null && r.max_group_z >= 1) ? '<span class="sc-hot">🔥族群</span>' : '';
 
-  return `<div class="stk-card main-card ${_hitTier(r.hits)}${resoN >= 2 ? ' is-reso' : ''}" data-ticker="${r.ticker}">
+  // ── 更多：細節分三組（原本 12 個標籤+數字擠成一片數字牆）──
+  const dRow = (l, v) => v == null || v === '' || String(v) === '—'
+    ? '' : `<span class="drow"><i>${l}</i><b>${v}</b></span>`;
+  const moreHtml = `<details class="sc-more"${state.tableFull ? ' open' : ''}>
+    <summary>更多</summary>
+    <div class="dgrid">
+      <span class="dsec">價格結構</span>
+      ${dRow('MA5', r.ma5 != null ? _cardNum(r.ma5) : null)}
+      ${dRow('MA60', r.ma60 != null ? _cardNum(r.ma60) : null)}
+      ${dRow('距年高', r.dist_year_high != null ? _cardNum(r.dist_year_high, 1) + '%' : null)}
+      ${dRow('扣抵', r.deduct_dir)}
+      ${dRow('季線展望', r.deduct_ma60_out)}
+      <span class="dsec">風險部位</span>
+      ${dRow('套牢密度', r.trap_density != null ? _cardNum(r.trap_density, 1) : null)}
+      ${dRow('上方賣壓', r.overhead)}
+      ${dRow('防守', r.defense != null ? _cardNum(r.defense) : null)}
+      ${dRow('出貨風險', r.dist_risk != null ? _cardNum(r.dist_risk, 0) : null)}
+      <span class="dsec">籌碼</span>
+      ${dRow('主力買超', r.broker_net)}
+      ${dRow('近20主力', r.broker_net_20)}
+      ${dRow('外資買超', r.foreign_net != null && r.foreign_net !== 0
+              ? (r.foreign_net > 0 ? '+' : '') + r.foreign_net.toLocaleString() : null)}
+      ${dRow('投信買超', r.trust_net != null && r.trust_net !== 0
+              ? (r.trust_net > 0 ? '+' : '') + r.trust_net.toLocaleString() : null)}
+    </div>
+  </details>`;
+
+  return `<div class="stk-card main-card nc2 ${_hitTier(r.hits)}${resoN >= 2 ? ' is-reso' : ''}" data-ticker="${r.ticker}">
     <div class="sc-head">
       <span class="sc-id"><b>${r.ticker}</b> ${r.name || ''}${stfBadgeHtml(r)}${volBadgeHtml(r)}</span>
-      <span class="sc-head-r">${zap}${hot}<span class="sc-pin ${pinned ? 'on' : ''}" data-pin="${r.ticker}">${pinned ? '★' : '☆'}</span></span>
+      <span class="sc-chg">${_chgSpan(Number(r.chg_pct))}</span>
+      <span class="sc-pin ${pinned ? 'on' : ''}" data-pin="${r.ticker}">${pinned ? '★' : '☆'}</span>
     </div>
-    <div class="sc-quality">
-      <span class="q-hit">命中×${r.hits || 0}</span>
-      <span class="q-score">分 ${r.score != null ? Math.round(r.score) : '--'}</span>
-      <span class="q-rs">RS ${_cardNum(r.rs, 0)}</span>
-      ${stageBadge}
-    </div>
-    ${persistHtml}
-    <div class="sc-price">${_chgSpan(Number(r.chg_pct))}<span class="sc-close">現價 ${_cardNum(r.close)}</span><span class="sc-vol">量 ${_cardNum(r.vol_ratio, 1)}x</span>${r.spark ? `<span class="sc-spark">${sparkSvg(r.spark, 64, 20)}</span>` : ''}</div>
+    <div class="sc-cats">${catHtml}${zap}${hot}${r.industry ? `<span class="sc-ind">${r.industry}</span>` : ''}</div>
+    ${tradeHtml}
+    ${evHtml}
     ${chipLine}
     ${maintLineHtml(r)}
-    ${dedLine}
-    <div class="sc-trade">
-      <span><i>進場</i>${entry}</span>
-      <span><i>目標</i>${_cardNum(r.target)}</span>
-      <span><i>RR</i><b class="${rrCls}">${rr == null ? '--' : Number(rr).toFixed(2)}</b></span>
-    </div>
+    ${persistHtml}
     ${resoRow}
-    ${detailHtml}
-    <div class="sc-tags">
-      ${r.industry ? `<span class="tag">${r.industry}</span>` : ''}
-      ${flagHtml}
-      ${instHtml}
-      ${catTags}
+    ${moreHtml}
+    <div class="sc-foot">
+      ${stageBadge}
+      <span>現價 ${_cardNum(r.close)}</span>
+      <span>量 ${_cardNum(r.vol_ratio, 1)}x</span>
+      <span>分 ${r.score != null ? Math.round(r.score) : '--'}</span>
+      <span>命中×${r.hits || 0}</span>
+      <span>RS ${_cardNum(r.rs, 0)}</span>
+      ${r.spark ? `<span class="sc-spark">${sparkSvg(r.spark, 56, 16)}</span>` : ''}
     </div>
   </div>`;
 }

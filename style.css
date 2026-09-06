@@ -2404,3 +2404,92 @@ body.ui-v2 {
 }
 .cat-band .cat-chip .label { overflow: hidden; text-overflow: ellipsis; }
 .cat-band .cat-chip .count { flex: 0 0 auto; }
+
+/* ═══════════════════════════════════════════════════════════
+   2026-09-06　個股卡片改版（nc2）
+   原本 11 個橫列同權重堆疊、進出場排在第 8 列。改成：
+   身分 → 分類(中文) → 交易決策帶(唯一有底色) → 證據(只印亮的) → 籌碼 → 更多 → 排序資訊
+   ═══════════════════════════════════════════════════════════ */
+.nc2 { display: flex; flex-direction: column; gap: 0; padding: 0; overflow: hidden; }
+
+.nc2 .sc-head {
+  display: flex; align-items: baseline; gap: 7px;
+  padding: 9px 11px 6px; margin: 0;
+}
+.nc2 .sc-id { font-size: 14px; }
+.nc2 .sc-id b { font-size: 15px; }
+.nc2 .sc-chg { margin-left: auto; font-size: 15px; font-weight: 600; }
+.nc2 .sc-pin { cursor: pointer; margin-left: 4px; }
+
+.nc2 .sc-cats {
+  display: flex; flex-wrap: wrap; gap: 4px 8px;
+  padding: 0 11px 8px; font-size: 11.5px; color: var(--muted, #8899aa);
+}
+.nc2 .sc-cat { display: inline-flex; align-items: center; }
+.nc2 .sc-cdot {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px;
+}
+.nc2 .sc-ind { color: #66748a; }
+.nc2 .sc-zap, .nc2 .sc-hot { font-size: 11px; }
+
+/* 交易決策帶 —— 唯一有底色的區塊，眼睛的落點 */
+.nc2 .sc-tband {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px 10px;
+  padding: 8px 11px; background: rgba(255, 255, 255, .035);
+  border-top: 1px solid rgba(255, 255, 255, .06);
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+}
+.nc2 .tc i {
+  display: block; font-style: normal; font-size: 10px;
+  color: #7b879a; letter-spacing: .04em;
+}
+.nc2 .tc b {
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  font-variant-numeric: tabular-nums; font-size: 13.5px; font-weight: 600;
+}
+.nc2 .tc-mut b { font-size: 12.5px; font-weight: 400; color: #8899aa; }
+.nc2 .rr-good { color: #46b98a; }
+.nc2 .rr-mid  { color: #e8b34a; }
+.nc2 .rr-low  { color: #d4574e; }
+
+/* 證據：只印亮起來的 */
+.nc2 .sc-ev { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 11px 4px; }
+.nc2 .sc-ev-none { font-size: 11px; color: #66748a; }
+.nc2 .ev {
+  font-size: 11px; padding: 1px 6px; border-radius: 2px; white-space: nowrap;
+}
+.nc2 .ev-pos { background: rgba(70, 185, 138, .13); color: #7fd3b0; border: 1px solid rgba(70, 185, 138, .3); }
+.nc2 .ev-neg { background: rgba(212, 87, 78, .13); color: #eb9a94; border: 1px solid rgba(212, 87, 78, .3); }
+
+.nc2 .sc-chip, .nc2 .sc-maint, .nc2 .sc-persist, .nc2 .sc-reso { margin: 0; padding: 4px 11px; }
+
+/* 更多：細節分三組，取代原本 12 個標籤+數字的數字牆 */
+.nc2 .sc-more { border-top: 1px solid rgba(255, 255, 255, .06); padding: 0 11px; margin-top: 4px; }
+.nc2 .sc-more > summary {
+  cursor: pointer; font-size: 11px; color: #7b879a; padding: 5px 0; list-style: none;
+}
+.nc2 .sc-more > summary::before { content: '▸ '; }
+.nc2 .sc-more[open] > summary::before { content: '▾ '; }
+.nc2 .sc-more > summary:hover { color: #FFD700; }
+.nc2 .dgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; padding-bottom: 8px; }
+.nc2 .dsec {
+  grid-column: 1 / -1; font-size: 10px; letter-spacing: .08em; color: #66748a;
+  margin-top: 4px; padding-top: 3px; border-top: 1px solid rgba(255, 255, 255, .05);
+}
+.nc2 .drow { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; }
+.nc2 .drow i { font-style: normal; color: #7b879a; }
+.nc2 .drow b {
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  font-variant-numeric: tabular-nums; font-weight: 500;
+}
+
+/* 排序資訊降到最後一行：分數/命中/RS 是比較用的，不是判讀用的 */
+.nc2 .sc-foot {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 9px;
+  padding: 6px 11px 9px; margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, .06);
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  font-variant-numeric: tabular-nums; font-size: 11px; color: #7b879a;
+}
+.nc2 .sc-foot .q-stage { font-family: inherit; }
+.nc2 .sc-foot .sc-spark { margin-left: auto; }

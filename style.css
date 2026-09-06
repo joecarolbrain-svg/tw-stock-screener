@@ -2385,3 +2385,11 @@ body.ui-v2 {
 }
 .rh-quick button:hover { border-color: #8899aa; }
 .rh-quick button.active { border-color: #FFD700; color: #FFD700; background: rgba(255,215,0,.12); }
+
+/* 分類欄：階段小標 + chips（2026-09-06 三欄併一欄） */
+.cat-band { display: flex; align-items: flex-start; gap: 6px; padding: 3px 0; }
+.cat-band + .cat-band { border-top: 1px solid rgba(255,255,255,.05); }
+.cat-band-t {
+  flex: 0 0 52px; font-size: 11px; color: #8899aa; padding-top: 3px; cursor: help;
+}
+.cat-band .stage-chips { flex: 1; min-width: 0; margin: 0; }

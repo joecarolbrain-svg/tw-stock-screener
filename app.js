@@ -2538,10 +2538,9 @@ function mainCardHtml(r, grouped = false) {
     addN('風險', r.risk_pct, 1, '%'); addN('部位', r.position_pct, 1, '%');
     addN('出貨風險', r.dist_risk, 0);
     addT('扣抵', r.deduct_dir); addT('季線展望', r.deduct_ma60_out);
-    // 📏 均線：站上哪幾條 / 哪幾條上彎（順序照 MA_LABEL，全沒中就不顯示該行）
-    const _maFmt = (arr) => (arr || []).length
-      ? Object.keys(MA_LABEL).filter(k => arr.includes(k)).map(k => MA_LABEL[k]).join('/') : null;
-    addT('站上', _maFmt(r.ma_above)); addT('上彎', _maFmt(r.ma_up));
+    // 2026-09-06：卡片不再印「站上/上彎 哪幾條均線」——那是篩選條件不是判讀資訊，
+    //   一檔常同時站上七八條，整行字擠掉了真正要看的價位與風險欄。
+    //   要看均線狀態請用抽屜的 📏 均線面板篩，或點進 K 線。
     // 主力買超（券商分點 rank1）：來源已停更，一律帶資料日期避免被當成當日籌碼
     const bkAsof = (state.data && state.data.chip_asof && state.data.chip_asof.broker) || '';
     const bkSuf = bkAsof ? `<span class="sv-mut">（至${bkAsof}）</span>` : '';

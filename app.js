@@ -191,6 +191,9 @@ function boPct60(row) {
 //      換算成同一種「相對前高」語言：(收盤−前高)/前高 = −d/(1+d)，d=dist_high/100。
 //      這不是近似，是恆等式；直接把 dist_high 取負號會有 1~2% 的偏差。
 // 數字輸入 → number|null；空字串、單獨的 "-"、亂打的字都算「不限」（NaN 混進 state 會讓條件靜默失效）
+// 元素可能已從版面移除（門檻群組 2026-09-06 刪除）→ 統一走 null-safe 設值
+function _setVal(id, v) { const e = document.getElementById(id); if (e) e.value = v; }
+
 function _numOrNull(v) {
   if (v === '' || v == null) return null;
   const n = parseFloat(v);
@@ -1493,10 +1496,10 @@ function removeFilter(key) {
     case 'search':
       state.search = ''; { const e = document.getElementById('search-input'); if (e) e.value = ''; }
       break;
-    case 'scoreMin': state.scoreMin = 0; document.getElementById('score-min').value = 0; break;
-    case 'rsMin': state.rsMin = 0; document.getElementById('rs-min').value = 0; break;
-    case 'distRiskMax': state.distRiskMax = null; document.getElementById('dist-risk-max').value = ''; break;
-    case 'groupZMin': state.groupZMin = null; document.getElementById('group-z-min').value = ''; break;
+    case 'scoreMin': state.scoreMin = 0; _setVal('score-min', 0); break;
+    case 'rsMin': state.rsMin = 0; _setVal('rs-min', 0); break;
+    case 'distRiskMax': state.distRiskMax = null; _setVal('dist-risk-max', ''); break;
+    case 'groupZMin': state.groupZMin = null; _setVal('group-z-min', ''); break;
     case 'onlyResonance': state.onlyResonance = false; { const e = document.getElementById('only-resonance'); if (e) e.checked = false; } break;
     case 'onlyHotGroup': state.onlyHotGroup = false; { const e = document.getElementById('only-hot-group'); if (e) e.checked = false; } break;
     case 'onlyInstBuy': state.onlyInstBuy = false; { const e = document.getElementById('only-inst-buy'); if (e) e.checked = false; } break;
@@ -1718,13 +1721,15 @@ function bindControls() {
     // 🚀 突破幅度%（空字串/打到一半的 "-" ＝不限；0 是有效值，不能用 || 短路）
     ['rh-min',        v => state.rhMin = _numOrNull(v)],
     ['rh-max',        v => state.rhMax = _numOrNull(v)],
+    // 2026-09-06 門檻群組（分數/RS/出貨風險/族群z）已從版面移除，
+    // state 欄位保留（預設值＝不篩），這裡的綁定改成元素不在就跳過。
     ['score-min',     v => state.scoreMin = parseFloat(v) || 0],
     ['rs-min',        v => state.rsMin = parseFloat(v) || 0],
     ['dist-risk-max', v => state.distRiskMax = (v === '' ? null : parseFloat(v))],
     ['group-z-min',   v => state.groupZMin = (v === '' ? null : parseFloat(v))],
   ];
   numBindings.forEach(([id, setter]) => {
-    document.getElementById(id).addEventListener('input', e => {
+    document.getElementById(id)?.addEventListener('input', e => {
       setter(e.target.value); applyFilters();
     });
   });
@@ -1948,10 +1953,8 @@ function clearAllFilters() {
   { const e = document.getElementById('dim-search'); if (e) e.value = ''; }
   renderDimensionOptions();
   { const e = document.getElementById('search-input'); if (e) e.value = ''; }
-  document.getElementById('score-min').value = 0;
-  document.getElementById('rs-min').value = 0;
-  document.getElementById('dist-risk-max').value = '';
-  document.getElementById('group-z-min').value = '';
+  _setVal('score-min', 0); _setVal('rs-min', 0);
+  _setVal('dist-risk-max', ''); _setVal('group-z-min', '');
   { const e = document.getElementById('preset-select'); if (e) e.value = ''; }
   applyFilters();
 }
@@ -2020,10 +2023,8 @@ function loadPreset(e) {
   document.querySelector(`input[name="dim"][value="${state.dim}"]`).checked = true;
   renderDimensionOptions();
   { const e = document.getElementById('search-input'); if (e) e.value = state.search; }
-  document.getElementById('score-min').value = state.scoreMin;
-  document.getElementById('rs-min').value = state.rsMin;
-  document.getElementById('dist-risk-max').value = state.distRiskMax ?? '';
-  document.getElementById('group-z-min').value = state.groupZMin ?? '';
+  _setVal('score-min', state.scoreMin); _setVal('rs-min', state.rsMin);
+  _setVal('dist-risk-max', state.distRiskMax ?? ''); _setVal('group-z-min', state.groupZMin ?? '');
   applyFilters();
 }
 function deleteCurrentPreset() {

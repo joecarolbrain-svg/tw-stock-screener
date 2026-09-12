@@ -153,8 +153,9 @@ const state = {
   onlyVolUp: false,
   // 排名延續快捷視圖（互斥）：null|new(新進)|surge(衝榜中)|fade(掉分)
   persistView: null,
-  // 主表欄位密度：2026-07-22 起統一完整模式（user 要求砍掉精簡）——表格全欄、卡片一律展開細節
-  tableFull: true,
+  // 主表欄位密度：2026-09-12 改回預設精簡（user 推翻2026-07-22的決定，往Linear mockup
+  // 靠攏）——表格只顯示核心欄、卡片「更多」預設收合，點開才看完整細節。
+  tableFull: false,
   // 主升策略：off|sig|A|B；sig 模式用 mainupSignals 勾選的旗標(5訊號+3條件+季線突破)
   mainupMode: 'off',
   mainupSignals: new Set(['s1', 's2', 's3', 's4', 's5', 'c1', 'c2', 'c3', 'mainup_ma60']),

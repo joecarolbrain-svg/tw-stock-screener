@@ -2891,7 +2891,7 @@ function mainCardHtml(r, grouped = false) {
   return `<div class="stk-card main-card nc2 ${_hitTier(r.hits)}${resoN >= 2 ? ' is-reso' : ''}" data-ticker="${r.ticker}">
     <div class="sc-head">
       <span class="sc-id"><b>${r.ticker}</b> ${r.name || ''}${stfBadgeHtml(r)}${volBadgeHtml(r)}</span>
-      <span class="sc-chg">${_chgSpan(Number(r.chg_pct))}</span>
+      <span class="sc-px"><span class="sc-close">${_cardNum(r.close)}</span>${_chgSpan(Number(r.chg_pct))}</span>
       <span class="sc-pin ${pinned ? 'on' : ''}" data-pin="${r.ticker}">${pinned ? '★' : '☆'}</span>
     </div>
     <div class="sc-cats">${catHtml}${zap}${hot}${r.industry ? `<span class="sc-ind">${r.industry}</span>` : ''}</div>
@@ -2904,7 +2904,6 @@ function mainCardHtml(r, grouped = false) {
     ${moreHtml}
     <div class="sc-foot">
       ${stageBadge}
-      <span>現價 ${_cardNum(r.close)}</span>
       <span>量 ${_cardNum(r.vol_ratio, 1)}x</span>
       <span>分 ${r.score != null ? Math.round(r.score) : '--'}</span>
       <span>命中×${r.hits || 0}</span>

@@ -165,6 +165,11 @@ const state = {
   deductExclWarn: false,  // 排除陰跌警訊（月/季線將下彎）；任何模式皆生效
   instStreak3: false,     // 🌱法人連買≥3日
   marginStreak3: false,   // 融資連續增加≥3日（2026-09-12新增；未進回測）
+  daytradeRatioMin: null, // 當沖率≥N%（2026-09-12新增；未進回測，資料FinMind回補中）
+  turnoverMin: null,      // 週轉率≥N%（2026-09-12新增，資料源=stock_df原生欄）
+  jibaoFlagBothUp: false,   // 集保大戶真買(比率絕對雙升)
+  jibaoFlagBothDown: false, // 集保大戶真賣(比率絕對雙降)
+  jibaoExclDenom: false,    // 排除分母縮水假象(denom象限)
   exclSrBreak: false,     // 📈排除跌破支撐⛔
   // 島狀反轉：off|top|bottom|any（後端已判定缺口孤立，前端只篩 island_top/island_bottom 是否有值）
   islandMode: 'off',
@@ -175,6 +180,8 @@ const state = {
   // 突破關卡（2026-09-12 重設計：取代 B_Day0/B_Recent/R_Breakout/R_Neckline）：勾任一關卡即算命中，純看價格不設量比門檻
   breakoutLevels: new Set(),
   recentBreakout: false,   // 近5日內曾衝過前一日高點(不看量能)
+  // 動能排行（2026-09-12）：{period: pct|null}，週/月/季/年報酬對全市場橫斷面百分位排名，命中任一週期即算(OR)
+  momPctFilters: {},
   // 📏 均線設定（2026-08-02）：勾哪幾條就必須成立＝AND；key 見 MA_LABEL
   maAbove: new Set(),     // 收盤須站上這幾條
   maUp: new Set(),        // 這幾條須上彎（今日值>昨日值；週線=本週>上週）
@@ -286,6 +293,19 @@ function breakoutLevelMatch(row, levels) {
     if (field && row[field]) return true;
   }
   return false;
+}
+
+// 動能排行（2026-09-12）：週/月/季/年報酬對全市場當日橫斷面百分位排名，rank 越大＝當天排名越前面。
+// 命中任一「有設定門檻」的週期即算(OR)——原意是抓「在任何一個時間尺度上表現最強」的股票，
+// 跟需要同時滿足多條件的 AND 濾網（扣抵轉揚∩法人連買 那種）用意不同，故選 OR。
+function momentumMatch(row) {
+  const filters = state.momPctFilters;
+  const keys = Object.keys(filters).filter(k => filters[k] != null);
+  if (!keys.length) return true;   // 沒設定任何門檻 = 不篩選
+  return keys.some(k => {
+    const rank = row.mom_rank && row.mom_rank[k];
+    return rank != null && rank >= (100 - filters[k]);
+  });
 }
 
 // 📏 均線欄位可用性：2026-08-02 之前 export 的舊快照沒有 ma_above/ma_up，
@@ -618,6 +638,17 @@ function renderMeta(d) {
       cf.title = `籌碼資料鮮度：${tips.join('｜')}`;
       cf.hidden = false;
     }
+  }
+
+  // ── 💰 集保大戶/散戶 asof 提醒（2026-09-12新增；週頻資料，取全體最新結算週顯示）──
+  const jaNote = document.getElementById('jibao-asof-note');
+  if (jaNote) {
+    const rows = (state.data && state.data.rows) || [];
+    let maxAsof = null;
+    rows.forEach(r => { if (r.jibao_asof && (maxAsof == null || r.jibao_asof > maxAsof)) maxAsof = r.jibao_asof; });
+    jaNote.textContent = maxAsof
+      ? `集保週頻更新，非今日即時資料，最新結算週：${String(maxAsof).slice(0, 4)}-${String(maxAsof).slice(4, 6)}-${String(maxAsof).slice(6, 8)}`
+      : '集保週頻更新，非今日即時資料，結算週：--';
   }
 
   // ── P3-⑭ 大盤閘門（v2 版面；v1 沿用 bear-hint）──
@@ -1295,10 +1326,16 @@ function screenRowPass(row) {
     if (state.deductExclWarn && row.deduct_warn) return false;     // 排除陰跌警訊
     if (state.instStreak3 && !((row.inst_streak ?? 0) >= 3)) return false; // 🌱法人連買≥3日
     if (state.marginStreak3 && !((row.margin_streak ?? 0) >= 3)) return false; // 融資連續增加≥3日
+    if (state.daytradeRatioMin != null && !(row.daytrade_ratio != null && row.daytrade_ratio >= state.daytradeRatioMin)) return false; // 當沖率≥N%
+    if (state.turnoverMin != null && !(row.turnover_pct != null && row.turnover_pct >= state.turnoverMin)) return false; // 週轉率≥N%
+    if (state.jibaoFlagBothUp && row.jibao_flag !== 'both_up') return false;   // 集保大戶真買
+    if (state.jibaoFlagBothDown && row.jibao_flag !== 'both_down') return false; // 集保大戶真賣
+    if (state.jibaoExclDenom && row.jibao_flag === 'denom') return false;     // 排除分母縮水假象
     if (state.exclSrBreak && row.sr_state && String(row.sr_state).includes('⛔')) return false; // 📈排除破支撐
     if (state.fibLevels.size > 0 && !fibLevelMatch(row, state.fibLevels)) return false; // 黃金分割回檔級距
     if (state.breakoutLevels.size > 0 && !breakoutLevelMatch(row, state.breakoutLevels)) return false; // 突破關卡
     if (state.recentBreakout && !(row.recent_breakout_days != null && row.recent_breakout_days <= 5)) return false; // 近期突破(1-5日)
+    if (!momentumMatch(row)) return false; // 動能排行(週/月/季/年百分位，OR)
     for (const [, sk, , sTest] of STAGE_FLAGS) if (state[sk] && !sTest(row)) return false;      // 三階段資料驅動濾網
 
     // 島狀反轉：top=頂部(出場/做空)｜bottom=底部(進場/做多)｜any=任一
@@ -1407,6 +1444,11 @@ function renderActiveFilters() {
   if (state.deductExclWarn) add('deductExclWarn', '排除陰跌');
   if (state.instStreak3) add('instStreak3', '法人連買≥3');
   if (state.marginStreak3) add('marginStreak3', '融資連增≥3');
+  if (state.daytradeRatioMin != null) add('daytradeRatioMin', `當沖率≥${state.daytradeRatioMin}%`);
+  if (state.turnoverMin != null) add('turnoverMin', `週轉率≥${state.turnoverMin}%`);
+  if (state.jibaoFlagBothUp) add('jibaoFlagBothUp', '大戶真買');
+  if (state.jibaoFlagBothDown) add('jibaoFlagBothDown', '大戶真賣');
+  if (state.jibaoExclDenom) add('jibaoExclDenom', '排除分母縮水假象');
   if (state.rhMin != null || state.rhMax != null) add('rh', `相對${rhLabel()}${boRangeLabel(state.rhMin, state.rhMax)}`);
   if (state.exclSrBreak) add('exclSrBreak', '排除破支撐');
   STAGE_FLAGS.forEach(([, k, label]) => { if (state[k]) add('sf:' + k, label); });
@@ -1415,6 +1457,11 @@ function renderActiveFilters() {
   if (state.fibLevels.size) add('fibLevels', `黃金分割:${[...state.fibLevels].join('/')}`);
   if (state.breakoutLevels.size) add('breakoutLevels', `突破關卡:${[...state.breakoutLevels].join('/')}`);
   if (state.recentBreakout) add('recentBreakout', '近期突破(1-5日)');
+  { const momKeys = Object.keys(state.momPctFilters).filter(k => state.momPctFilters[k] != null);
+    if (momKeys.length) {
+      const momLabel = { week: '週', month: '月', quarter: '季', year: '年' };
+      add('momPctFilters', `動能:${momKeys.map(k => `${momLabel[k] || k}前${state.momPctFilters[k]}%`).join('/')}`);
+    } }
   { const n = Object.values(state.maSlopeFilters).filter(f => f.abs != null || f.rank != null).length;
     if (n) add('maSlope', `均線斜率:${n}條`); }
   if (state.maAbove.size) add('maAbove', `站上:${[...state.maAbove].map(k => MA_LABEL[k] || k).join('/')}`);
@@ -1461,6 +1508,10 @@ function updateGroupCounts() {
                  (state.rhMin != null || state.rhMax != null ? 1 : 0) +
                  (state.patternSignals.size ? 1 : 0) + (state.fibLevels.size ? 1 : 0) +
                  (state.breakoutLevels.size ? 1 : 0) + (state.recentBreakout ? 1 : 0) +
+                 Object.values(state.momPctFilters).filter(v => v != null).length +
+                 (state.daytradeRatioMin != null ? 1 : 0) +
+                 (state.turnoverMin != null ? 1 : 0) +
+                 (state.jibaoFlagBothUp ? 1 : 0) + (state.jibaoFlagBothDown ? 1 : 0) + (state.jibaoExclDenom ? 1 : 0) +
                  STAGE_FLAGS.filter(f => state[f[1]]).length);
   set('fgc-dim', state.dimSelected.size);
   set('fgc-thresh', (state.scoreMin > 0 ? 1 : 0) + (state.rsMin > 0 ? 1 : 0) +
@@ -1517,6 +1568,21 @@ function removeFilter(key) {
     case 'marginStreak3':
       state.marginStreak3 = false; { const e = document.getElementById('margin-streak3'); if (e) e.checked = false; }
       break;
+    case 'daytradeRatioMin':
+      state.daytradeRatioMin = null; { const e = document.getElementById('daytrade-ratio-min'); if (e) e.value = ''; }
+      break;
+    case 'turnoverMin':
+      state.turnoverMin = null; { const e = document.getElementById('turnover-min'); if (e) e.value = ''; }
+      break;
+    case 'jibaoFlagBothUp':
+      state.jibaoFlagBothUp = false; { const e = document.getElementById('jibao-flag-both-up'); if (e) e.checked = false; }
+      break;
+    case 'jibaoFlagBothDown':
+      state.jibaoFlagBothDown = false; { const e = document.getElementById('jibao-flag-both-down'); if (e) e.checked = false; }
+      break;
+    case 'jibaoExclDenom':
+      state.jibaoExclDenom = false; { const e = document.getElementById('jibao-flag-denom-warn'); if (e) e.checked = false; }
+      break;
     case 'exclSrBreak':
       state.exclSrBreak = false; { const e = document.getElementById('excl-srbreak'); if (e) e.checked = false; }
       break;
@@ -1539,6 +1605,10 @@ function removeFilter(key) {
     case 'recentBreakout':
       state.recentBreakout = false;
       { const e = document.getElementById('recent-breakout'); if (e) e.checked = false; }
+      break;
+    case 'momPctFilters':
+      state.momPctFilters = {};
+      document.querySelectorAll('input.mom-pct').forEach(el => { el.value = ''; });
       break;
     case 'maSlope':
       state.maSlopeFilters = {};
@@ -1706,9 +1776,31 @@ function bindControls() {
   const dedExW = document.getElementById('deduct-excl-warn');
   if (dedExW) dedExW.addEventListener('change', e => { state.deductExclWarn = e.target.checked; applyFilters(); });
   // 三階段訊號區：AND 濾網 + 3 顆一鍵精選
-  [['inst-streak3', 'instStreak3'], ['margin-streak3', 'marginStreak3'], ['excl-srbreak', 'exclSrBreak']].forEach(([id, key]) => {
+  [['inst-streak3', 'instStreak3'], ['margin-streak3', 'marginStreak3'], ['excl-srbreak', 'exclSrBreak'],
+   ['jibao-flag-both-up', 'jibaoFlagBothUp'], ['jibao-flag-both-down', 'jibaoFlagBothDown'],
+   ['jibao-flag-denom-warn', 'jibaoExclDenom']].forEach(([id, key]) => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', e => { state[key] = e.target.checked; applyFilters(); });
+  });
+  const turnoverMin = document.getElementById('turnover-min');
+  if (turnoverMin) turnoverMin.addEventListener('input', e => {
+    const v = e.target.value === '' ? null : Number(e.target.value);
+    state.turnoverMin = (v == null || Number.isNaN(v)) ? null : v;
+    applyFilters();
+  });
+  const dtrMin = document.getElementById('daytrade-ratio-min');
+  if (dtrMin) dtrMin.addEventListener('input', e => {
+    const v = e.target.value === '' ? null : Number(e.target.value);
+    state.daytradeRatioMin = (v == null || Number.isNaN(v)) ? null : v;
+    applyFilters();
+  });
+  document.querySelectorAll('[data-daytrade-quick]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const v = Number(btn.dataset.daytradeQuick);
+      state.daytradeRatioMin = v;
+      if (dtrMin) dtrMin.value = v;
+      applyFilters();
+    });
   });
   ['brew', 'launch', 'trend'].forEach(k => {
     const b = document.getElementById('preset-' + k);
@@ -1756,6 +1848,31 @@ function bindControls() {
   });
   { const rb = document.getElementById('recent-breakout');
     if (rb) rb.addEventListener('change', e => { state.recentBreakout = e.target.checked; applyFilters(); }); }
+
+  // 📊 動能排行（2026-09-12）：週/月/季/年 個別百分位輸入 ＋ 快捷鈕套用到全部4個 ＋ 清除
+  document.querySelectorAll('input.mom-pct').forEach(el => {
+    el.addEventListener('input', e => {
+      const period = e.target.dataset.period;
+      state.momPctFilters[period] = _numOrNull(e.target.value);
+      applyFilters();
+    });
+  });
+  document.querySelectorAll('[data-mom-pct]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pct = parseFloat(btn.dataset.momPct);
+      document.querySelectorAll('input.mom-pct').forEach(el => {
+        el.value = pct;
+        state.momPctFilters[el.dataset.period] = pct;
+      });
+      applyFilters();
+    });
+  });
+  { const mc = document.getElementById('mom-clear');
+    if (mc) mc.addEventListener('click', () => {
+      state.momPctFilters = {};
+      document.querySelectorAll('input.mom-pct').forEach(el => { el.value = ''; });
+      applyFilters();
+    }); }
 
   // 📏 均線設定 checkbox（站上 / 上彎，各 9 條）＋ 兩個一鍵組合
   [['ma-above', 'maAbove'], ['ma-up', 'maUp']].forEach(([nm, sk]) => {
@@ -2046,6 +2163,16 @@ function clearAllFilters() {
   state.deductExclWarn = false;
   state.instStreak3 = false;
   state.marginStreak3 = false;
+  state.daytradeRatioMin = null;
+  { const e = document.getElementById('daytrade-ratio-min'); if (e) e.value = ''; }
+  state.turnoverMin = null;
+  { const e = document.getElementById('turnover-min'); if (e) e.value = ''; }
+  state.jibaoFlagBothUp = false;
+  state.jibaoFlagBothDown = false;
+  state.jibaoExclDenom = false;
+  ['jibao-flag-both-up', 'jibao-flag-both-down', 'jibao-flag-denom-warn'].forEach(id => {
+    const e = document.getElementById(id); if (e) e.checked = false;
+  });
   state.rhMin = state.rhMax = null;
   ['rh-min', 'rh-max'].forEach(id => {
     const e = document.getElementById(id); if (e) e.value = '';
@@ -2061,6 +2188,8 @@ function clearAllFilters() {
   state.recentBreakout = false;
   document.querySelectorAll('input[name="breakout-level"]').forEach(cb => { cb.checked = false; });
   { const rb = document.getElementById('recent-breakout'); if (rb) rb.checked = false; }
+  state.momPctFilters = {};
+  document.querySelectorAll('input.mom-pct').forEach(el => { el.value = ''; });
   state.maAbove.clear();
   state.maUp.clear();
   document.querySelectorAll('input[name="ma-above"],input[name="ma-up"]').forEach(cb => { cb.checked = false; });
@@ -4394,6 +4523,9 @@ function _zeroCands() {
     ['deductExclWarn', 'deductExclWarn', '排除陰跌'],
     ['instStreak3', 'instStreak3', '法人連買≥3'],
     ['marginStreak3', 'marginStreak3', '融資連增≥3'],
+    ['jibaoFlagBothUp', 'jibaoFlagBothUp', '大戶真買'],
+    ['jibaoFlagBothDown', 'jibaoFlagBothDown', '大戶真賣'],
+    ['jibaoExclDenom', 'jibaoExclDenom', '排除分母縮水'],
     ['exclSrBreak', 'exclSrBreak', '排除破支撐'],
   ];
   boolFlags.forEach(([sk, key, label]) => {

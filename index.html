@@ -131,6 +131,20 @@
             </div>
             <label class="check-toggle" title="近5個交易日內曾經衝過前一日高點(不看量能)"><input type="checkbox" id="recent-breakout" /> 近期突破(1-5日)</label>
           </div>
+          <div class="cat-band"><span class="cat-band-t" title="週/月/季/年報酬對全市場做當日橫斷面百分位排名，抓排名最前面的強勢股（命中任一週期即算，OR關係）">📊 動能排行</span>
+            <div class="momentum-ranks">
+              <label>週<input type="number" class="mom-pct" data-period="week" min="1" max="100" placeholder="前5%" /></label>
+              <label>月<input type="number" class="mom-pct" data-period="month" min="1" max="100" placeholder="前5%" /></label>
+              <label>季<input type="number" class="mom-pct" data-period="quarter" min="1" max="100" placeholder="前5%" /></label>
+              <label>年<input type="number" class="mom-pct" data-period="year" min="1" max="100" placeholder="前5%" /></label>
+              <div class="mom-quick">
+                <button type="button" class="btn btn-ghost" data-mom-pct="5">前5%</button>
+                <button type="button" class="btn btn-ghost" data-mom-pct="10">前10%</button>
+                <button type="button" class="btn btn-ghost" data-mom-pct="20">前20%</button>
+                <button type="button" class="btn btn-ghost btn-danger" id="mom-clear">清除</button>
+              </div>
+            </div>
+          </div>
           <div class="cat-band"><span class="cat-band-t" title="沿均線續攻、持有管理">📈 趨勢</span>
             <div class="stage-chips" id="stage-chips-trend"></div></div>
           <div class="cat-band"><span class="cat-band-t" title="謹慎、別追">👁 風險</span>
@@ -214,15 +228,39 @@
             <span class="mx-na">—</span>
             <span><input type="checkbox" id="mainup-excl-dist" title="排除出貨⚠：高檔爆量收弱。注意這是波動標記不是均值殺手" /></span>
           </div>
-          <div class="mx-row">
-            <span class="mx-name" title="三大法人合計淨買超連續天數">法人<span class="edge-tag">資料僅75天</span></span>
-            <span><input type="checkbox" id="inst-streak3" title="法人連買≥3日（雜訊過濾門檻；此欄未進回測）" /></span>
-            <span class="mx-na">—</span>
+        </div>
+
+        <!-- ── 💰 籌碼面(2026-09-12重組，仿券商app 7分類選單) ──────────── -->
+        <div class="stage-col chip-col">
+          <div class="stage-head">💰 籌碼面</div>
+          <div class="chip-band"><span class="chip-band-t" title="融資餘額逐日變化連續同向天數（2015起零缺口，未進回測）">🔋 融資融券</span>
+            <label class="check-toggle"><input type="checkbox" id="margin-streak3" title="融資連續增加≥3日（散戶/主力加碼；此欄未進回測）" /> 融資連續增加≥3日</label>
           </div>
-          <div class="mx-row">
-            <span class="mx-name" title="融資餘額逐日變化連續同向天數（2015起零缺口，未進回測）">融資</span>
-            <span><input type="checkbox" id="margin-streak3" title="融資連續增加≥3日（散戶/主力加碼；此欄未進回測）" /></span>
-            <span class="mx-na">—</span>
+          <div class="chip-band"><span class="chip-band-t" title="三大法人合計淨買超連續天數">🔁 三大法人</span>
+            <label class="check-toggle"><input type="checkbox" id="inst-streak3" title="法人連買≥3日（雜訊過濾門檻；此欄未進回測；資料僅75天）" /> 法人連買≥3日</label>
+          </div>
+          <div class="chip-band"><span class="chip-band-t" title="主力吸籌已經是分類欄的一個分類，這裡不重複做勾選">⌨ 主力／中實戶／券商</span>
+            <span class="muted" style="font-size:11px">請至上方「🏷 分類」勾選「主力吸籌」；分點大戶目前僅93天資料，未進篩選</span>
+          </div>
+          <div class="chip-band"><span class="chip-band-t" title="集保庫存分散表：大戶比率與絕對張數同步上升，排除分母縮水假象">📈 大戶／散戶〔多方〕</span>
+            <label class="check-toggle"><input type="checkbox" id="jibao-flag-both-up" title="集保四象限 both_up：大戶持股比率↑且絕對張數↑＝真的有人在買" /> 大戶真買(比率絕對雙升)</label>
+            <label class="check-toggle"><input type="checkbox" id="jibao-flag-denom-warn" title="排除 denom 象限：比率↑但絕對張數↓＝分母縮水的假象，不是真的有人買" /> ⚠️排除分母縮水假象</label>
+          </div>
+          <div class="chip-band"><span class="chip-band-t" title="集保庫存分散表：大戶比率與絕對張數同步下降">📉 大戶／散戶〔空方〕</span>
+            <label class="check-toggle"><input type="checkbox" id="jibao-flag-both-down" title="集保四象限 both_down：大戶持股比率↓且絕對張數↓＝真的在出" /> 大戶真賣(比率絕對雙降)</label>
+            <span class="muted" id="jibao-asof-note" style="font-size:11px">集保週頻更新，非今日即時資料，結算週：--</span>
+          </div>
+          <div class="chip-band"><span class="chip-band-t" title="分點買賣家數差/集中度目前無全市場資料；周轉率=成交量/流通股數；券資比=融券/融資">🔧 買賣家數差／集中度／周轉率／券資比</span>
+            <span class="turnover-input">
+              <input type="number" id="turnover-min" min="0" step="0.01" placeholder="週轉率≥%" title="週轉率≥輸入值（%），留空不限" />
+            </span>
+          </div>
+          <div class="chip-band"><span class="chip-band-t" title="當沖成交股數/當日總成交股數；資料源FinMind回補中，早期股票缺值屬正常">♾️ 當沖率<span class="edge-tag">無回測，僅供參考</span></span>
+            <span class="daytrade-ratio-input">
+              <input type="number" id="daytrade-ratio-min" min="0" max="100" step="1" placeholder="≥%" title="當沖率≥輸入值（%），留空不限" />
+              <button type="button" class="btn btn-ghost" data-daytrade-quick="30">≥30%</button>
+              <button type="button" class="btn btn-ghost" data-daytrade-quick="50">≥50%</button>
+            </span>
           </div>
         </div>
 

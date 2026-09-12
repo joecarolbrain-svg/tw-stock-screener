@@ -2456,6 +2456,18 @@ body.ui-v2 {
 .cat-band .cat-chip .label { overflow: hidden; text-overflow: ellipsis; }
 .cat-band .cat-chip .count { flex: 0 0 auto; }
 
+/* 💰 籌碼面(2026-09-12)：7分類分組，比照 .cat-band 但內容是勾選/輸入而非chip */
+.chip-band { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 5px 0; }
+.chip-band + .chip-band { border-top: 1px solid rgba(255,255,255,.05); }
+.chip-band-t {
+  flex: 0 0 100%; display: block; font-size: 10.5px; color: #8899aa;
+  letter-spacing: .05em; margin-bottom: 2px; cursor: help;
+}
+.turnover-input input, .daytrade-ratio-input input {
+  width: 70px; font-size: 12px; padding: 2px 6px;
+  background: #1a1f28; border: 1px solid #333; border-radius: 4px; color: #ddd;
+}
+
 /* ═══════════════════════════════════════════════════════════
    2026-09-06　個股卡片改版（nc2）
    原本 11 個橫列同權重堆疊、進出場排在第 8 列。改成：

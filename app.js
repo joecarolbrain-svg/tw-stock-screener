@@ -163,17 +163,23 @@ const state = {
   deductTurn: false,      // 扣抵轉揚↑（三線皆將上彎，實證edge+1.2）；任何模式皆生效
   deductUp2: false,       // 扣抵上彎≥2條（較寬）；任何模式皆生效
   deductExclWarn: false,  // 排除陰跌警訊（月/季線將下彎）；任何模式皆生效
-  weeklyLit: false,       // 🌱週線亮燈（週爆量∩週多排）
   instStreak3: false,     // 🌱法人連買≥3日
-  boGood: false,          // 🚀✅真突破（強K非爆量/回測撐住；bt_breakout 校準）
+  marginStreak3: false,   // 融資連續增加≥3日（2026-09-12新增；未進回測）
   exclSrBreak: false,     // 📈排除跌破支撐⛔
   // 島狀反轉：off|top|bottom|any（後端已判定缺口孤立，前端只篩 island_top/island_bottom 是否有值）
   islandMode: 'off',
   // 型態訊號（ep10缺口/ep11 N字/ep14圓弧/ep15黃金分割 新欄；勾選任一即入選=群內 OR）
   patternSignals: new Set(),
+  // 黃金分割回檔級距（2026-09-12 取代單一 fib_buy）：勾任一級距即算命中，跟 patternSignals 是獨立的另一組 OR
+  fibLevels: new Set(),
+  // 突破關卡（2026-09-12 重設計：取代 B_Day0/B_Recent/R_Breakout/R_Neckline）：勾任一關卡即算命中，純看價格不設量比門檻
+  breakoutLevels: new Set(),
+  recentBreakout: false,   // 近5日內曾衝過前一日高點(不看量能)
   // 📏 均線設定（2026-08-02）：勾哪幾條就必須成立＝AND；key 見 MA_LABEL
   maAbove: new Set(),     // 收盤須站上這幾條
   maUp: new Set(),        // 這幾條須上彎（今日值>昨日值；週線=本週>上週）
+  // 均線斜率雙軌（2026-09-12）：{key: {abs: number|null, rank: number|null}}，只有實際設定的線參與AND判斷
+  maSlopeFilters: {},
   // 🚀 突破幅度%（2026-08-03）：相對前高的百分比區間，null=不限。見 boPct60/boPctAth
   // 2026-09-06：原「突破幅度% 4 格」（bo60/boAth 兩組）合併成單一「相對前高」軸。
   // 負＝還沒到前高、0＝剛好、正＝已突破；口徑由 rhBasis 三選一。
@@ -240,13 +246,47 @@ const PATTERN_SIG_TEST = {
   gap_fill:    (row) => /⛔/.test(row.gap_state || ''),
   nbase_break: (row) => /🔥|回後/.test(row.nbase_state || ''),
   nbase_lock:  (row) => /鎖股/.test(row.nbase_state || ''),
-  fib_buy:     (row) => /黃金買點/.test(row.fib_state || ''),
   round_buy:   (row) => /剛突破|回後買點/.test(row.rounding_state || ''),
   round_lock:  (row) => /鎖股/.test(row.rounding_state || ''),
   sr_clear:    (row) => /✅/.test(row.sr_overhead || ''),
   sr_break:    (row) => /⛔/.test(row.sr_state || ''),
   island_bottom: (row) => !!row.island_bottom,   // 🏝底部島狀(進場/做多)，2026-07-22 併入發動型態
 };
+
+// 黃金分割回檔級距（2026-09-12）：取代單一 fib_buy 觸發勾選，改用實際回檔比例 fib_retrace 分區間比對
+// 門檻與 pattern_fibo.py 的 _zone() 完全一致（ep15 全市場45,351筆分層回測校準過，
+// 0.236極強 fwd20+2.87% / 0.382首選+2.22% / 0.5一般+1.66%≈對照組無超額），
+// 不是憑感覺切的對稱容差——四段首尾相接涵蓋 0~0.70，r>0.70(過深)刻意不給勾選。
+const FIB_LEVEL_RANGES = {
+  '0.236': [0,    0.30],
+  '0.382': [0.30, 0.44],
+  '0.5':   [0.44, 0.56],
+  '0.618': [0.56, 0.70],
+};
+function fibLevelMatch(row, levels) {
+  const v = row.fib_retrace;
+  if (v == null || Number.isNaN(v)) return false;
+  for (const lv of levels) {
+    const r = FIB_LEVEL_RANGES[lv];
+    if (r && v >= r[0] && v <= r[1]) return true;
+  }
+  return false;
+}
+
+// 突破關卡（2026-09-12）：取代 B_Day0/B_Recent/R_Breakout/R_Neckline，純看價格布林欄位，不設量比門檻
+const BREAKOUT_LEVEL_FIELD = {
+  hist: 'broke_hist_high',
+  '52w': 'broke_52w_high',
+  '63d': 'broke_63d_high',
+  '5y':  'broke_5y_high',
+};
+function breakoutLevelMatch(row, levels) {
+  for (const lv of levels) {
+    const field = BREAKOUT_LEVEL_FIELD[lv];
+    if (field && row[field]) return true;
+  }
+  return false;
+}
 
 // 📏 均線欄位可用性：2026-08-02 之前 export 的舊快照沒有 ma_above/ma_up，
 // 切到那些日期時若不停用，使用者勾了均線條件會靜默變成 0 檔（很難查）。
@@ -691,13 +731,11 @@ const STAGE_FLAGS = [
   ['sig-s4',         'fS4',          'S4突破',       r => r.s4 === 1],
   ['sig-s5',         'fS5',          'S5題材',       r => r.s5 === 1],
   ['sig-c3',         'fC3',          'C3進場點',     r => r.c3 === 1],
-  ['sig-ma60b',      'fMa60B',       '季線突破',     r => r.mainup_ma60 === 1],
   // 📈趨勢確認
   ['sig-s3',         'fS3',          'S3多排',       r => r.s3 === 1],
   ['sig-c1',         'fC1',          'C1多頭',       r => r.c1 === 1],
   ['sig-c2',         'fC2',          'C2黃金交叉',   r => r.c2 === 1],
   // 📈持有否決
-  ['excl-gapfill',   'exclGapFill',  '排除缺口被補', r => !/被補|已補/.test(r.gap_state || '')],
   ['excl-islandtop', 'exclIslandTop', '排除頂島',    r => !r.island_top],
 ];
 STAGE_FLAGS.forEach(([, k]) => { state[k] = false; });
@@ -705,9 +743,9 @@ STAGE_FLAGS.forEach(([, k]) => { state[k] = false; });
 // el = 直立三欄面板中該階段的 chips 容器（index.html .stage-col 內）；風險/其他在底列。
 const CAT_GROUPS = [
   { title: '🌱 醞釀(還沒突破)', hint: '蓄勢打底+主力吸籌', el: 'stage-chips-brew',
-    codes: ['A_VCP', 'A_Coil', 'N_NearHigh', 'R_Neckline', 'M_Accumulate'] },
+    codes: ['A_VCP', 'A_Coil', 'N_NearHigh', 'M_Accumulate'] },
   { title: '🚀 發動(突破中)',   hint: '剛突破、發動點',     el: 'stage-chips-launch',
-    codes: ['B_Day0', 'B_Recent', 'R_Breakout'] },
+    codes: ['B_Day0'] },
   { title: '📈 趨勢(突破後持有)', hint: '沿均線續攻、持有管理', el: 'stage-chips-trend',
     codes: ['S_MA3Rider', 'S_MA5Rider'] },
   { title: '👁 風險/觀察',      hint: '謹慎、別追',         el: 'stage-chips-risk',
@@ -1255,10 +1293,12 @@ function screenRowPass(row) {
     if (state.deductTurn && row.deduct_turn !== 1) return false;   // 扣抵轉揚↑（前瞻均線方向）
     if (state.deductUp2 && !((row.deduct_up_n ?? 0) >= 2)) return false;   // 扣抵上彎≥2條
     if (state.deductExclWarn && row.deduct_warn) return false;     // 排除陰跌警訊
-    if (state.weeklyLit && row.weekly_lit !== 1) return false;     // 🌱週線亮燈
     if (state.instStreak3 && !((row.inst_streak ?? 0) >= 3)) return false; // 🌱法人連買≥3日
-    if (state.boGood && !(row.bo_state && String(row.bo_state).startsWith('✅'))) return false; // 🚀✅真突破
+    if (state.marginStreak3 && !((row.margin_streak ?? 0) >= 3)) return false; // 融資連續增加≥3日
     if (state.exclSrBreak && row.sr_state && String(row.sr_state).includes('⛔')) return false; // 📈排除破支撐
+    if (state.fibLevels.size > 0 && !fibLevelMatch(row, state.fibLevels)) return false; // 黃金分割回檔級距
+    if (state.breakoutLevels.size > 0 && !breakoutLevelMatch(row, state.breakoutLevels)) return false; // 突破關卡
+    if (state.recentBreakout && !(row.recent_breakout_days != null && row.recent_breakout_days <= 5)) return false; // 近期突破(1-5日)
     for (const [, sk, , sTest] of STAGE_FLAGS) if (state[sk] && !sTest(row)) return false;      // 三階段資料驅動濾網
 
     // 島狀反轉：top=頂部(出場/做空)｜bottom=底部(進場/做多)｜any=任一
@@ -1292,6 +1332,17 @@ function screenRowPass(row) {
       const up = row.ma_up;
       if (!up) return false;
       for (const k of state.maUp) if (!up.includes(k)) return false;
+    }
+
+    // 均線斜率雙軌（2026-09-12）：每條有設定的線都要同時滿足絕對門檻與相對百分位(有設才檢查)
+    for (const k in state.maSlopeFilters) {
+      const f = state.maSlopeFilters[k];
+      if (f.abs == null && f.rank == null) continue;
+      const slope = row.ma_slope ? row.ma_slope[k] : null;
+      const rank = row.ma_slope_rank ? row.ma_slope_rank[k] : null;
+      if (f.abs != null) { if (slope == null || slope < f.abs) return false; }
+      if (f.rank != null) { if (rank == null || rank > (100 - f.rank) + 1e-9) return false; }
+      // 相對前X% ＝ 排名要落在最頂端 X%，rank值(0~100，越大越陡)要 ≥ (100-X)
     }
 
     // 🚀 突破幅度%：兩個基準各自獨立，缺值(算不出幅度)一律不中
@@ -1354,14 +1405,18 @@ function renderActiveFilters() {
   if (state.deductTurn) add('deductTurn', '扣抵轉揚↑');
   if (state.deductUp2) add('deductUp2', '扣抵上彎≥2');
   if (state.deductExclWarn) add('deductExclWarn', '排除陰跌');
-  if (state.weeklyLit) add('weeklyLit', '週線亮燈');
   if (state.instStreak3) add('instStreak3', '法人連買≥3');
-  if (state.boGood) add('boGood', '✅真突破');
+  if (state.marginStreak3) add('marginStreak3', '融資連增≥3');
   if (state.rhMin != null || state.rhMax != null) add('rh', `相對${rhLabel()}${boRangeLabel(state.rhMin, state.rhMax)}`);
   if (state.exclSrBreak) add('exclSrBreak', '排除破支撐');
   STAGE_FLAGS.forEach(([, k, label]) => { if (state[k]) add('sf:' + k, label); });
   if (state.islandMode !== 'off') add('island', `島狀:${ISLAND_MODE_LABEL[state.islandMode]}`);
   if (state.patternSignals.size) add('pattern', `型態:${state.patternSignals.size}訊號`);
+  if (state.fibLevels.size) add('fibLevels', `黃金分割:${[...state.fibLevels].join('/')}`);
+  if (state.breakoutLevels.size) add('breakoutLevels', `突破關卡:${[...state.breakoutLevels].join('/')}`);
+  if (state.recentBreakout) add('recentBreakout', '近期突破(1-5日)');
+  { const n = Object.values(state.maSlopeFilters).filter(f => f.abs != null || f.rank != null).length;
+    if (n) add('maSlope', `均線斜率:${n}條`); }
   if (state.maAbove.size) add('maAbove', `站上:${[...state.maAbove].map(k => MA_LABEL[k] || k).join('/')}`);
   if (state.maUp.size) add('maUp', `上彎:${[...state.maUp].map(k => MA_LABEL[k] || k).join('/')}`);
   if (state.dimSelected.size) add('dim', `${DIM_LABEL[state.dim]}:${state.dimSelected.size}`);
@@ -1402,15 +1457,16 @@ function updateGroupCounts() {
                  (state.mainupMode !== 'off' ? 1 : 0) +
                  (state.mainupEntry ? 1 : 0) + (state.mainupExclDist ? 1 : 0) +
                  (state.deductTurn ? 1 : 0) + (state.deductUp2 ? 1 : 0) + (state.deductExclWarn ? 1 : 0) +
-                 (state.weeklyLit ? 1 : 0) + (state.instStreak3 ? 1 : 0) +
-                 (state.boGood ? 1 : 0) + (state.exclSrBreak ? 1 : 0) +
+                 (state.instStreak3 ? 1 : 0) + (state.marginStreak3 ? 1 : 0) + (state.exclSrBreak ? 1 : 0) +
                  (state.rhMin != null || state.rhMax != null ? 1 : 0) +
-                 (state.patternSignals.size ? 1 : 0) +
+                 (state.patternSignals.size ? 1 : 0) + (state.fibLevels.size ? 1 : 0) +
+                 (state.breakoutLevels.size ? 1 : 0) + (state.recentBreakout ? 1 : 0) +
                  STAGE_FLAGS.filter(f => state[f[1]]).length);
   set('fgc-dim', state.dimSelected.size);
   set('fgc-thresh', (state.scoreMin > 0 ? 1 : 0) + (state.rsMin > 0 ? 1 : 0) +
                     (state.distRiskMax != null ? 1 : 0) + (state.groupZMin != null ? 1 : 0));
-  set('fgc-ma', state.maAbove.size + state.maUp.size);
+  set('fgc-ma', state.maAbove.size + state.maUp.size +
+                Object.values(state.maSlopeFilters).filter(f => f.abs != null || f.rank != null).length);
   // 右抽屜的條件計數（cat + thresh + ma 全部加總）
   const totalN = [...document.querySelectorAll('#v2-drawer input[type=checkbox]')]
                    .filter(c => c.checked).length
@@ -1455,14 +1511,11 @@ function removeFilter(key) {
     case 'deductExclWarn':
       state.deductExclWarn = false; { const e = document.getElementById('deduct-excl-warn'); if (e) e.checked = false; }
       break;
-    case 'weeklyLit':
-      state.weeklyLit = false; { const e = document.getElementById('weekly-lit'); if (e) e.checked = false; }
-      break;
     case 'instStreak3':
       state.instStreak3 = false; { const e = document.getElementById('inst-streak3'); if (e) e.checked = false; }
       break;
-    case 'boGood':
-      state.boGood = false; { const e = document.getElementById('bo-good'); if (e) e.checked = false; }
+    case 'marginStreak3':
+      state.marginStreak3 = false; { const e = document.getElementById('margin-streak3'); if (e) e.checked = false; }
       break;
     case 'exclSrBreak':
       state.exclSrBreak = false; { const e = document.getElementById('excl-srbreak'); if (e) e.checked = false; }
@@ -1474,6 +1527,22 @@ function removeFilter(key) {
     case 'pattern':
       state.patternSignals.clear();
       document.querySelectorAll('input[name="pattern-sig"]').forEach(cb => { cb.checked = false; });
+      break;
+    case 'fibLevels':
+      state.fibLevels.clear();
+      document.querySelectorAll('input[name="fib-level"]').forEach(cb => { cb.checked = false; });
+      break;
+    case 'breakoutLevels':
+      state.breakoutLevels.clear();
+      document.querySelectorAll('input[name="breakout-level"]').forEach(cb => { cb.checked = false; });
+      break;
+    case 'recentBreakout':
+      state.recentBreakout = false;
+      { const e = document.getElementById('recent-breakout'); if (e) e.checked = false; }
+      break;
+    case 'maSlope':
+      state.maSlopeFilters = {};
+      document.querySelectorAll('.ma-slope-abs,.ma-slope-rank').forEach(el => { el.value = ''; });
       break;
     case 'maAbove':
       state.maAbove.clear();
@@ -1636,9 +1705,8 @@ function bindControls() {
   if (dedUp2) dedUp2.addEventListener('change', e => { state.deductUp2 = e.target.checked; applyFilters(); });
   const dedExW = document.getElementById('deduct-excl-warn');
   if (dedExW) dedExW.addEventListener('change', e => { state.deductExclWarn = e.target.checked; applyFilters(); });
-  // 三階段訊號區：新增 4 個 AND 濾網 + 3 顆一鍵精選
-  [['weekly-lit', 'weeklyLit'], ['inst-streak3', 'instStreak3'],
-   ['bo-good', 'boGood'], ['excl-srbreak', 'exclSrBreak']].forEach(([id, key]) => {
+  // 三階段訊號區：AND 濾網 + 3 顆一鍵精選
+  [['inst-streak3', 'instStreak3'], ['margin-streak3', 'marginStreak3'], ['excl-srbreak', 'exclSrBreak']].forEach(([id, key]) => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', e => { state[key] = e.target.checked; applyFilters(); });
   });
@@ -1660,7 +1728,7 @@ function bindControls() {
     r.addEventListener('change', e => { state.islandMode = e.target.value; applyFilters(); });
   });
 
-  // 型態訊號 checkbox（缺口/N字/黃金分割/圓弧）
+  // 型態訊號 checkbox（缺口/N字/圓弧/島狀）
   document.querySelectorAll('input[name="pattern-sig"]').forEach(cb => {
     cb.addEventListener('change', e => {
       if (e.target.checked) state.patternSignals.add(e.target.value);
@@ -1668,6 +1736,26 @@ function bindControls() {
       applyFilters();
     });
   });
+
+  // 黃金分割回檔級距 checkbox（2026-09-12，取代單一 fib_buy）
+  document.querySelectorAll('input[name="fib-level"]').forEach(cb => {
+    cb.addEventListener('change', e => {
+      if (e.target.checked) state.fibLevels.add(e.target.value);
+      else state.fibLevels.delete(e.target.value);
+      applyFilters();
+    });
+  });
+
+  // 突破關卡 checkbox（2026-09-12，取代 B_Day0/B_Recent/R_Breakout/R_Neckline）
+  document.querySelectorAll('input[name="breakout-level"]').forEach(cb => {
+    cb.addEventListener('change', e => {
+      if (e.target.checked) state.breakoutLevels.add(e.target.value);
+      else state.breakoutLevels.delete(e.target.value);
+      applyFilters();
+    });
+  });
+  { const rb = document.getElementById('recent-breakout');
+    if (rb) rb.addEventListener('change', e => { state.recentBreakout = e.target.checked; applyFilters(); }); }
 
   // 📏 均線設定 checkbox（站上 / 上彎，各 9 條）＋ 兩個一鍵組合
   [['ma-above', 'maAbove'], ['ma-up', 'maUp']].forEach(([nm, sk]) => {
@@ -1695,6 +1783,46 @@ function bindControls() {
   if (_maMtf) _maMtf.addEventListener('click', () => _maApply(['d18', 'w4', 'w9'], ['d18', 'w4', 'w9']));
   const _maClear = document.getElementById('ma-clear');
   if (_maClear) _maClear.addEventListener('click', () => _maApply([], []));
+
+  // 均線斜率雙軌（2026-09-12）：每條線的絕對門檻／相對百分位各自一個 number input
+  const _setSlope = (key, field, raw) => {
+    const v = raw === '' || raw == null ? null : Number(raw);
+    const cur = state.maSlopeFilters[key] || { abs: null, rank: null };
+    cur[field] = (v == null || Number.isNaN(v)) ? null : v;
+    state.maSlopeFilters[key] = cur;
+    applyFilters();
+  };
+  document.querySelectorAll('.ma-slope-abs').forEach(el => {
+    el.addEventListener('input', e => _setSlope(e.target.dataset.key, 'abs', e.target.value));
+  });
+  document.querySelectorAll('.ma-slope-rank').forEach(el => {
+    el.addEventListener('input', e => _setSlope(e.target.dataset.key, 'rank', e.target.value));
+  });
+  const SLOPE_GROUP_KEYS = {
+    d: ['d5', 'd10', 'd20', 'd60', 'd120', 'd240', 'd3', 'd18', 'd47'],
+    w: ['w1', 'w4', 'w9'],
+    m: ['m1', 'm4', 'm10', 'm47'],
+  };
+  document.querySelectorAll('[data-slope-preset]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const period = btn.dataset.slopePreset;
+      const absVal = Number(btn.dataset.slopeAbs);
+      (SLOPE_GROUP_KEYS[period] || []).forEach(key => {
+        const cur = state.maSlopeFilters[key] || { abs: null, rank: null };
+        cur.abs = absVal;
+        state.maSlopeFilters[key] = cur;
+        const input = document.querySelector(`.ma-slope-abs[data-key="${key}"]`);
+        if (input) input.value = absVal;
+      });
+      applyFilters();
+    });
+  });
+  const _maSlopeClear = document.getElementById('ma-slope-clear');
+  if (_maSlopeClear) _maSlopeClear.addEventListener('click', () => {
+    state.maSlopeFilters = {};
+    document.querySelectorAll('.ma-slope-abs,.ma-slope-rank').forEach(el => { el.value = ''; });
+    applyFilters();
+  });
 
   document.querySelectorAll('input[name="dim"]').forEach(r => {
     r.addEventListener('change', e => {
@@ -1872,12 +2000,12 @@ function bindControls() {
 // ── 階段精選：一鍵套用「該階段分類 + 該階段訊號」（先清空全部條件再上組合，結果可預期）──
 //   單項濾網皆有實證（扣抵edge+1.2/突破濾網/法人連買），組合本身待bt驗證（見按鈕title註記）。
 const STAGE_PRESETS = {
-  brew:   { cats: ['A_VCP', 'A_Coil', 'N_NearHigh', 'R_Neckline', 'M_Accumulate'],
+  brew:   { cats: ['A_VCP', 'A_Coil', 'N_NearHigh', 'M_Accumulate'],
             set: () => { state.deductTurn = true; state.instStreak3 = true; },
             boxes: ['deduct-turn-up', 'inst-streak3'] },
-  launch: { cats: ['B_Day0', 'B_Recent', 'R_Breakout'],
-            set: () => { state.boGood = true; },
-            boxes: ['bo-good'] },
+  launch: { cats: ['B_Day0'],
+            set: () => {},
+            boxes: [] },
   trend:  { cats: ['S_MA3Rider', 'S_MA5Rider'],
             set: () => { state.deductExclWarn = true; state.mainupExclDist = true; state.exclSrBreak = true; },
             boxes: ['deduct-excl-warn', 'mainup-excl-dist', 'excl-srbreak'] },
@@ -1916,9 +2044,8 @@ function clearAllFilters() {
   state.deductTurn = false;
   state.deductUp2 = false;
   state.deductExclWarn = false;
-  state.weeklyLit = false;
   state.instStreak3 = false;
-  state.boGood = false;
+  state.marginStreak3 = false;
   state.rhMin = state.rhMax = null;
   ['rh-min', 'rh-max'].forEach(id => {
     const e = document.getElementById(id); if (e) e.value = '';
@@ -1928,9 +2055,17 @@ function clearAllFilters() {
   clearPersistView();
   state.patternSignals.clear();
   document.querySelectorAll('input[name="pattern-sig"]').forEach(cb => { cb.checked = false; });
+  state.fibLevels.clear();
+  document.querySelectorAll('input[name="fib-level"]').forEach(cb => { cb.checked = false; });
+  state.breakoutLevels.clear();
+  state.recentBreakout = false;
+  document.querySelectorAll('input[name="breakout-level"]').forEach(cb => { cb.checked = false; });
+  { const rb = document.getElementById('recent-breakout'); if (rb) rb.checked = false; }
   state.maAbove.clear();
   state.maUp.clear();
   document.querySelectorAll('input[name="ma-above"],input[name="ma-up"]').forEach(cb => { cb.checked = false; });
+  state.maSlopeFilters = {};
+  document.querySelectorAll('.ma-slope-abs,.ma-slope-rank').forEach(el => { el.value = ''; });
 
   document.querySelectorAll('.cat-chip input').forEach(cb => { cb.checked = false; cb.parentElement.classList.remove('checked'); });
   document.querySelector('input[name="mode"][value="OR"]').checked = true;
@@ -1943,7 +2078,7 @@ function clearAllFilters() {
   const dedT = document.getElementById('deduct-turn-up'); if (dedT) dedT.checked = false;
   const dedU = document.getElementById('deduct-up2'); if (dedU) dedU.checked = false;
   const dedW = document.getElementById('deduct-excl-warn'); if (dedW) dedW.checked = false;
-  ['weekly-lit', 'inst-streak3', 'bo-good', 'excl-srbreak'].forEach(id => {
+  ['inst-streak3', 'margin-streak3', 'excl-srbreak'].forEach(id => {
     const e = document.getElementById(id); if (e) e.checked = false;
   });
   STAGE_FLAGS.forEach(([id, k]) => { state[k] = false;
@@ -2520,6 +2655,13 @@ function mainCardHtml(r, grouped = false) {
   else if (r.foreign_streak <= -3) neg.push(`外資連賣${-r.foreign_streak}日`);
   if (r.trust_streak >= 3) pos.push(`投信連買${r.trust_streak}日`);
   else if (r.trust_streak <= -3) neg.push(`投信連賣${-r.trust_streak}日`);
+  if ((r.margin_streak ?? 0) >= 3) pos.push(`融資連增${r.margin_streak}日`);
+  else if ((r.margin_streak ?? 0) <= -3) neg.push(`融資連減${-r.margin_streak}日`);
+  // 位階：布林通道內相對位置，補充資訊徽章，不進篩選（0=月線，±10=上下軌）
+  if (r.position10 != null && !Number.isNaN(r.position10)) {
+    const p10 = r.position10;
+    pos.push(`位階${p10 >= 0 ? '+' : ''}${p10}`);
+  }
   if (r.mainup_entry === '⚠過高勿追') neg.push('⚠過高勿追');
   else if (r.mainup_entry) pos.push(r.mainup_entry);
   if (r.deduct_warn) neg.push('⚠' + String(r.deduct_warn).split('(')[0].replace(/^⚠/, ''));
@@ -2551,8 +2693,8 @@ function mainCardHtml(r, grouped = false) {
   // ── 階段徽章：三個階段一律「肯定式」計數（2026-09-06）──
   //   舊版趨勢欄數的是 無陰跌/無出貨/未破支撐，全是否定式：沒有壞消息就得分，
   //   欄位是 null 也算通過 → 資料不全的股票會拿到綠色滿分。改成要有才得分。
-  const _STAGE_IDX = { A_VCP: 0, A_Coil: 0, N_NearHigh: 0, R_Neckline: 0, M_Accumulate: 0,
-                       B_Day0: 1, B_Recent: 1, R_Breakout: 1, S_MA3Rider: 2, S_MA5Rider: 2 };
+  const _STAGE_IDX = { A_VCP: 0, A_Coil: 0, N_NearHigh: 0, M_Accumulate: 0,
+                       B_Day0: 1, S_MA3Rider: 2, S_MA5Rider: 2 };
   let stageBadge = '';
   const _si = _STAGE_IDX[r.category_main];
   if (_si != null) {
@@ -3951,8 +4093,8 @@ let v2Built = false;
 const v2StageSel = new Set();
 
 const V2_STAGES = [
-  { key: 'brew',   label: '🌱 醞釀',     hint: '還沒突破・蓄勢', codes: ['A_VCP', 'A_Coil', 'N_NearHigh', 'R_Neckline', 'M_Accumulate'] },
-  { key: 'launch', label: '🚀 發動',     hint: '突破中',         codes: ['B_Day0', 'B_Recent', 'R_Breakout'] },
+  { key: 'brew',   label: '🌱 醞釀',     hint: '還沒突破・蓄勢', codes: ['A_VCP', 'A_Coil', 'N_NearHigh', 'M_Accumulate'] },
+  { key: 'launch', label: '🚀 發動',     hint: '突破中',         codes: ['B_Day0'] },
   { key: 'trend',  label: '📈 趨勢',     hint: '突破後持有',     codes: ['S_MA3Rider', 'S_MA5Rider'] },
   { key: 'watch',  label: '👁 風險/觀察', hint: '謹慎、別追',     codes: ['P_PunishExit', 'P_PostExit'] },
 ];
@@ -4250,9 +4392,8 @@ function _zeroCands() {
     ['deductTurn', 'deductTurn', '扣抵轉揚↑'],
     ['deductUp2', 'deductUp2', '扣抵上彎≥2'],
     ['deductExclWarn', 'deductExclWarn', '排除陰跌'],
-    ['weeklyLit', 'weeklyLit', '週線亮燈'],
     ['instStreak3', 'instStreak3', '法人連買≥3'],
-    ['boGood', 'boGood', '✅真突破'],
+    ['marginStreak3', 'marginStreak3', '融資連增≥3'],
     ['exclSrBreak', 'exclSrBreak', '排除破支撐'],
   ];
   boolFlags.forEach(([sk, key, label]) => {

@@ -1479,6 +1479,46 @@ table.fl-mx td small { display: block; font-size: 12px; color: var(--text-mut, #
   .ma-grid { grid-template-columns: 1fr; }
 }
 
+/* 均線斜率雙軌（2026-09-12 新增）：沿用 .ma-panel 系列的視覺語言 */
+.ma-slope-panel { width: 100%; margin-top: 14px; border-top: 1px dashed var(--border); padding-top: 10px; }
+.ma-slope-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 260px));
+  gap: 10px;
+  align-items: start;
+}
+.ma-slope-col {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, .02);
+}
+.ma-slope-row {
+  display: grid;
+  grid-template-columns: 1fr 64px 64px;
+  align-items: center;
+  font-size: 12px;
+  padding: 2px 0;
+  gap: 4px;
+}
+.ma-slope-row > span:not(.ma-name) { text-align: center; }
+.ma-slope-row-head { color: #8899aa; font-size: 11px; font-weight: 700;
+  border-bottom: 1px dashed var(--border); padding-bottom: 3px; margin-bottom: 3px; }
+.ma-slope-row .ma-name { cursor: help; }
+.ma-slope-row input[type="number"] {
+  width: 56px; font-size: 11px; padding: 1px 3px;
+  background: rgba(255,255,255,.04); border: 1px solid var(--border); border-radius: 4px; color: inherit;
+}
+.ma-slope-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;
+  border-top: 1px dashed var(--border); padding-top: 8px; }
+.ma-slope-quick .btn { font-size: 11px; padding: 2px 8px; }
+@media (max-width: 1100px) {
+  .ma-slope-grid { grid-template-columns: repeat(2, minmax(0, 260px)); }
+}
+@media (max-width: 700px) {
+  .ma-slope-grid { grid-template-columns: 1fr; }
+}
+
 /* ── 📏 均線在 v2 左抽屜裡（2026-08-03）：抽屜只有 252px，三欄網格改直排、
       內層 ma-col 去掉外框（外面 stage-col 已經有框了），列高壓縮 ── */
 .v2-ma-col .ma-hint { margin: 4px 0 6px; }
@@ -2358,6 +2398,17 @@ body.ui-v2 {
   .ui-v2 .dash-body > .v2-drawer { margin: 8px; }
   .v2-drawer-handle { top: auto; bottom: 14px; right: 14px; }
 }
+
+/* 型態一句話說明常駐顯示（2026-09-12，原本只有 title hover）*/
+.mx-desc {
+  font-size: 10.5px; line-height: 1.4; padding: 0 0 4px 0;
+  margin-top: -2px; opacity: .85;
+}
+
+/* 黃金分割回檔級距複選（2026-09-12，取代單一 fib_buy 觸發勾選）*/
+.mx-row:has(.fib-levels) { grid-template-columns: 1fr auto; }
+.fib-levels { display: flex; flex-wrap: wrap; gap: 2px 8px; font-size: 10.5px; justify-self: end; }
+.fib-levels label { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; cursor: pointer; }
 
 /* 型態欄的「存疑」摺疊區（2026-09-06）：只有達標率、沒有報酬回測的型態收在這 */
 .mx-fold { margin-top: 6px; }

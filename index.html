@@ -113,7 +113,7 @@
         <div class="stage-col">
           <div class="stage-head">🏷 分類
             <button type="button" id="preset-brew" class="btn btn-ghost stage-preset" title="醞釀一鍵＝醞釀分類 ∩ 扣抵轉揚 ∩ 法人連買≥3｜11年bt:蓄勢帶edge+0.60→∩扣抵轉揚+1.09">🌱精選</button>
-            <button type="button" id="preset-launch" class="btn btn-ghost stage-preset" title="發動一鍵＝發動分類 ∩ ✅真突破｜11年bt:edge+2.51→+3.11、勝率50→55%">🚀精選</button>
+            <button type="button" id="preset-launch" class="btn btn-ghost stage-preset" title="發動一鍵＝發動分類">🚀精選</button>
             <button type="button" id="preset-trend" class="btn btn-ghost stage-preset" title="趨勢體檢＝趨勢分類 ∩ 無陰跌 ∩ 無出貨 ∩ 未破支撐｜11年bt:陰跌組持有edge歸零">📈體檢</button>
           </div>
           <div id="bear-hint" class="stage-hint" style="display:none;color:#ff9d00"></div>
@@ -122,6 +122,15 @@
             <div class="stage-chips" id="stage-chips-brew"></div></div>
           <div class="cat-band"><span class="cat-band-t" title="剛突破、發動點">🚀 發動</span>
             <div class="stage-chips" id="stage-chips-launch"></div></div>
+          <div class="cat-band"><span class="cat-band-t" title="收盤價衝破以上任一關卡即算，不設量比門檻（量僅供參考，自行判斷）">🚀 突破關卡</span>
+            <div class="breakout-levels">
+              <label title="收盤 ≥ 歷史最高價(含容差)"><input type="checkbox" name="breakout-level" value="hist" /> 歷史高</label>
+              <label title="收盤 ≥ 252交易日高(即52週/年高，含容差)"><input type="checkbox" name="breakout-level" value="52w" /> 52週高</label>
+              <label title="收盤 ≥ 63交易日高(含容差)"><input type="checkbox" name="breakout-level" value="63d" /> 63日高</label>
+              <label title="收盤 ≥ 1250交易日高(約5年；資料不足的年輕股票不計，含容差)"><input type="checkbox" name="breakout-level" value="5y" /> 5年高</label>
+            </div>
+            <label class="check-toggle" title="近5個交易日內曾經衝過前一日高點(不看量能)"><input type="checkbox" id="recent-breakout" /> 近期突破(1-5日)</label>
+          </div>
           <div class="cat-band"><span class="cat-band-t" title="沿均線續攻、持有管理">📈 趨勢</span>
             <div class="stage-chips" id="stage-chips-trend"></div></div>
           <div class="cat-band"><span class="cat-band-t" title="謹慎、別追">👁 風險</span>
@@ -130,9 +139,9 @@
             <div class="stage-chips" id="stage-chips-other"></div></div>
         </div>
 
-        <!-- ── 型態 setup 矩陣：一列一個型態，兩格＝等待中／已扣板機（群內 OR）──── -->
+        <!-- ── 型態矩陣：一列一個型態，兩格＝等待中／已扣板機（群內 OR）──── -->
         <div class="stage-col sig-col">
-          <div class="stage-head">🎯 型態 setup <span class="rule-tag">群內 OR</span></div>
+          <div class="stage-head">🎯 型態 <span class="rule-tag">群內 OR</span></div>
           <div class="stage-hint muted">勾任一即入選。只有「缺口」有報酬回測；其餘型態只有「達標率」（形態自己會不會走完），沒有跟市場比過，故收在下方摺疊區。</div>
           <div class="mx-row mx-head"><span class="mx-name"></span><span>醞釀</span><span>扣板機</span></div>
           <div class="mx-row">
@@ -140,11 +149,13 @@
             <span class="mx-na">—</span>
             <span><input type="checkbox" name="pattern-sig" value="gap_hold" title="✅缺口未補：3日內未被收盤實體回補（實證 fwd20 +3.5~+7.2%）" /></span>
           </div>
+          <div class="mx-desc muted">向上實缺口≥1%，3日內收盤沒跌破下緣＝支撐有效；✅缺口未補：3日內未被收盤實體回補（實證 fwd20 +3.5~+7.2%）</div>
           <div class="mx-row">
             <span class="mx-name" title="島狀區被前後兩個跳空缺口夾住、孤立於趨勢外">島狀反轉</span>
             <span class="mx-na">—</span>
             <span><input type="checkbox" name="pattern-sig" value="island_bottom" title="🏝底部島狀：島區最高 < 島前一日最低，且 < 缺口日最低（做多）" /></span>
           </div>
+          <div class="mx-desc muted">🏝底部島狀：島區最高 &lt; 島前一日最低，且 &lt; 缺口日最低（做多）</div>
           <details class="mx-fold">
             <summary>其餘型態（無報酬回測，僅有達標率）</summary>
           <div class="mx-row">
@@ -152,16 +163,24 @@
             <span><input type="checkbox" name="pattern-sig" value="nbase_lock" title="N字鎖股：第二腳成形、等突破上頸線" /></span>
             <span><input type="checkbox" name="pattern-sig" value="nbase_break" title="🔥N字突破：紅K＋量比≥1.5 過頸線；或回測頸線不破的回後買點" /></span>
           </div>
+          <div class="mx-desc muted">朱家泓 ep11：第一腳反彈≥10%、第二腳低點高於第一腳且回檔≤反彈1/2。鎖股＝第二腳成形等突破上頸線；🔥突破＝紅K＋量比≥1.5過頸線或回測頸線不破的回後買點</div>
           <div class="mx-row">
             <span class="mx-name" title="二次曲線擬合碗底＋盤底量縮；頸線＝左弧高點">圓弧底</span>
             <span><input type="checkbox" name="pattern-sig" value="round_lock" title="圓弧鎖股：右弧收復碗深50%+、等帶量過頸線" /></span>
             <span><input type="checkbox" name="pattern-sig" value="round_buy" title="🔥圓弧突破：紅K＋量比≥1.5 過頸線；或突破後回測不破的回後買點" /></span>
           </div>
+          <div class="mx-desc muted">二次曲線擬合碗底＋盤底量縮，頸線＝左弧高點。鎖股＝右弧收復碗深50%+等帶量過頸線；🔥突破＝紅K＋量比≥1.5過頸線或突破後回測不破的回後買點</div>
           <div class="mx-row">
-            <span class="mx-name" title="ep15：上漲段≥20% 後的回檔比例；只有 0.236/0.382 兩級會發訊號">黃金分割</span>
+            <span class="mx-name" title="ep15：上漲段≥20% 後的回檔比例，依費波那契回檔級距複選">黃金分割</span>
             <span class="mx-na" title="回檔中本身不發訊號，扣板機才算">—</span>
-            <span><input type="checkbox" name="pattern-sig" value="fib_buy" title="🔥黃金買點：回檔區止跌後 紅K＋量比≥1.5＋站上MA5＋突破止跌K高點" /></span>
+            <span class="fib-levels">
+              <label title="0.236極強：回檔比例≤0.30（實證fwd20 +2.87%）"><input type="checkbox" name="fib-level" value="0.236" /> 0.236</label>
+              <label title="0.382首選：回檔比例0.30~0.44（實證fwd20 +2.22%）"><input type="checkbox" name="fib-level" value="0.382" /> 0.382</label>
+              <label title="0.5一般：回檔比例0.44~0.56（實證fwd20 +1.66%≈對照組，無超額）"><input type="checkbox" name="fib-level" value="0.5" /> 0.5</label>
+              <label title="0.618偏弱：回檔比例0.56~0.70"><input type="checkbox" name="fib-level" value="0.618" /> 0.618</label>
+            </span>
           </div>
+          <div class="mx-desc muted">ep15：上漲段≥20%後的回檔比例，勾選任一級距即算命中（依實際回檔比例 fib_retrace 落在對應區間判斷，非單一訊號）</div>
           </details>
         </div>
 
@@ -181,18 +200,13 @@
             <span class="mx-na">—</span>
           </div>
           <div class="mx-row">
-            <span class="mx-name" title="不設放量下限：實證量比>5 的突破 fwd20 −1.26%，是全場最爛">突破品質<span class="edge-tag">+2.51→+3.11</span></span>
-            <span><input type="checkbox" id="bo-good" title="✅真突破：強K非爆量的當日突破，或回測前高撐住確認" /></span>
-            <span><input type="checkbox" id="excl-gapfill" title="排除缺口被補⛔：向上缺口3日內被收盤補掉（實證 fwd20 −3.4~−8.6%）" /></span>
-          </div>
-          <div class="mx-row">
             <span class="mx-name" title="ep9 撐壓引擎：上檔無壓是七個元件裡唯一的真 edge">撐壓<span class="edge-tag">+1.7pp</span></span>
             <span><input type="checkbox" id="sr-clear-and" title="✅上檔無壓：收盤創120日高（fwd20 +3.09% vs 有壓 +1.39%）" /></span>
             <span><input type="checkbox" id="excl-srbreak" title="排除破支撐⛔：收盤跌破最近支撐" /></span>
           </div>
           <div class="mx-row">
-            <span class="mx-name" title="頂部島狀＝出場訊號；底部島狀在左邊「型態 setup」那欄">島狀反轉</span>
-            <span class="mx-na" title="底部島狀在型態 setup 欄（那格是 OR 群成員）">↖</span>
+            <span class="mx-name" title="頂部島狀＝出場訊號；底部島狀在左邊「型態」那欄">島狀反轉</span>
+            <span class="mx-na" title="底部島狀在型態欄（那格是 OR 群成員）">↖</span>
             <span><input type="checkbox" id="excl-islandtop" title="排除頂部島狀⛔：島區最低 > 島前一日最高（出場/做空訊號）" /></span>
           </div>
           <div class="mx-row">
@@ -201,13 +215,13 @@
             <span><input type="checkbox" id="mainup-excl-dist" title="排除出貨⚠：高檔爆量收弱。注意這是波動標記不是均值殺手" /></span>
           </div>
           <div class="mx-row">
-            <span class="mx-name" title="B1 週線版訊號：週量/前26週均量≥1.8 且 週MA5>10>20">週線</span>
-            <span><input type="checkbox" id="weekly-lit" title="週線亮燈：週爆量 ∩ 週多排（波段視角）" /></span>
+            <span class="mx-name" title="三大法人合計淨買超連續天數">法人<span class="edge-tag">資料僅75天</span></span>
+            <span><input type="checkbox" id="inst-streak3" title="法人連買≥3日（雜訊過濾門檻；此欄未進回測）" /></span>
             <span class="mx-na">—</span>
           </div>
           <div class="mx-row">
-            <span class="mx-name" title="三大法人合計淨買超連續天數">法人<span class="edge-tag">資料僅75天</span></span>
-            <span><input type="checkbox" id="inst-streak3" title="法人連買≥3日（雜訊過濾門檻；此欄未進回測）" /></span>
+            <span class="mx-name" title="融資餘額逐日變化連續同向天數（2015起零缺口，未進回測）">融資</span>
+            <span><input type="checkbox" id="margin-streak3" title="融資連續增加≥3日（散戶/主力加碼；此欄未進回測）" /></span>
             <span class="mx-na">—</span>
           </div>
         </div>
@@ -228,7 +242,6 @@
             <label title="C1：頭頭高+底底高+站上季線"><input type="checkbox" id="sig-c1" /> C1多頭</label>
             <label title="C2：MA20>MA60 且兩者向上"><input type="checkbox" id="sig-c2" /> C2黃金交叉</label>
             <label title="C3：回後買上漲∪盤整突破 ∩ MA20上 ∩ KD多排 ∩ 量增 ∩ 不追過高"><input type="checkbox" id="sig-c3" /> C3進場點</label>
-            <label title="3037欣興型：被季線壓住後帶量站上季線"><input type="checkbox" id="sig-ma60b" /> 季線突破</label>
           </div>
           <div class="stage-sub">相對前高 % <span class="rule-tag">位置尺・非 edge</span></div>
           <div class="rh-panel">
@@ -342,6 +355,90 @@
               <button type="button" class="btn btn-ghost" id="ma-preset-hanku" title="站上週4/週9/日47 且週4上彎＝HANKU 波段偏多結構（對應 hanku_overlay 的進場條件）">⚡ HANKU偏多</button>
               <button type="button" class="btn btn-ghost" id="ma-preset-mtf" title="日18 × 週4 × 週9 三線同時站上且上彎＝Hanku 原話「60分200T×日18T×週4/9T 三個壓力點都差不多」的多週期匯聚">⚡ 多週期匯聚</button>
               <button type="button" class="btn btn-ghost btn-danger" id="ma-clear">清除均線</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 均線斜率（絕對+相對雙軌，2026-09-12 新增）：不動上面站上/上彎checkbox，獨立一區 -->
+        <div class="ma-slope-panel">
+          <div class="ma-hint muted">
+            <b>絕對斜率</b>＝(今日均線值−N期前值)/N期前值；日線N=5個交易日、週線N=1週、月線N=1月，兩軌可同時設定(AND)，留空＝不限。<br />
+            <b>相對百分位</b>＝該均線斜率在當日全市場的排名(0~100，數字越大代表當天越陡)；輸入「前X%」＝只留排名前X%的股票。<br />
+            ⚠️ 只有 <b>MA20、MA60(日)、MA4(週/月)</b> 三條線的門檻經過2014-2026回測校準(Fama-MacBeth日期叢集檢定)；其餘13條線套用同週期門檻是<b>外推</b>，未individually驗證。校準樣本期間台股整體偏多頭，月線最負斜率組fwd6月仍為正報酬，門檻偏樂觀，之後應找空頭段複查。
+          </div>
+          <div class="ma-slope-grid">
+            <div class="ma-slope-col">
+              <div class="ma-col-h">日線斜率(5交易日基準)</div>
+              <div class="ma-slope-row ma-slope-row-head"><span class="ma-name"></span><span>絕對%≥</span><span>相對前%</span></div>
+              <div class="ma-slope-row"><span class="ma-name">MA5</span>
+                <span><input type="number" step="0.1" class="ma-slope-abs" data-key="d5" /></span>
+                <span><input type="number" step="1" min="0" max="100" class="ma-slope-rank" data-key="d5" /></span></div>
+              <div class="ma-slope-row"><span class="ma-name">MA10</span>
+                <span><input type="number" step="0.1" class="ma-slope-abs" data-key="d10" /></span>
+                <span><input type="number" step="1" min="0" max="100" class="ma-slope-rank" data-key="d10" /></span></div>
+              <div class="ma-slope-row"><span class="ma-name" title="唯一連同MA60個別驗證過的兩條日線之一：斜率≥0起fwd20+1.44%、≥2%起+1.89%">MA20 ✅</span>
+                <span><input type="number" step="0.1" class="ma-slope-abs" data-key="d20" /></span>
+                <span><input type="number" step="1" min="0" max="100" class="ma-slope-rank" data-key="d20" /></span></div>
+              <div class="ma-slope-row"><span class="ma-name" title="個別驗證過：斜率≥0起fwd20+1.64%、≥1%起+2.16%（門檻跟其他日線不同，是>0/>1不是>0/>2）">MA60 ✅</span>
+                <span><input type="number" step="0.1" class="ma-slope-abs" data-key="d60" /></span>
+                <span><input type="number" step="1" min="0" max="100" class="ma-slope-rank" data-key="d60" /></span></div>
+              <div class="ma-slope-row"><span class="ma-name">MA120</span>
+                <span><input type="number" step="0.1" class="ma-slope-abs" data-key="d120" /></span>
+                <span><input type="number" step="1" min="0" max="100" class="ma-slope-rank" data-key="d120" /></span></div>
+              <div class="ma-slope-row"><span class="ma-name">MA240</span>
+                <span><input type="number" step="0.1" class="ma-slope-abs" data-key="d240" /></span>
+                <span><input type="number" step="1" min="0" max="100" class="ma-slope-rank" data-key="d240" /></span></div>
+              <div class="ma-slope-row"><span class="ma-name">日3(3T)</span>
+                <span><input type="number" step="0.1" class="ma-slope-abs" data-key="d3" /></span>
+                <span><input type="number" step="1" min="0" max="100" class="ma-slope-rank" data-key="d3" /></span></div>
+              <div class="ma-slope-row"><span class="ma-name">日18(18T)</span>
+                <span><input type="number" step="0.1" class="ma-slope-abs" data-key="d18" /></span>
+                <span><input type="number" step="1" min="0" max="100" class="ma-slope-rank" data-key="d18" /></span></div>
+              <div class="ma-slope-row"><span class="ma-name">日47(47T)</span>
+                <span><input type="number" step="0.1" class="ma-slope-abs" data-key="d47" /></span>
+                <span><input type="number" step="1" min="0" max="100" class="ma-slope-rank" data-key="d47" /></span></div>
+              <div class="ma-slope-quick">
+                <button type="button" class="btn btn-ghost" data-slope-preset="d" data-slope-abs="0">套用日線&gt;0%</button>
+                <button type="button" class="btn btn-ghost" data-slope-preset="d" data-slope-abs="2">套用日線&gt;2%</button>
+              </div>
+            </div>
+            <div class="ma-slope-col">
+              <div class="ma-col-h">週線斜率(1週基準)</div>
+              <div class="ma-slope-row ma-slope-row-head"><span class="ma-name"></span><span>絕對%≥</span><span>相對前%</span></div>
+              <div class="ma-slope-row"><span class="ma-name">週1(1T)</span>
+                <span><input type="number" step="0.1" class="ma-slope-abs" data-key="w1" /></span>
+                <span><input type="number" step="1" min="0" max="100" class="ma-slope-rank" data-key="w1" /></span></div>
+              <div class="ma-slope-row"><span class="ma-name" title="個別驗證過：斜率≥0起fwd10週+2.90%、≥2%起+3.68%">週4(4T) ✅</span>
+                <span><input type="number" step="0.1" class="ma-slope-abs" data-key="w4" /></span>
+                <span><input type="number" step="1" min="0" max="100" class="ma-slope-rank" data-key="w4" /></span></div>
+              <div class="ma-slope-row"><span class="ma-name">週9(9T)</span>
+                <span><input type="number" step="0.1" class="ma-slope-abs" data-key="w9" /></span>
+                <span><input type="number" step="1" min="0" max="100" class="ma-slope-rank" data-key="w9" /></span></div>
+              <div class="ma-slope-quick">
+                <button type="button" class="btn btn-ghost" data-slope-preset="w" data-slope-abs="0">套用週線&gt;0%</button>
+                <button type="button" class="btn btn-ghost" data-slope-preset="w" data-slope-abs="2">套用週線&gt;2%</button>
+              </div>
+            </div>
+            <div class="ma-slope-col">
+              <div class="ma-col-h">月線斜率(1月基準)</div>
+              <div class="ma-slope-row ma-slope-row-head"><span class="ma-name"></span><span>絕對%≥</span><span>相對前%</span></div>
+              <div class="ma-slope-row"><span class="ma-name">月1(1T)</span>
+                <span><input type="number" step="0.1" class="ma-slope-abs" data-key="m1" /></span>
+                <span><input type="number" step="1" min="0" max="100" class="ma-slope-rank" data-key="m1" /></span></div>
+              <div class="ma-slope-row"><span class="ma-name" title="個別驗證過：斜率≥0起fwd6月+8.39%、≥5%起+10.53%（樣本期偏多頭，數字偏樂觀）">月4(4T) ✅</span>
+                <span><input type="number" step="0.1" class="ma-slope-abs" data-key="m4" /></span>
+                <span><input type="number" step="1" min="0" max="100" class="ma-slope-rank" data-key="m4" /></span></div>
+              <div class="ma-slope-row"><span class="ma-name">月10(10T)</span>
+                <span><input type="number" step="0.1" class="ma-slope-abs" data-key="m10" /></span>
+                <span><input type="number" step="1" min="0" max="100" class="ma-slope-rank" data-key="m10" /></span></div>
+              <div class="ma-slope-row"><span class="ma-name">月47(47T)</span>
+                <span><input type="number" step="0.1" class="ma-slope-abs" data-key="m47" /></span>
+                <span><input type="number" step="1" min="0" max="100" class="ma-slope-rank" data-key="m47" /></span></div>
+              <div class="ma-slope-quick">
+                <button type="button" class="btn btn-ghost" data-slope-preset="m" data-slope-abs="0">套用月線&gt;0%</button>
+                <button type="button" class="btn btn-ghost" data-slope-preset="m" data-slope-abs="5">套用月線&gt;5%</button>
+                <button type="button" class="btn btn-ghost btn-danger" id="ma-slope-clear">清除斜率</button>
+              </div>
             </div>
           </div>
         </div>

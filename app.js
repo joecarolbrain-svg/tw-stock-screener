@@ -406,8 +406,8 @@ function sparkSvg(closes, w = 64, h = 20) {
   const [lx, ly] = pts[pts.length - 1].split(',');
   return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">`
     + `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">`
-    + `<stop offset="0" stop-color="${up ? '#FF6161' : '#33C48D'}" stop-opacity=".28"/>`
-    + `<stop offset="1" stop-color="${up ? '#FF6161' : '#33C48D'}" stop-opacity="0"/>`
+    + `<stop offset="0" stop-color="${col}" stop-opacity=".28"/>`
+    + `<stop offset="1" stop-color="${col}" stop-opacity="0"/>`
     + `</linearGradient></defs>`
     + `<line x1="2" y1="${y0}" x2="${w - 4}" y2="${y0}" stroke="currentColor" stroke-opacity=".18" stroke-width="1" stroke-dasharray="2 3"/>`
     + `<polygon points="${area}" fill="url(#${id})"/>`

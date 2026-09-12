@@ -1,6 +1,6 @@
 /* ══ 市場結構分頁 ══════════════════════════════════════════ */
 
-#ms-body { padding: 12px 16px 40px; }
+#ms-body { padding: 16px 20px 40px; }
 
 .ms-note {
   display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
@@ -12,7 +12,7 @@
 .ms-empty { padding: 60px 20px; text-align: center; color: var(--text-mut); }
 
 /* ── 版面 ── */
-.ms-grid { display: grid; gap: 12px; margin-bottom: 12px; }
+.ms-grid { display: grid; gap: 16px; margin-bottom: 16px; }
 .ms-grid-1 { grid-template-columns: minmax(0, 1fr); }
 .ms-grid-2 { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
 .ms-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }

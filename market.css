@@ -56,7 +56,7 @@
   border-radius: 8px; padding: 6px 4px 8px; text-align: center;
 }
 .ms-gauge svg { display: block; }
-.ms-gauge .g-tick { fill: #6b6b85; font-size: 10px; font-family: var(--mono); }
+.ms-gauge .g-tick { fill: var(--text-mut); font-size: 10px; font-family: var(--mono); }
 .ms-gauge-cap { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
 .ms-gauge-cap b { font-family: var(--mono); font-size: 16px; margin-left: 6px; }
 .ms-formula {
@@ -69,14 +69,14 @@
 .ms-spark-empty { padding: 30px 0; text-align: center; color: var(--text-mut); font-size: 12px; }
 .ms-hist, .ms-retbars { width: 100%; height: auto; display: block; }
 .ms-hb-n { fill: var(--text-dim); font-size: 8.5px; font-family: var(--mono); }
-.ms-hb-x { fill: #6b6b85; font-size: 8.5px; font-family: var(--mono); }
+.ms-hb-x { fill: var(--text-mut); font-size: 8.5px; font-family: var(--mono); }
 .ms-bar-lab { fill: var(--text-dim); font-size: 8.5px; }
 
 /* ── 直方圖下的漲跌家數 ── */
 .ms-bd-bar { display: flex; height: 10px; border-radius: 3px; overflow: hidden; margin: 6px 0 5px; }
 .ms-bd-bar i.up { background: var(--up); }
 .ms-bd-bar i.down { background: var(--down); }
-.ms-bd-bar i.flat { background: #4a4a63; }
+.ms-bd-bar i.flat { background: var(--flat); }
 .ms-bf { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; }
 .ms-bf-c {
   display: flex; flex-direction: column; align-items: center; gap: 1px;
@@ -94,7 +94,7 @@
 .ms-nh-list { display: flex; flex-direction: column; gap: 5px; }
 .ms-nh { display: grid; grid-template-columns: 34px minmax(0, 1fr) 70px; gap: 8px; align-items: center; }
 .ms-nh-w { font-size: 11px; color: var(--text-dim); font-family: var(--mono); }
-.ms-nh-bar { display: flex; height: 14px; border-radius: 3px; overflow: hidden; background: #22223a; }
+.ms-nh-bar { display: flex; height: 14px; border-radius: 3px; overflow: hidden; background: var(--panel-3); }
 .ms-nh-bar i { display: flex; align-items: center; justify-content: center;
   font-size: 9px; font-family: var(--mono); color: #fff; }
 .ms-nh-bar i.up { background: var(--up); }
@@ -109,10 +109,10 @@
 .ms-tr-h small { font-weight: 400; color: var(--text-mut); margin-left: 4px; }
 .ms-tr-row { margin-bottom: 7px; }
 .ms-tr-l { font-size: 11px; color: var(--text-dim); }
-.ms-tr-n { float: right; font-family: var(--mono); font-size: 12px; color: #7fb3ff; font-weight: 700; }
+.ms-tr-n { float: right; font-family: var(--mono); font-size: 12px; color: var(--accent); font-weight: 700; }
 .ms-tr-n small { color: var(--text-mut); font-weight: 400; }
-.ms-tr-bar { clear: both; height: 5px; background: #22223a; border-radius: 3px; margin-top: 3px; }
-.ms-tr-bar i { display: block; height: 100%; background: #3d7ddb; border-radius: 3px; }
+.ms-tr-bar { clear: both; height: 5px; background: var(--panel-3); border-radius: 3px; margin-top: 3px; }
+.ms-tr-bar i { display: block; height: 100%; background: var(--accent-hover); border-radius: 3px; }
 
 /* ── 熱力圖 ── */
 .ms-card-wide .ms-card-b { padding: 8px; }
@@ -124,9 +124,9 @@
   text-align: center; line-height: 1.2; padding: 1px;
 }
 .tm-cell:hover { outline: 1.5px solid var(--accent); outline-offset: -1.5px; z-index: 2; }
-.tm-n { font-size: 11px; font-weight: 700; color: #f0f0f5; white-space: nowrap; }
-.tm-p { font-size: 10.5px; font-family: var(--mono); color: #e8e8f0; }
-.tm-c { font-size: 9.5px; font-family: var(--mono); color: #f5d76e; }
+.tm-n { font-size: 11px; font-weight: 700; color: var(--text); white-space: nowrap; }
+.tm-p { font-size: 10.5px; font-family: var(--mono); color: var(--text); }
+.tm-c { font-size: 9.5px; font-family: var(--mono); color: #e0b559; }
 .ms-mks { display: flex; gap: 4px; }
 .ms-mk {
   background: var(--panel-3); color: var(--text-dim); border: 1px solid var(--border);
@@ -136,7 +136,7 @@
 .ms-scale { display: flex; gap: 1px; }
 .ms-scale i {
   font-style: normal; font-size: 9px; font-family: var(--mono);
-  padding: 2px 5px; color: #d5d5e0;
+  padding: 2px 5px; color: var(--text-dim);
 }
 
 /* ── 表格 ── */
@@ -147,7 +147,7 @@
   text-align: left; font-weight: 600; color: var(--text-dim); font-size: 10.5px;
   padding: 3px 5px; border-bottom: 1px solid var(--border);
 }
-.ms-tb td { padding: 2.5px 5px; border-bottom: 1px solid #1e1e33; cursor: pointer; }
+.ms-tb td { padding: 2.5px 5px; border-bottom: 1px solid var(--panel-3); cursor: pointer; }
 .ms-tb tbody tr:hover td { background: var(--panel-3); }
 .ms-tb td.c, .ms-tb td.n, .ms-tb th.n { font-family: var(--mono); }
 .ms-tb td.c { color: var(--text-mut); }
@@ -170,9 +170,9 @@
 }
 .ms-chip small { color: var(--text-mut); font-size: 10px; }
 .ms-chip b { font-family: var(--mono); font-size: 11px; }
-.ms-chip.up { border-color: rgba(239, 83, 80, .5); }
+.ms-chip.up { border-color: rgba(229, 72, 77, .5); }
 .ms-chip.up b { color: var(--up); }
-.ms-chip.down { border-color: rgba(38, 166, 154, .5); }
+.ms-chip.down { border-color: rgba(47, 182, 115, .5); }
 .ms-chip.down b { color: var(--down); }
 
 /* ── 章節導覽 ── */
@@ -230,7 +230,7 @@
 .ms-hbar { display: grid; grid-template-columns: 62px minmax(0, 1fr) 42px; gap: 8px;
   align-items: center; margin-bottom: 3px; }
 .ms-hbar-l { font-size: 10.5px; color: var(--text-dim); font-family: var(--mono); }
-.ms-hbar-t { height: 12px; background: #22223a; border-radius: 3px; overflow: hidden; }
+.ms-hbar-t { height: 12px; background: var(--panel-3); border-radius: 3px; overflow: hidden; }
 .ms-hbar-t i { display: block; height: 100%; background: var(--accent); opacity: .8; }
 .ms-hbar-t i.neg { background: var(--down); }
 .ms-hbar-t i.pos { background: var(--up); }
@@ -247,13 +247,13 @@
 .ms-band:hover rect { opacity: .30; }
 .ms-stale {
   padding: 9px 12px; margin-bottom: 10px; border-radius: 8px; font-size: 12.5px;
-  background: rgba(245, 185, 66, .12); border: 1px solid rgba(245, 185, 66, .45);
+  background: rgba(217, 154, 61, .12); border: 1px solid rgba(217, 154, 61, .45);
   color: var(--warn); font-weight: 600;
 }
 .ms-stale .muted { font-weight: 400; display: block; margin-top: 2px; }
 .ms-warnnote {
-  border-color: rgba(255, 82, 82, .35);
-  background: rgba(255, 82, 82, .07);
+  border-color: rgba(242, 85, 92, .35);
+  background: rgba(242, 85, 92, .07);
   font-weight: 400; font-size: 12px; line-height: 1.5; display: block;
 }
 .ms-ct-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }

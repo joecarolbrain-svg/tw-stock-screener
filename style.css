@@ -1822,10 +1822,10 @@ table.fl-mx td small { display: block; font-size: 12px; color: var(--text-mut, #
   background: #14141f; border: 1px solid #26263c; border-left-width: 3px;
   border-radius: 6px; padding: 3px 10px;
 }
-.ui-v2 .ms-note.bull { border-left-color: #ff8a80; }
-.ui-v2 .ms-note.bear { border-left-color: #4dd0c4; }
+.ui-v2 .ms-note.bull { border-left-color: var(--up); }
+.ui-v2 .ms-note.bear { border-left-color: var(--down); }
 .ui-v2 .ms-note.warn { border-left-color: var(--warn); }
-.ui-v2 .ms-note.info { border-left-color: #7ec0ff; }
+.ui-v2 .ms-note.info { border-left-color: var(--accent-hover); }
 
 /* ③ 焦點卡緊湊化：股名為主角、% 是屬性 */
 .ui-v2 .focus-strip { padding: 10px 20px 0; }
@@ -1834,7 +1834,7 @@ table.fl-mx td small { display: block; font-size: 12px; color: var(--text-mut, #
 .ui-v2 .fs-card .fs-row { display: contents; }
 .ui-v2 .fs-rank { order: 0; }
 .ui-v2 .fs-id { order: 1; font-size: 15px; white-space: nowrap; }
-.ui-v2 .fs-id .fs-name { color: #e6ecf7; font-weight: 700; }
+.ui-v2 .fs-id .fs-name { color: var(--text); font-weight: 700; }
 .ui-v2 .fs-meta { order: 2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .ui-v2 .fs-chg { order: 3; margin-left: auto; font-size: 15px; }
 .ui-v2 .fs-hits { order: 4; white-space: nowrap; }
@@ -1890,47 +1890,35 @@ table.fl-mx td small { display: block; font-size: 12px; color: var(--text-mut, #
 
 /* ═══ P3-skin (2026-07-23e)：v2 套 mockup 視覺（深藍黑終端 + 四語義色）═══ */
 /* token 覆蓋：紅=多/漲、綠=空/跌、琥珀=警示、藍=互動（唯一非語義色） */
-body.ui-v2 {
-  --bg:        #0B0F17;
-  --panel:     #121826;
-  --panel-2:   #101623;
-  --panel-3:   #1A2233;
-  --border:    #243048;
-  --border-hi: #35507A;
-  --text:      #E8EDF7;
-  --text-dim:  #96A2B8;
-  --text-mut:  #5F6C84;
-  --accent:    #5FA8F5;
-  --accent-bg: rgba(95, 168, 245, .14);
-  --up:        #FF6161;
-  --down:      #33C48D;
-  --warn:      #E8A33D;
-}
-/* 硬編碼表面 → mockup 色 */
-.ui-v2 .topbar, .ui-v2 .tabs { background: #101623; border-color: #1B2436; }
-.ui-v2 .tab-btn:hover:not(:disabled) { background: #18202F; }
+/* 2026-09-12：body.ui-v2 原本在此整組重新定義一套獨立配色(藍色強調#5FA8F5等)，
+   蓋掉 :root 的 Linear token；「🧪版面」預設開啟(localStorage.ui_v2 !== '0')，
+   等於多數使用者看到的其實是這套沒被Linear改版動到的舊皮膚。整組拿掉，
+   v2 直接繼承 :root 的 Linear token，不再自成一套。 */
+/* 硬編碼表面 → 併入 Linear token */
+.ui-v2 .topbar, .ui-v2 .tabs { background: var(--bg); border-color: var(--border); }
+.ui-v2 .tab-btn:hover:not(:disabled) { background: var(--panel-2); }
 .ui-v2 .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 .ui-v2 .logo-mark { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%); }
-.ui-v2 .filters { background: #121826; border-color: #1B2436; }
+.ui-v2 .filters { background: var(--panel); border-color: var(--border); }
 .ui-v2 .panel-title, .ui-v2 .legend-label, .ui-v2 .fs-head, .ui-v2 .stage-head { color: var(--accent); }
-.ui-v2 .flow-pane, .ui-v2 .ranking-left, .ui-v2 .ranking-right { background: #121826; border-color: #243048; }
+.ui-v2 .flow-pane, .ui-v2 .ranking-left, .ui-v2 .ranking-right { background: var(--panel); border-color: var(--border-hi); }
 .ui-v2 .subtab-btn.active { background: var(--accent); border-color: var(--accent); }
-.ui-v2 .cat-chip { background: #121A28; }
-.ui-v2 .cat-chip:hover { background: #1A2233; border-color: #35507A; }
-.ui-v2 .main-card, .ui-v2 .fs-card { background: #18202F; border-color: #1B2436; }
+.ui-v2 .cat-chip { background: var(--panel); }
+.ui-v2 .cat-chip:hover { background: var(--panel-2); border-color: var(--border-hi); }
+.ui-v2 .main-card, .ui-v2 .fs-card { background: var(--panel-2); border-color: var(--border); }
 .ui-v2 .fs-card:hover, .ui-v2 .main-card:hover { border-color: var(--accent); }
-.ui-v2 .fs-rank { color: #5F6C84; }
+.ui-v2 .fs-rank { color: var(--text-mut); }
 .ui-v2 .fs-hits { color: var(--accent); background: var(--accent-bg); }
 .ui-v2 .fs-card.pos .fs-chg { color: var(--up); }
 .ui-v2 .fs-card.neg .fs-chg { color: var(--down); }
 .ui-v2 .fs-id .fs-code { color: var(--text-dim); font-weight: 400; }
-.ui-v2 .v2-step { background: #121826; border-color: #243048; }
-.ui-v2 .v2-step:hover { border-color: #35507A; }
-.ui-v2 .v2-drawer .stage-col, .ui-v2 .v2-drawer .stage-bottom { background: #121826; }
-.ui-v2 .diff-panel, .ui-v2 .zero-suggest { background: #121826; border-color: #243048; }
-.ui-v2 .ms-grp { background: #121826; border-color: #1B2436; }
-.ui-v2 .ms-grp-label { color: #5F6C84; }
-.ui-v2 .ms-note { background: #121826; border-color: #1B2436; border-left-width: 3px; }
+.ui-v2 .v2-step { background: var(--panel); border-color: var(--border-hi); }
+.ui-v2 .v2-step:hover { border-color: var(--border-hi); }
+.ui-v2 .v2-drawer .stage-col, .ui-v2 .v2-drawer .stage-bottom { background: var(--panel); }
+.ui-v2 .diff-panel, .ui-v2 .zero-suggest { background: var(--panel); border-color: var(--border-hi); }
+.ui-v2 .ms-grp { background: var(--panel); border-color: var(--border); }
+.ui-v2 .ms-grp-label { color: var(--text-mut); }
+.ui-v2 .ms-note { background: var(--panel); border-color: var(--border); border-left-width: 3px; }
 
 /* 定調膠囊（mockup 主視覺）：偏多=暗紅漸層+紅框、偏空=暗綠漸層+綠框 */
 .ui-v2 .ms-anchor .ms-tile {
@@ -1950,10 +1938,10 @@ body.ui-v2 {
 
 /* 訊號立場標籤（v2RestyleSnapshot 注入）：紅=偏多、綠=偏空（台股慣例） */
 .ms-tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-right: 7px; font-weight: 600; vertical-align: 1px; }
-.ms-tag-bull { background: rgba(255, 97, 97, .14); color: #FF8A80; }
-.ms-tag-bear { background: rgba(51, 196, 141, .14); color: #4DD0C4; }
-.ms-tag-warn { background: rgba(232, 163, 61, .15); color: #E8A33D; }
-.ms-tag-info { background: rgba(126, 192, 255, .14); color: #7EC0FF; }
+.ms-tag-bull { background: rgba(229, 72, 77, .14); color: var(--up); }
+.ms-tag-bear { background: rgba(47, 182, 115, .14); color: var(--down); }
+.ms-tag-warn { background: rgba(217, 154, 61, .15); color: var(--warn); }
+.ms-tag-info { background: var(--accent-bg); color: var(--accent-hover); }
 
 /* ═══ 20260723f：卡片走勢圖 + 階段複選勾選列 ═══ */
 /* 走勢圖：焦點卡（72×24）與結果卡 .sc-price 尾端（60×18） */
@@ -1972,7 +1960,7 @@ body.ui-v2 {
 }
 .v2-step.active .chkbox { background: var(--accent); border-color: var(--accent); }
 .v2-step.active .chkbox::after {
-  content: "✓"; position: absolute; inset: 0; color: #0B0F17;
+  content: "✓"; position: absolute; inset: 0; color: #ffffff;
   font-size: 10px; line-height: 14px; text-align: center; font-weight: 700;
 }
 
@@ -2054,8 +2042,8 @@ body.ui-v2 {
 .ui-v2 .tabulator .tabulator-header,
 .ui-v2 .tabulator .tabulator-header .tabulator-col { background: var(--panel-2); border-color: var(--border); color: var(--text-dim); }
 .ui-v2 .tabulator .tabulator-header .tabulator-col-title { color: var(--text-dim); }
-.ui-v2 .tabulator-row { background: var(--panel); border-color: #1B2436; color: var(--text); }
-.ui-v2 .tabulator-row.tabulator-row-even { background: #141B29; }
+.ui-v2 .tabulator-row { background: var(--panel); border-color: var(--border); color: var(--text); }
+.ui-v2 .tabulator-row.tabulator-row-even { background: var(--panel-2); }
 .ui-v2 .tabulator-row.tabulator-selectable:hover { background: var(--panel-3); }
 .ui-v2 .tabulator .tabulator-footer { background: var(--panel-2); border-color: var(--border); color: var(--text-dim); }
 .ui-v2 .tabulator .tabulator-footer .tabulator-page { background: transparent; color: var(--text-dim); border-color: var(--border); }

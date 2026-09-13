@@ -2831,6 +2831,17 @@ function renderHanku() {
     `<span style="margin-left:14px;color:#888">顯示 ${rows.length} 檔</span>` +
     (hankuState.data.note ? `<div style="margin-top:4px;color:#888;font-size:11px">${hankuState.data.note}</div>` : '');
 
+  // 2026-09-13：策略列表(hst-table)每列的檔數 + 目前選到哪個策略高亮
+  const countByCode = {}; sm.forEach(s => { countByCode[s.code] = s.count; });
+  countByCode.all = hankuState.data.rows.length;
+  document.querySelectorAll('#hanku-strategy-table [data-count-for]').forEach(el => {
+    const code = el.dataset.countFor;
+    el.textContent = countByCode[code] != null ? countByCode[code] : 0;
+  });
+  document.querySelectorAll('#hanku-strategy-table .hst-row[data-state]').forEach(row => {
+    row.classList.toggle('active', row.dataset.state === stSel);
+  });
+
   const view = hankuState.view || (hankuState.view = getTabView('hanku'));
   syncViewToggle('hanku-viewtoggle', view);
   const cardsEl = document.getElementById('hanku-cards');
@@ -2867,6 +2878,16 @@ function initHankuControls() {
     setTabView('hanku', b.dataset.view);
     if (hankuState.loaded) renderHanku();
   }));
+  // 2026-09-13：策略列表的「執行」鈕——底層還是同一顆 #hanku-state select，
+  // 按鈕只是把它的值改掉再重繪，既有的狀態過濾/排序/搜尋邏輯完全不用動。
+  document.querySelectorAll('#hanku-strategy-table .hst-run').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sel = document.getElementById('hanku-state');
+      if (!sel) return;
+      sel.value = btn.dataset.state;
+      if (hankuState.loaded) renderHanku();
+    });
+  });
 }
 document.addEventListener('DOMContentLoaded', initHankuControls);
 

@@ -2593,6 +2593,43 @@ body.ui-v2 {
 .nc2 .sc-foot { gap: 4px 8px; font-size: 10.5px; }
 .nc2 .sc-foot > span { white-space: nowrap; }
 
+/* ── Hanku 策略列表（2026-09-13，取代狀態下拉）─────────────────
+   每列＝一個週4/9狀態，規則用條列說明＋單顆執行鈕；底層仍是隱藏的
+   #hanku-state select 在驅動既有的 renderHanku() 過濾邏輯。 */
+.hst-table {
+  margin-bottom: 10px; border: 1px solid var(--border); border-radius: 8px;
+  overflow: hidden; background: rgba(255,255,255,.015);
+}
+.hst-row {
+  display: grid; grid-template-columns: 60px 200px 1fr 56px;
+  gap: 10px; align-items: center; padding: 7px 12px;
+  border-top: 1px solid var(--border);
+}
+.hst-row:first-child { border-top: none; }
+.hst-head {
+  font-size: 10.5px; color: var(--text-mut); font-weight: 700;
+  letter-spacing: .04em; background: rgba(255,255,255,.03); padding: 6px 12px;
+}
+.hst-name { font-weight: 600; font-size: 13px; white-space: nowrap; }
+.hst-rules { margin: 0; padding-left: 16px; font-size: 11.5px; color: var(--text-dim); }
+.hst-rules li { margin: 1px 0; }
+.hst-count {
+  font-family: var(--mono); text-align: right; color: var(--text-dim);
+  font-weight: 700; font-size: 12px;
+}
+.hst-run { font-size: 11.5px; padding: 3px 10px; }
+.hst-row.active { background: var(--accent-bg); }
+.hst-row.active .hst-name { color: var(--accent); }
+.hst-row.active .hst-run { border-color: var(--accent); color: var(--accent); }
+@media (max-width: 900px) {
+  .hst-row { grid-template-columns: 52px 1fr; grid-template-areas: "run name" "run rules" ". count"; }
+  .hst-row.hst-head { display: none; }
+  .hst-run { grid-area: run; }
+  .hst-name { grid-area: name; }
+  .hst-rules { grid-area: rules; }
+  .hst-count { grid-area: count; text-align: left; }
+}
+
 /* 很窄的欄寬（手機或多欄）：交易帶退成兩欄，字才不會被壓成兩行 */
 @media (max-width: 640px) {
   .nc2 .sc-tband { grid-template-columns: repeat(2, 1fr); }

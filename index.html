@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260913g" />
+  <link rel="stylesheet" href="style.css?v=20260913h" />
   <link rel="stylesheet" href="market.css?v=20260811a" />
 </head>
 <body>
@@ -399,21 +399,99 @@
 
   <section class="tab-panel" data-panel="hanku">
     <div class="filters">
-      <div class="filter-row">
-        <div class="filter-group small">
-          <label class="filter-label">狀態</label>
-          <select id="hanku-state" class="inline-select">
-            <option value="all">全部</option>
-            <option value="🟢發散進場" selected>🟢 發散進場</option>
-            <option value="🟢發散進場(4T下彎)">🟢 發散進場(4T下彎)</option>
-            <option value="🟡金叉待發散">🟡 金叉待發散</option>
-            <option value="🔵守4週持有">🔵 守4週持有</option>
-            <option value="⚠️4T下彎(持有轉弱)">⚠️ 4T下彎(持有轉弱)</option>
-            <option value="⚠️跌破4週整理">⚠️ 跌破4週整理</option>
-            <option value="⚠️持倉破47預警">⚠️ 持倉破47預警</option>
-            <option value="🔴死叉出場">🔴 死叉出場</option>
-          </select>
+      <!-- 2026-09-13 user：狀態下拉改成「策略列表」——每個狀態一列，
+           規則用條列說明+單顆執行鈕，仿照參考截圖的選股策略表。底層邏輯
+           不變：還是同一顆 #hanku-state select 在驅動 renderHanku()，
+           只是它本體藏起來，畫面上改看這張表；執行鈕改它的值再重繪。 -->
+      <select id="hanku-state" class="inline-select" hidden>
+        <option value="all">全部</option>
+        <option value="🟢發散進場" selected>🟢 發散進場</option>
+        <option value="🟢發散進場(4T下彎)">🟢 發散進場(4T下彎)</option>
+        <option value="🟡金叉待發散">🟡 金叉待發散</option>
+        <option value="🔵守4週持有">🔵 守4週持有</option>
+        <option value="⚠️4T下彎(持有轉弱)">⚠️ 4T下彎(持有轉弱)</option>
+        <option value="⚠️跌破4週整理">⚠️ 跌破4週整理</option>
+        <option value="⚠️持倉破47預警">⚠️ 持倉破47預警</option>
+        <option value="🔴死叉出場">🔴 死叉出場</option>
+      </select>
+      <div class="hst-table" id="hanku-strategy-table">
+        <div class="hst-row hst-head"><span></span><span>狀態</span><span>規則</span><span>檔數</span></div>
+        <div class="hst-row" data-state="all">
+          <button type="button" class="btn hst-run" data-state="all">執行</button>
+          <span class="hst-name">📋 全部</span>
+          <ul class="hst-rules"><li>不篩狀態，列出所有目前有追蹤的個股</li></ul>
+          <span class="hst-count" data-count-for="all">--</span>
         </div>
+        <div class="hst-row" data-state="🟢發散進場">
+          <button type="button" class="btn hst-run" data-state="🟢發散進場">執行</button>
+          <span class="hst-name">🟢 發散進場</span>
+          <ul class="hst-rules">
+            <li>週4上穿週9（黃金交叉）</li>
+            <li>交叉後乖離已經開出，方向確認（不是剛交叉還糾結）</li>
+          </ul>
+          <span class="hst-count" data-count-for="🟢發散進場">--</span>
+        </div>
+        <div class="hst-row" data-state="🟢發散進場(4T下彎)">
+          <button type="button" class="btn hst-run" data-state="🟢發散進場(4T下彎)">執行</button>
+          <span class="hst-name">🟢 發散進場(4T下彎)</span>
+          <ul class="hst-rules">
+            <li>同上已發散，但週4這週開始下彎（留意，尚未跌破4週線）</li>
+          </ul>
+          <span class="hst-count" data-count-for="🟢發散進場(4T下彎)">--</span>
+        </div>
+        <div class="hst-row" data-state="🟡金叉待發散">
+          <button type="button" class="btn hst-run" data-state="🟡金叉待發散">執行</button>
+          <span class="hst-name">🟡 金叉待發散</span>
+          <ul class="hst-rules">
+            <li>週4剛上穿週9，乖離尚未開出</li>
+            <li>方向還沒確認，屬於觀察名單</li>
+          </ul>
+          <span class="hst-count" data-count-for="🟡金叉待發散">--</span>
+        </div>
+        <div class="hst-row" data-state="🔵守4週持有">
+          <button type="button" class="btn hst-run" data-state="🔵守4週持有">執行</button>
+          <span class="hst-name">🔵 守4週持有</span>
+          <ul class="hst-rules">
+            <li>進場後續抱，週4/9仍維持多頭排列</li>
+            <li>尚未觸及任何出場/預警條件</li>
+          </ul>
+          <span class="hst-count" data-count-for="🔵守4週持有">--</span>
+        </div>
+        <div class="hst-row" data-state="⚠️4T下彎(持有轉弱)">
+          <button type="button" class="btn hst-run" data-state="⚠️4T下彎(持有轉弱)">執行</button>
+          <span class="hst-name">⚠️ 4T下彎(持有轉弱)</span>
+          <ul class="hst-rules">
+            <li>持倉中，週4開始下彎，轉弱警訊</li>
+            <li>尚未跌破4週線，還沒到出場條件</li>
+          </ul>
+          <span class="hst-count" data-count-for="⚠️4T下彎(持有轉弱)">--</span>
+        </div>
+        <div class="hst-row" data-state="⚠️跌破4週整理">
+          <button type="button" class="btn hst-run" data-state="⚠️跌破4週整理">執行</button>
+          <span class="hst-name">⚠️ 跌破4週整理</span>
+          <ul class="hst-rules">
+            <li>收盤跌破週4均線（4週守線失守）</li>
+          </ul>
+          <span class="hst-count" data-count-for="⚠️跌破4週整理">--</span>
+        </div>
+        <div class="hst-row" data-state="⚠️持倉破47預警">
+          <button type="button" class="btn hst-run" data-state="⚠️持倉破47預警">執行</button>
+          <span class="hst-name">⚠️ 持倉破47預警</span>
+          <ul class="hst-rules">
+            <li>跌破日47季線，比週4/9死叉早約2天示警</li>
+          </ul>
+          <span class="hst-count" data-count-for="⚠️持倉破47預警">--</span>
+        </div>
+        <div class="hst-row" data-state="🔴死叉出場">
+          <button type="button" class="btn btn-danger hst-run" data-state="🔴死叉出場">執行</button>
+          <span class="hst-name">🔴 死叉出場</span>
+          <ul class="hst-rules">
+            <li>週4下穿週9（死叉），主要出場訊號</li>
+          </ul>
+          <span class="hst-count" data-count-for="🔴死叉出場">--</span>
+        </div>
+      </div>
+      <div class="filter-row">
         <div class="filter-group small">
           <label class="filter-label">代號/名稱</label>
           <input type="text" id="hanku-search" placeholder="例如 2330 或 台積" style="width:160px" />
@@ -534,7 +612,7 @@
 
   <!-- 個股研究卡（finlab_port）：彈窗卡片堆與 stock.html 共用同一份實作 -->
   <script src="stockcards.js?v=20260730f"></script>
-  <script src="app.js?v=20260913i"></script>
+  <script src="app.js?v=20260913j"></script>
   <script src="market.js?v=20260913a"></script>
 </body>
 </html>

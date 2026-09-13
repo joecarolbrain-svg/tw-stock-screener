@@ -754,10 +754,14 @@ function renderCategoryChips(cats) {
     if (!box) return;
     box.innerHTML = '';
     const shown = items.filter(c => c && c.count > 0);   // 無命中不顯示
+    // 2026-09-13 user：整個分類band(標題+內容)沒命中就整條藏起來，
+    // 不要留一條「（今日無命中）」的空殼佔位置；換一天有命中會自動再顯示。
+    const band = box.closest('.cat-band');
     if (!shown.length) {
-      box.innerHTML = '<span class="muted" style="font-size:11px">（今日無命中）</span>';
+      if (band) band.hidden = true;
       return;
     }
+    if (band) band.hidden = false;
     shown.forEach(c => box.appendChild(_makeCatChip(c)));
   };
 

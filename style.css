@@ -18,6 +18,13 @@
   --mono: "Roboto Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
 
+/* 2026-09-13：全站防呆——這個檔案到處都有 `.xxx { display: ... }` 規則，
+   跟瀏覽器內建的 `[hidden]{display:none}` specificity 打平時 author 規則
+   永遠贏，導致 JS 設 el.hidden=true 常常沒有視覺效果(這站至少踩過兩次：
+   .filters-sticky-placeholder、.cat-band)。加這條全站規則之後 hidden
+   屬性永遠優先，不用每個被坑的地方各自補一條 [hidden] override。 */
+[hidden] { display: none !important; }
+
 /* ── 全域 ─────────────────────────────────────────── */
 * { box-sizing: border-box; }
 

@@ -3963,6 +3963,19 @@ function _stageCount(codes, rows) {
   return rows.filter(r => (r.categories || []).some(c => cs.has(c))).length;
 }
 
+// ── 說明文字收合(ⓘ)（2026-09-13）───────────────────────
+// 型態setup/訊號濾網/價量結構三欄的 stage-hint 預設收起，點旁邊的 ⓘ 展開/收合；
+// 用委派(event delegation)綁在 document 上，這幾個按鈕是靜態 HTML 不會被
+// buildV2Layout() 的 DOM 搬移影響（整個 stage-col 節點被搬走時，按鈕跟 hint
+// 都在同一個節點裡一起搬，事件委派仍然找得到）。
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-hint-toggle]');
+  if (!btn) return;
+  const head = btn.closest('.stage-head');
+  const hint = head && head.nextElementSibling;
+  if (hint && hint.classList.contains('stage-hint')) hint.hidden = !hint.hidden;
+});
+
 function initV2Toggle() {
   if (UI_V2) document.body.classList.add('ui-v2');   // 一進頁就套皮膚，不等資料載完
   const btn = document.getElementById('ui-v2-toggle');

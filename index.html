@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" />
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260913e" />
+  <link rel="stylesheet" href="style.css?v=20260913f" />
   <link rel="stylesheet" href="market.css?v=20260811a" />
 </head>
 <body>
@@ -142,8 +142,8 @@
 
         <!-- ── 型態 setup 矩陣：一列一個型態，兩格＝等待中／已扣板機（群內 OR）──── -->
         <div class="stage-col sig-col">
-          <div class="stage-head">🎯 型態 setup <span class="rule-tag">群內 OR</span></div>
-          <div class="stage-hint muted">勾任一即入選。只有「缺口」有報酬回測；其餘型態只有「達標率」（形態自己會不會走完），沒有跟市場比過，故收在下方摺疊區。</div>
+          <div class="stage-head">🎯 型態 setup <span class="stage-head-r"><span class="rule-tag" title="這欄內任一型態勾中即算入選(不用同時成立)">任一符合 OR</span><button type="button" class="hint-toggle" data-hint-toggle title="展開/收合說明">ⓘ</button></span></div>
+          <div class="stage-hint muted" hidden>勾任一即入選。只有「缺口」有報酬回測；其餘型態只有「達標率」（形態自己會不會走完），沒有跟市場比過，故收在下方摺疊區。</div>
           <div class="mx-row mx-head"><span class="mx-name"></span><span>醞釀</span><span>扣板機</span></div>
           <div class="mx-row">
             <span class="mx-name" title="向上實缺口≥1%，3日內收盤沒跌破下緣＝支撐有效">缺口<span class="edge-tag">勝率差25~30pp</span></span>
@@ -177,8 +177,8 @@
 
         <!-- ── 訊號濾網矩陣：一列一個引擎，兩格＝要／不要（AND）──────────────── -->
         <div class="stage-col sig-col">
-          <div class="stage-head">⚙ 訊號濾網 <span class="rule-tag">AND</span></div>
-          <div class="stage-hint muted">同一個引擎的正反兩面並排；「不要」＝把有這毛病的剔除</div>
+          <div class="stage-head">⚙ 訊號濾網 <span class="stage-head-r"><span class="rule-tag" title="這欄內所有勾選的條件都要同時成立">全部符合 AND</span><button type="button" class="hint-toggle" data-hint-toggle title="展開/收合說明">ⓘ</button></span></div>
+          <div class="stage-hint muted" hidden>同一個引擎的正反兩面並排；「不要」＝把有這毛病的剔除</div>
           <div class="mx-row mx-head"><span class="mx-name"></span><span class="c-yes">要 ✓</span><span class="c-no">不要 ✗</span></div>
           <div class="mx-row">
             <span class="mx-name" title="前瞻版均線方向：看明天被扣掉的舊價 vs 現價，比斜率早一步">扣抵值<span class="edge-tag">edge +1.2</span></span>
@@ -224,8 +224,8 @@
 
         <!-- ── 朱家泓訊號 ────────────────────────────────────────────── -->
         <div class="stage-col sig-col">
-          <div class="stage-head">📐 價量結構 <span class="rule-tag">AND</span></div>
-          <div class="stage-hint muted">單根K棒與均線排列的狀態；勾＝必須成立</div>
+          <div class="stage-head">📐 價量結構 <span class="stage-head-r"><span class="rule-tag" title="這欄內所有勾選的條件都要同時成立">全部符合 AND</span><button type="button" class="hint-toggle" data-hint-toggle title="展開/收合說明">ⓘ</button></span></div>
+          <div class="stage-hint muted" hidden>單根K棒與均線排列的狀態；勾＝必須成立</div>
           <div class="stage-sigs sig-flow">
             <label title="①近120日箱型打底(區間≤30%)、籌碼沉澱"><input type="checkbox" id="sig-s1" /> S1長底</label>
             <label title="②量/120日均量≥3倍 且 創60日新高（近10日內）。⚠ 與「突破品質・真突破」邏輯打架：一個要爆量、一個把爆量當扣分"><input type="checkbox" id="sig-s2" /> S2爆量<b class="conflict">⚠</b></label>
@@ -264,8 +264,9 @@
 
       </div>
       <div class="mode-toggle">
-        <label><input type="radio" name="mode" value="OR" checked /> OR（聯集）</label>
-        <label><input type="radio" name="mode" value="AND" /> AND（交集）</label>
+        <span class="mode-toggle-label" title="控制上面「分類」勾選的組合方式(跟各欄位自己的AND/OR無關)">分類組合方式：</span>
+        <label><input type="radio" name="mode" value="OR" checked /> 任一符合(OR)</label>
+        <label><input type="radio" name="mode" value="AND" /> 全部符合(AND)</label>
       </div>
     </div>
 
@@ -284,6 +285,14 @@
           多條勾選＝<b>AND 全部要成立</b>；資料不足算不出該線的股票會被濾掉（MA240 缺 431 檔、月47 缺 541 檔＝上市未滿約 4 年）。<br />
           與「🔥扣抵轉揚」不同：扣抵是<b>前瞻版</b>（預判明天彎向），這裡是<b>實際斜率版</b>（今天已經上彎了沒）。<br />
           <b>週1／月1 的「站上」比的是上一期</b>：1 期均線就是當期收盤本身（＝今日收盤），跟自己比恆不成立，故改成「今日收盤 &gt; 上週(月)收盤」＝站上圖上那條 1T 線；結果與它們的「上彎」等值，兩格勾哪個都一樣。
+        </div>
+        <!-- 2026-09-13：常用快捷鍵原本擠在整個均線設定最下面，要滑過幾十個
+             checkbox 才看得到；移到頂部(說明文字正下方)，一進來就看得到。 -->
+        <div class="ma-quick ma-quick-top">
+          <button type="button" class="btn btn-ghost" id="ma-preset-bull" title="MA5/10/20/60 全部站上且全部上彎＝教科書多頭排列(實際斜率版)">⚡ 日線多頭</button>
+          <button type="button" class="btn btn-ghost" id="ma-preset-hanku" title="站上週4/週9/日47 且週4上彎＝HANKU 波段偏多結構（對應 hanku_overlay 的進場條件）">⚡ HANKU偏多</button>
+          <button type="button" class="btn btn-ghost" id="ma-preset-mtf" title="日18 × 週4 × 週9 三線同時站上且上彎＝Hanku 原話「60分200T×日18T×週4/9T 三個壓力點都差不多」的多週期匯聚">⚡ 多週期匯聚</button>
+          <button type="button" class="btn btn-ghost btn-danger" id="ma-clear">清除均線</button>
         </div>
         <div class="ma-grid">
           <div class="ma-col">
@@ -347,12 +356,6 @@
             <div class="ma-row"><span class="ma-name" title="月47T：47個月(約4年)均線。位置通常遠低於現價，多頭股幾乎必然站上→篩選力很弱；且 541 檔上市未滿4年算不出來">月47 (47T) ⚠</span>
               <span><input type="checkbox" name="ma-above" value="m47" /></span>
               <span><input type="checkbox" name="ma-up" value="m47" /></span></div>
-            <div class="ma-quick">
-              <button type="button" class="btn btn-ghost" id="ma-preset-bull" title="MA5/10/20/60 全部站上且全部上彎＝教科書多頭排列(實際斜率版)">⚡ 日線多頭</button>
-              <button type="button" class="btn btn-ghost" id="ma-preset-hanku" title="站上週4/週9/日47 且週4上彎＝HANKU 波段偏多結構（對應 hanku_overlay 的進場條件）">⚡ HANKU偏多</button>
-              <button type="button" class="btn btn-ghost" id="ma-preset-mtf" title="日18 × 週4 × 週9 三線同時站上且上彎＝Hanku 原話「60分200T×日18T×週4/9T 三個壓力點都差不多」的多週期匯聚">⚡ 多週期匯聚</button>
-              <button type="button" class="btn btn-ghost btn-danger" id="ma-clear">清除均線</button>
-            </div>
           </div>
         </div>
       </div>
@@ -559,7 +562,7 @@
 
   <!-- 個股研究卡（finlab_port）：彈窗卡片堆與 stock.html 共用同一份實作 -->
   <script src="stockcards.js?v=20260730f"></script>
-  <script src="app.js?v=20260913d"></script>
+  <script src="app.js?v=20260913f"></script>
   <script src="market.js?v=20260811a"></script>
   <script src="calc.js?v=20260715a"></script>
 </body>

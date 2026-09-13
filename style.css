@@ -233,17 +233,19 @@ html { overflow-x: hidden; }
     margin: -12px -20px 0;
     padding: 12px 20px 0;
   }
-  /* 拖曳把手：預設不擋版面，浮動時才需要留意 z-index/陰影 */
+  /* 2026-09-13 debug：這裡原本多寫了一條 `.filters-sticky { position: relative; }`，
+     跟上面那條同選擇器的 `position: sticky` 打架、後者覆蓋前者，
+     結果整條篩選列的 sticky 完全沒生效——這是真的 bug，不是快取問題，已刪掉那行。
+     把手也從「絕對定位疊在角落」改成排進 group-bar 的正常 flex 流裡(搜尋框最前面
+     那顆常駐按鈕)，帶文字「⠿ 拖曳」不會再有跟其他按鈕疊在一起看不到的問題。 */
   .filters-drag-handle {
-    display: flex; align-items: center; justify-content: center;
-    position: absolute; top: 6px; right: 6px;
-    width: 22px; height: 22px; border-radius: 5px;
-    background: transparent; border: 1px solid transparent;
-    color: #7a7fa0; font-size: 13px; line-height: 1;
+    display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto;
+    height: 30px; padding: 0 10px; border-radius: 6px;
+    background: #1c1d33; border: 1px solid #3a3a5a;
+    color: #d8d8f0; font-size: 12.5px; line-height: 1;
     cursor: grab; user-select: none; touch-action: none;
   }
-  .filters-drag-handle:hover { background: #1c1d33; border-color: #2a2a3e; color: #e0e0f0; }
-  .filters-sticky { position: relative; }
+  .filters-drag-handle:hover { background: #2a2b4a; border-color: #5a5a9a; color: #fff; }
   /* 拖曳中：脫離 sticky 改成貼著滑鼠的浮動面板；原本佔的高度用 placeholder 補上避免版面塌陷 */
   .filters-sticky.floating {
     position: fixed; top: 0; left: 0; margin: 0;

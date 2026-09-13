@@ -40,13 +40,7 @@
     <button class="tab-btn" data-tab="watchlist">⭐ 自選股</button>
     <button class="tab-btn" data-tab="hanku">🌀 Hanku波段</button>
     <button class="tab-btn" data-tab="inst-rank">🏦 法人買賣超</button>
-    <button class="tab-btn" data-tab="signal-report">📋 訊號成績單</button>
     <button class="tab-btn" data-tab="disposition">🚨 處置雷達</button>
-    <button class="tab-btn" data-tab="calc">🧮 期貨計算機</button>
-    <!-- 獨立頁面，故用 <a class="tab-link"> 而非 tab-btn，避免被 app.js 的
-         tab 切換邏輯當成不存在的 panel -->
-    <a class="tab-link" href="stock.html">🔍 個股詳情</a>
-    <a class="tab-link" href="glossary.html" title="每個欄位／徽章／訊號在算什麼、門檻多少（忘記某欄意思時來這）">📖 訊號字典</a>
   </nav>
 
   <section class="tab-panel active" data-panel="dashboard">
@@ -486,13 +480,6 @@
     <main><div id="ir-body"></div></main>
   </section>
 
-  <section class="tab-panel" data-panel="signal-report">
-    <main>
-      <div id="sr-meta" class="muted" style="padding:8px 12px"></div>
-      <div id="sr-body"></div>
-    </main>
-  </section>
-
   <section class="tab-panel" data-panel="disposition">
     <div class="filters">
       <div class="filter-row">
@@ -518,21 +505,6 @@
       <h3 style="padding:16px 12px 8px;margin:0;color:#e0e0e0">👀 潛在注意股（未處置）</h3>
       <div id="disp-watch-table"></div>
     </main>
-  </section>
-
-  <section class="tab-panel" data-panel="calc">
-    <div class="filters">
-      <div class="filter-row" style="align-items:center">
-        <div class="filter-group small">
-          <label class="filter-label">股票代號</label>
-          <input type="text" id="calc-ticker-input" placeholder="例如 2327" style="width:140px" />
-        </div>
-        <button id="calc-ticker-go" class="btn">🔍 帶入</button>
-        <span class="filler"></span>
-        <span class="muted">市場數據自動帶 · 口數/均價/現金手動 · 工具給線、人決定</span>
-      </div>
-    </div>
-    <main><div id="calc-tab-body"></div></main>
   </section>
 
   <footer>
@@ -562,8 +534,7 @@
 
   <!-- 個股研究卡（finlab_port）：彈窗卡片堆與 stock.html 共用同一份實作 -->
   <script src="stockcards.js?v=20260730f"></script>
-  <script src="app.js?v=20260913h"></script>
-  <script src="market.js?v=20260811a"></script>
-  <script src="calc.js?v=20260715a"></script>
+  <script src="app.js?v=20260913i"></script>
+  <script src="market.js?v=20260913a"></script>
 </body>
 </html>

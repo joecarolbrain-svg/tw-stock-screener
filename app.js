@@ -3138,8 +3138,8 @@ function renderStockSummary(ticker, name, market, row) {
     const bits = [];
     if (G('stf') === true || svTruthy(G('stf'))) bits.push('大型 <b>2,000</b>股/口');
     if (isMini) bits.push('<b style="color:#ffd7a8">小型 100股/口</b>');
-    futHtml = `${stfBadgeHtml(row)}　${bits.join('　·　')}　` +
-      `<button type="button" class="sv-calc-btn" onclick="openCalcFor('${svEsc(ticker)}',${isMini ? 100 : 2000})">🧮 期貨計算機試算</button>`;
+    // 2026-09-13：期貨計算機分頁已拿掉，這顆深連結按鈕跟著移除(留著只會點了沒反應)
+    futHtml = `${stfBadgeHtml(row)}　${bits.join('　·　')}`;
   }
 
   // P3-⑬ 決策對帳：你標記過這檔嗎？標記日基準收盤 → 至今表現

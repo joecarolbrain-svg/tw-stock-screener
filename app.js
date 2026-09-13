@@ -1700,9 +1700,10 @@ function initMobileUI() {
   btn.className = 'm-fbtn';
   btn.innerHTML = '⚙ 篩選<span class="m-fn"></span>';
   bar.appendChild(btn);
-  // active-filters chip 列之後、group-bar 之前
-  const afBar = filters.querySelector('#active-filters');
-  filters.insertBefore(bar, afBar ? afBar.nextSibling : filters.firstChild);
+  // 桌機版 2026-09-13 加了 .filters-sticky 包住 group-bar＋active-filters，
+  // 兩者不再是 filters 的直接子節點 → 插入點改錨定這層 wrapper 本身（放在它前面）。
+  const stickyWrap = filters.querySelector('.filters-sticky');
+  filters.insertBefore(bar, stickyWrap || filters.firstChild);
 
   btn.addEventListener('click', () => {
     const open = filters.classList.toggle('m-open');

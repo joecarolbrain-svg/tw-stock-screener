@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="style.css?v=20260912e" />
+  <link rel="stylesheet" href="style.css?v=20260913a" />
   <link rel="stylesheet" href="market.css?v=20260912b" />
 </head>
 <body>
@@ -60,6 +60,10 @@
          而且「三階段」點開是 0 字空殼、「📏均線」被程式主動隱藏
          —— 兩顆按鈕的內容在載入時就被搬進右抽屜了。整排移除，
          還活著的「清除全部 / ★只看勾選 / 清空」併進這一列。 -->
+    <!-- 2026-09-13：操作列＋已選條件包一層 sticky 容器，桌機往下捲動時
+         搜尋/檢視切換/快速勾選/已選chip 保持釘在頂部；巨大的 fg-body（三階段/均線）
+         刻意留在容器外、跟著版面正常捲動，不然攤開時會整片蓋住畫面。 -->
+    <div class="filters-sticky">
     <div class="filter-row group-bar">
       <input type="text" id="search-input" class="search-box" placeholder="🔍 代號/名稱（例 2330）" />
       <div class="view-toggle" id="main-viewtoggle">
@@ -103,6 +107,7 @@
 
     <!-- 已選條件 chip 列：貼著結果，不再壓在工具列上方 -->
     <div id="active-filters" class="active-filters"></div>
+    </div><!-- /.filters-sticky -->
 
     <!-- 三階段（2026-07-22 直立重設計：階段 × 各自掛證據，一欄=分類+型態+訊號+⚡精選） -->
     <div class="fg-body" data-group="cat" hidden>
@@ -234,32 +239,39 @@
         </div>
 
         <!-- ── 💰 籌碼面(2026-09-12重組，仿券商app 7分類選單) ──────────── -->
+        <!-- 2026-09-13 示範重排：原本 7 個 .chip-band 各自標題獨佔一整行、
+             checkbox/純文字備註/數字輸入三種內容自由排列、對不齊。改成
+             .simple 變體讓「標題＋控制項」同一行(省一行高度)，純文字備註
+             固定用 .chip-note 強制自己一行(不會跟標題擠在一起)，兩個數字
+             輸入欄統一成 .num-filter(取代各自為政的 .turnover-input/
+             .daytrade-ratio-input)。checkbox 本身沿用既有 .check-toggle，
+             它已經是全站共用元件、不用重做。 -->
         <div class="stage-col chip-col">
           <div class="stage-head">💰 籌碼面</div>
-          <div class="chip-band"><span class="chip-band-t" title="融資餘額逐日變化連續同向天數（2015起零缺口，未進回測）">🔋 融資融券</span>
+          <div class="chip-band simple"><span class="chip-band-t" title="融資餘額逐日變化連續同向天數（2015起零缺口，未進回測）">🔋 融資融券</span>
             <label class="check-toggle"><input type="checkbox" id="margin-streak3" title="融資連續增加≥3日（散戶/主力加碼；此欄未進回測）" /> 融資連續增加≥3日</label>
           </div>
-          <div class="chip-band"><span class="chip-band-t" title="三大法人合計淨買超連續天數">🔁 三大法人</span>
+          <div class="chip-band simple"><span class="chip-band-t" title="三大法人合計淨買超連續天數">🔁 三大法人</span>
             <label class="check-toggle"><input type="checkbox" id="inst-streak3" title="法人連買≥3日（雜訊過濾門檻；此欄未進回測；資料僅75天）" /> 法人連買≥3日</label>
           </div>
-          <div class="chip-band"><span class="chip-band-t" title="主力吸籌已經是分類欄的一個分類，這裡不重複做勾選">⌨ 主力／中實戶／券商</span>
-            <span class="muted" style="font-size:11px">請至上方「🏷 分類」勾選「主力吸籌」；分點大戶目前僅93天資料，未進篩選</span>
+          <div class="chip-band simple"><span class="chip-band-t" title="主力吸籌已經是分類欄的一個分類，這裡不重複做勾選">⌨ 主力／中實戶／券商</span>
+            <span class="chip-note muted">請至上方「🏷 分類」勾選「主力吸籌」；分點大戶目前僅93天資料，未進篩選</span>
           </div>
-          <div class="chip-band"><span class="chip-band-t" title="集保庫存分散表：大戶比率與絕對張數同步上升，排除分母縮水假象">📈 大戶／散戶〔多方〕</span>
+          <div class="chip-band simple"><span class="chip-band-t" title="集保庫存分散表：大戶比率與絕對張數同步上升，排除分母縮水假象">📈 大戶／散戶〔多方〕</span>
             <label class="check-toggle"><input type="checkbox" id="jibao-flag-both-up" title="集保四象限 both_up：大戶持股比率↑且絕對張數↑＝真的有人在買" /> 大戶真買(比率絕對雙升)</label>
             <label class="check-toggle"><input type="checkbox" id="jibao-flag-denom-warn" title="排除 denom 象限：比率↑但絕對張數↓＝分母縮水的假象，不是真的有人買" /> ⚠️排除分母縮水假象</label>
           </div>
-          <div class="chip-band"><span class="chip-band-t" title="集保庫存分散表：大戶比率與絕對張數同步下降">📉 大戶／散戶〔空方〕</span>
+          <div class="chip-band simple"><span class="chip-band-t" title="集保庫存分散表：大戶比率與絕對張數同步下降">📉 大戶／散戶〔空方〕</span>
             <label class="check-toggle"><input type="checkbox" id="jibao-flag-both-down" title="集保四象限 both_down：大戶持股比率↓且絕對張數↓＝真的在出" /> 大戶真賣(比率絕對雙降)</label>
-            <span class="muted" id="jibao-asof-note" style="font-size:11px">集保週頻更新，非今日即時資料，結算週：--</span>
+            <span class="chip-note muted" id="jibao-asof-note">集保週頻更新，非今日即時資料，結算週：--</span>
           </div>
-          <div class="chip-band"><span class="chip-band-t" title="分點買賣家數差/集中度目前無全市場資料；周轉率=成交量/流通股數；券資比=融券/融資">🔧 買賣家數差／集中度／周轉率／券資比</span>
-            <span class="turnover-input">
+          <div class="chip-band simple"><span class="chip-band-t" title="分點買賣家數差/集中度目前無全市場資料；周轉率=成交量/流通股數；券資比=融券/融資">🔧 買賣家數差／集中度／周轉率／券資比</span>
+            <span class="num-filter">
               <input type="number" id="turnover-min" min="0" step="0.01" placeholder="週轉率≥%" title="週轉率≥輸入值（%），留空不限" />
             </span>
           </div>
-          <div class="chip-band"><span class="chip-band-t" title="當沖成交股數/當日總成交股數；資料源FinMind回補中，早期股票缺值屬正常">♾️ 當沖率<span class="edge-tag">無回測，僅供參考</span></span>
-            <span class="daytrade-ratio-input">
+          <div class="chip-band simple"><span class="chip-band-t" title="當沖成交股數/當日總成交股數；資料源FinMind回補中，早期股票缺值屬正常">♾️ 當沖率<span class="edge-tag">無回測，僅供參考</span></span>
+            <span class="num-filter">
               <input type="number" id="daytrade-ratio-min" min="0" max="100" step="1" placeholder="≥%" title="當沖率≥輸入值（%），留空不限" />
               <button type="button" class="btn btn-ghost" data-daytrade-quick="30">≥30%</button>
               <button type="button" class="btn btn-ghost" data-daytrade-quick="50">≥50%</button>
@@ -687,7 +699,7 @@
 
   <!-- 個股研究卡（finlab_port）：彈窗卡片堆與 stock.html 共用同一份實作 -->
   <script src="stockcards.js?v=20260730f"></script>
-  <script src="app.js?v=20260912c"></script>
+  <script src="app.js?v=20260913a"></script>
   <script src="market.js?v=20260811a"></script>
   <script src="calc.js?v=20260715a"></script>
 </body>

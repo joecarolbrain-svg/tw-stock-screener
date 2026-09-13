@@ -224,6 +224,21 @@ html { overflow-x: clip; }
   border-bottom: 1px solid #26282e;
 }
 
+/* 2026-09-13：桌機捲動時把「操作列＋已選條件」釘在頂部，方便一直看到搜尋/
+   檢視切換/快速勾選/已選chip；下面攤開的三階段/均線 fg-body 刻意不釘（展開時
+   本身就近全螢幕高，釘住會蓋住整個畫面），維持隨頁面正常捲動。手機版另有
+   自己的 .m-filterbar 機制，這條只在桌機寬度生效，避免兩套 sticky 打架。 */
+@media (min-width: 641px) {
+  .filters-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: #131417;
+    margin: -16px -24px 0;
+    padding: 16px 24px 0;
+  }
+}
+
 .filter-row {
   display: flex;
   gap: 18px;
@@ -2499,7 +2514,16 @@ table.fl-mx td small { display: block; font-size: 12px; color: var(--text-mut, #
   flex: 0 0 100%; display: block; font-size: 10.5px; color: #8899aa;
   letter-spacing: .05em; margin-bottom: 2px; cursor: help;
 }
-.turnover-input input, .daytrade-ratio-input input {
+/* 2026-09-13：籌碼面示範重排——標題只有 1~2 個控制項時(多數 band 都是這樣)
+   跟標題擠同一行，省掉標題獨佔一行的高度；純文字備註用 .chip-note 強制
+   換行，不會被拉進標題那行。 */
+.chip-band.simple { align-items: baseline; }
+.chip-band.simple > .chip-band-t { flex: 0 0 auto; display: inline; margin-bottom: 0; white-space: nowrap; }
+.chip-note { flex: 0 0 100%; font-size: 11px; }
+/* 數字輸入類條件(週轉率/當沖率)統一元件，取代原本 .turnover-input/
+   .daytrade-ratio-input 各自為政的寫法；輸入框＋快速按鈕視覺上是同一組。 */
+.num-filter { display: inline-flex; align-items: center; gap: 6px; }
+.num-filter input {
   width: 70px; font-size: 12px; padding: 2px 6px;
   background: #1a1f28; border: 1px solid #333; border-radius: 4px; color: #ddd;
 }

@@ -4247,6 +4247,87 @@ function initV2Toggle() {
 }
 document.addEventListener('DOMContentLoaded', initV2Toggle);
 
+// ── 篩選列可拖曳浮動（2026-09-13）───────────────────────
+// 桌機限定：抓 ⠿ 把手拖曳，篩選列從 sticky-top 變成貼著滑鼠的浮動面板；
+// 放開滑鼠記住位置(localStorage)，雙擊把手歸位。原位留一個等高 placeholder
+// 避免版面在「篩選列離開文件流」的瞬間塌陷跳動。
+function initFiltersDrag() {
+  const bar = document.getElementById('filters-sticky');
+  const handle = document.getElementById('filters-drag-handle');
+  const placeholder = document.getElementById('filters-sticky-placeholder');
+  if (!bar || !handle || !placeholder) return;
+  const DESKTOP_MQ = window.matchMedia('(min-width: 641px)');
+
+  function clampPos(left, top) {
+    const maxLeft = window.innerWidth - bar.offsetWidth - 4;
+    const maxTop = window.innerHeight - bar.offsetHeight - 4;
+    return [Math.max(4, Math.min(left, Math.max(4, maxLeft))),
+            Math.max(4, Math.min(top, Math.max(4, maxTop)))];
+  }
+  function applyPos(left, top) {
+    const [l, t] = clampPos(left, top);
+    bar.style.left = l + 'px';
+    bar.style.top = t + 'px';
+  }
+  function enterFloating(left, top) {
+    placeholder.style.height = bar.offsetHeight + 'px';
+    placeholder.hidden = false;
+    bar.classList.add('floating');
+    applyPos(left, top);
+  }
+  function exitFloating() {
+    bar.classList.remove('floating');
+    bar.style.left = ''; bar.style.top = '';
+    placeholder.hidden = true;
+    try { localStorage.removeItem('filters_pos'); } catch (_) {}
+  }
+
+  // 還原上次拖過留下的位置（只在桌機寬度套用；窄幕本來就沒有這顆把手）
+  try {
+    const saved = JSON.parse(localStorage.getItem('filters_pos') || 'null');
+    if (saved && DESKTOP_MQ.matches) enterFloating(saved.left, saved.top);
+  } catch (_) {}
+
+  let dragging = false, offX = 0, offY = 0;
+
+  handle.addEventListener('pointerdown', (e) => {
+    if (!DESKTOP_MQ.matches) return;
+    const startRect = bar.getBoundingClientRect();
+    if (!bar.classList.contains('floating')) enterFloating(startRect.left, startRect.top);
+    dragging = true;
+    handle.setPointerCapture(e.pointerId);
+    const rect = bar.getBoundingClientRect();
+    offX = e.clientX - rect.left;
+    offY = e.clientY - rect.top;
+    bar.classList.add('dragging');
+    e.preventDefault();
+  });
+  handle.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    applyPos(e.clientX - offX, e.clientY - offY);
+  });
+  function endDrag() {
+    if (!dragging) return;
+    dragging = false;
+    bar.classList.remove('dragging');
+    const rect = bar.getBoundingClientRect();
+    try { localStorage.setItem('filters_pos', JSON.stringify({ left: rect.left, top: rect.top })); } catch (_) {}
+  }
+  handle.addEventListener('pointerup', endDrag);
+  handle.addEventListener('pointercancel', endDrag);
+  handle.addEventListener('dblclick', () => exitFloating());
+
+  // 切到手機寬度時強制歸位，避免浮動面板卡在螢幕外收不回來
+  DESKTOP_MQ.addEventListener('change', (e) => { if (!e.matches) exitFloating(); });
+  window.addEventListener('resize', () => {
+    if (bar.classList.contains('floating')) {
+      const rect = bar.getBoundingClientRect();
+      applyPos(rect.left, rect.top);
+    }
+  });
+}
+document.addEventListener('DOMContentLoaded', initFiltersDrag);
+
 // ── 右抽屜開關（2026-09-06）─────────────────────────────
 function setDrawerOpen(open) {
   const d = document.getElementById('v2-drawer');

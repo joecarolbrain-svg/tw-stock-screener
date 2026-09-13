@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="style.css?v=20260913a" />
+  <link rel="stylesheet" href="style.css?v=20260913b" />
   <link rel="stylesheet" href="market.css?v=20260912b" />
 </head>
 <body>
@@ -62,8 +62,13 @@
          還活著的「清除全部 / ★只看勾選 / 清空」併進這一列。 -->
     <!-- 2026-09-13：操作列＋已選條件包一層 sticky 容器，桌機往下捲動時
          搜尋/檢視切換/快速勾選/已選chip 保持釘在頂部；巨大的 fg-body（三階段/均線）
-         刻意留在容器外、跟著版面正常捲動，不然攤開時會整片蓋住畫面。 -->
-    <div class="filters-sticky">
+         刻意留在容器外、跟著版面正常捲動，不然攤開時會整片蓋住畫面。
+         加了拖曳把手：預設 sticky 在頂部，抓著 ⠿ 拖曳可以放到畫面任意位置
+         （改成 position:fixed 浮動），雙擊把手歸位；位置記在 localStorage。 -->
+    <div id="filters-sticky-placeholder" class="filters-sticky-placeholder" hidden></div>
+    <div class="filters-sticky" id="filters-sticky">
+    <button type="button" class="filters-drag-handle" id="filters-drag-handle"
+      title="拖曳移動篩選列（雙擊歸位）">⠿</button>
     <div class="filter-row group-bar">
       <input type="text" id="search-input" class="search-box" placeholder="🔍 代號/名稱（例 2330）" />
       <div class="view-toggle" id="main-viewtoggle">
@@ -699,7 +704,7 @@
 
   <!-- 個股研究卡（finlab_port）：彈窗卡片堆與 stock.html 共用同一份實作 -->
   <script src="stockcards.js?v=20260730f"></script>
-  <script src="app.js?v=20260913a"></script>
+  <script src="app.js?v=20260913b"></script>
   <script src="market.js?v=20260811a"></script>
   <script src="calc.js?v=20260715a"></script>
 </body>

@@ -224,6 +224,9 @@ html { overflow-x: clip; }
   border-bottom: 1px solid #26282e;
 }
 
+/* 手機版沒有拖曳浮動這回事(篩選本來就收在抽屜裡)，把手預設藏起來 */
+.filters-drag-handle { display: none; }
+
 /* 2026-09-13：桌機捲動時把「操作列＋已選條件」釘在頂部，方便一直看到搜尋/
    檢視切換/快速勾選/已選chip；下面攤開的三階段/均線 fg-body 刻意不釘（展開時
    本身就近全螢幕高，釘住會蓋住整個畫面），維持隨頁面正常捲動。手機版另有
@@ -237,6 +240,27 @@ html { overflow-x: clip; }
     margin: -16px -24px 0;
     padding: 16px 24px 0;
   }
+  /* 拖曳把手：預設不擋版面，浮動時才需要留意 z-index/陰影 */
+  .filters-drag-handle {
+    display: flex; align-items: center; justify-content: center;
+    position: absolute; top: 6px; right: 6px;
+    width: 22px; height: 22px; border-radius: 5px;
+    background: transparent; border: 1px solid transparent;
+    color: #555e73; font-size: 13px; line-height: 1;
+    cursor: grab; user-select: none; touch-action: none;
+  }
+  .filters-drag-handle:hover { background: #1c1d22; border-color: #26282e; color: #cfd3e0; }
+  .filters-sticky { position: relative; }
+  /* 拖曳中：脫離 sticky 改成貼著滑鼠的浮動面板；原本佔的高度用 placeholder 補上避免版面塌陷 */
+  .filters-sticky.floating {
+    position: fixed; top: 0; left: 0; margin: 0;
+    border: 1px solid #34343a; border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5);
+    max-width: calc(100vw - 24px);
+    padding: 16px 24px 12px;
+  }
+  .filters-sticky.dragging { cursor: grabbing; opacity: .92; transition: none; }
+  .filters-sticky.dragging .filters-drag-handle { cursor: grabbing; }
 }
 
 .filter-row {

@@ -1888,6 +1888,15 @@ const STAGE_PRESETS = {
             boxes: ['deduct-excl-warn', 'mainup-excl-dist', 'excl-srbreak'] },
 };
 
+// 2026-09-13：STAGE_PRESETS/applyStagePreset 本體早就寫好了，但當初漏了把
+// 三顆按鈕(preset-brew/launch/trend)的 click 事件接上去，導致按了完全沒反應。
+document.addEventListener('DOMContentLoaded', () => {
+  [['preset-brew', 'brew'], ['preset-launch', 'launch'], ['preset-trend', 'trend']].forEach(([id, key]) => {
+    const btn = document.getElementById(id);
+    if (btn) btn.addEventListener('click', () => applyStagePreset(key));
+  });
+});
+
 function applyStagePreset(key) {
   const p = STAGE_PRESETS[key];
   if (!p) return;
@@ -1954,7 +1963,11 @@ function clearAllFilters() {
   STAGE_FLAGS.forEach(([id, k]) => { state[k] = false;
     const e = document.getElementById(id); if (e) e.checked = false; });
   const islOff = document.querySelector('input[name="island-mode"][value="off"]'); if (islOff) islOff.checked = true;
-  document.querySelector('input[name="dim"][value="industry"]').checked = true;
+  // 2026-09-13：抓到真正讓「清除全部」跟「階段精選」按鈕整個沒反應的兇手——
+  // 維度(dim)篩選 UI 在 2026-09-05 就已經從版面移除了，但這行沒人拿掉，
+  // querySelector 找不到元素回傳 null，接著 .checked=true 直接丟例外，
+  // 導致這個 function 從這行以後全部沒執行到（含 applyFilters()）。
+  const dimInd = document.querySelector('input[name="dim"][value="industry"]'); if (dimInd) dimInd.checked = true;
   { const e = document.getElementById('dim-search'); if (e) e.value = ''; }
   renderDimensionOptions();
   { const e = document.getElementById('search-input'); if (e) e.value = ''; }

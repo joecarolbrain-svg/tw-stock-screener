@@ -2253,6 +2253,9 @@ function bindTabs() {
         loadDisposition();
         initDispSearch();
       }
+      if (tab === 'handover') {
+        loadHandover();
+      }
       // Resize tables after switch
       setTimeout(() => {
         if (state.table) state.table.redraw();
@@ -3001,6 +3004,76 @@ function initInstRankControls() {
   if (s) s.addEventListener('input', e => { instRankState.search = e.target.value.trim(); if (instRankState.loaded) renderInstRank(); });
 }
 document.addEventListener('DOMContentLoaded', initInstRankControls);
+
+
+// ═════════════════════════════════════════════════════════
+//  🔄 換手（handover）— 前天漲停→抱半年大量收黑，追蹤有沒有收破前低
+// ═════════════════════════════════════════════════════════
+const handoverState = { loaded: false, data: null, status: 'all', search: '' };
+const HO_STATUS_LABEL = { watching: '👀 觀察中', success: '✅ 成功', broken: '❌ 失敗' };
+
+async function loadHandover() {
+  const body = document.getElementById('ho-body');
+  if (handoverState.loaded) { renderHandover(); return; }
+  try {
+    handoverState.data = await fetchJsonGz('data/handover.json.gz');
+    handoverState.loaded = true;
+    renderHandover();
+  } catch (e) {
+    body.innerHTML = `<div style="padding:20px;color:#f88">載入失敗：${e.message}（尚未產生 handover.json.gz？跑 export_handover.py）</div>`;
+  }
+}
+
+function _hoRowHtml(r) {
+  const statusClass = r.status === 'success' ? 'num-pos' : (r.status === 'broken' ? 'num-neg' : '');
+  const pctClass = r.pct_from_watch > 0 ? 'num-pos' : (r.pct_from_watch < 0 ? 'num-neg' : '');
+  const breakInfo = r.status === 'broken' ? `　破於 ${r.break_date}` : '';
+  return `<div class="ir-row ho-row" data-code="${r.code}" data-name="${(r.name || '').replace(/"/g, '')}">`
+    + `<span class="ir-nm">${r.code} ${r.name || ''}</span>`
+    + `<span class="ho-dt">漲停 ${r.limit_date}　換手 ${r.date}</span>`
+    + `<span class="ho-low">前低 ${r.low}</span>`
+    + `<span class="ho-cl">現價 ${r.latest_close}</span>`
+    + `<span class="ho-pct ${pctClass}">${r.pct_from_watch > 0 ? '+' : ''}${r.pct_from_watch}%</span>`
+    + `<span class="ho-status ${statusClass}">${HO_STATUS_LABEL[r.status] || r.status}${breakInfo}</span>`
+    + `</div>`;
+}
+
+function renderHandover() {
+  const d = handoverState.data;
+  const body = document.getElementById('ho-body');
+  if (!d) { body.innerHTML = '<div class="muted" style="padding:20px">無資料</div>'; return; }
+  const q = (handoverState.search || '').toLowerCase();
+  const rows = d.rows.filter(r => {
+    if (handoverState.status !== 'all' && r.status !== handoverState.status) return false;
+    if (q && !String(r.code).includes(q) && !(r.name || '').toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const metaEl = document.getElementById('ho-meta');
+  if (metaEl) metaEl.textContent = `as of ${d.as_of}｜共 ${d.count} 檔｜觀察中 ${d.watching}／成功 ${d.success}／失敗 ${d.broken}`;
+  if (!rows.length) { body.innerHTML = '<div class="muted" style="padding:20px">無符合條件的換手訊號</div>'; return; }
+  const head = `<div class="ir-row ir-hdr ho-row"><span class="ir-nm">名稱</span><span class="ho-dt">漲停日／換手日</span>`
+    + `<span class="ho-low">前低</span><span class="ho-cl">現價</span><span class="ho-pct">距前低</span><span class="ho-status">狀態</span></div>`;
+  body.innerHTML = `<div class="ir-rows">${head}${rows.map(_hoRowHtml).join('')}</div>`;
+  const mkt = {};
+  ((state.data && state.data.rows) || []).forEach(r => { mkt[String(r.ticker)] = r.market; });
+  document.querySelectorAll('#ho-body .ho-row[data-code]').forEach(el => {
+    el.addEventListener('click', () =>
+      openKlineModal(el.dataset.code, el.dataset.name, mkt[el.dataset.code] || ''));
+  });
+}
+
+function initHandoverControls() {
+  document.querySelectorAll('#ho-status-toggle .ir-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      handoverState.status = b.dataset.status;
+      document.querySelectorAll('#ho-status-toggle .ir-btn').forEach(x => x.classList.toggle('active', x === b));
+      if (handoverState.loaded) renderHandover();
+    });
+  });
+  const s = document.getElementById('ho-search');
+  if (s) s.addEventListener('input', e => { handoverState.search = e.target.value.trim(); if (handoverState.loaded) renderHandover(); });
+}
+document.addEventListener('DOMContentLoaded', initHandoverControls);
 
 
 // ═════════════════════════════════════════════════════════

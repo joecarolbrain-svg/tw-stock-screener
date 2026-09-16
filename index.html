@@ -41,6 +41,7 @@
     <button class="tab-btn" data-tab="hanku">🌀 Hanku波段</button>
     <button class="tab-btn" data-tab="inst-rank">🏦 法人買賣超</button>
     <button class="tab-btn" data-tab="disposition">🚨 處置雷達</button>
+    <button class="tab-btn" data-tab="handover">🔄 換手</button>
   </nav>
 
   <section class="tab-panel active" data-panel="dashboard">
@@ -585,6 +586,26 @@
     </main>
   </section>
 
+  <section class="tab-panel" data-panel="handover">
+    <div class="filters">
+      <div class="filter-row">
+        <div class="ho-status-toggle" id="ho-status-toggle" title="換手成功/失敗篩選">
+          <button type="button" class="ir-btn active" data-status="all">全部</button>
+          <button type="button" class="ir-btn" data-status="watching">👀 觀察中</button>
+          <button type="button" class="ir-btn" data-status="success">✅ 成功</button>
+          <button type="button" class="ir-btn" data-status="broken">❌ 失敗</button>
+        </div>
+        <input type="text" id="ho-search" class="search-box" placeholder="🔍 代號/名稱" />
+        <span class="filler"></span>
+        <span class="muted" id="ho-meta">--</span>
+      </div>
+      <div class="filter-row legend-row">
+        <span class="legend-item">換手：前天漲停 → 當天抱近半年大量收黑（前低 = 當天低點）→ 後續收盤沒收破前低才算成功；已收破 10 個交易日內沒破算成功。</span>
+      </div>
+    </div>
+    <main><div id="ho-body"></div></main>
+  </section>
+
   <footer>
     <span class="muted">贏窟 · 資料來源：本地 Dash 篩選 / Schema v<span id="schema-version">--</span></span>
     <span class="muted">點代號 → 個股摘要卡 → TradingView</span>
@@ -612,7 +633,7 @@
 
   <!-- 個股研究卡（finlab_port）：彈窗卡片堆與 stock.html 共用同一份實作 -->
   <script src="stockcards.js?v=20260730f"></script>
-  <script src="app.js?v=20260913j"></script>
+  <script src="app.js?v=20260916a"></script>
   <script src="market.js?v=20260913a"></script>
 </body>
 </html>

@@ -3126,7 +3126,7 @@ function _dispCardHtml(r, bucket) {
     : '';
   const volTxt = r.volume != null ? `${Math.round(r.volume).toLocaleString()}張` : '--';
   const turnoverTxt = r.turnover_pct != null ? `${r.turnover_pct.toFixed(1)}%` : '--';
-  return `<button type="button" class="disp-card" data-ticker="${r.ticker}">
+  return `<div class="disp-card" data-ticker="${r.ticker}">
     <div class="disp-card-head">
       <span class="disp-card-code">${r.ticker}</span>
       <span class="disp-card-name">${r.name || ''}</span>
@@ -3138,10 +3138,29 @@ function _dispCardHtml(r, bucket) {
     <div class="disp-card-meta">位階${_dispSigned(r.position_index, 1)}　月線斜率<span class="${slopeCls}">${_dispSigned(r.ma20_slope, 1)}%</span>${chipHint}</div>
     <div class="disp-card-meta">${declineLine}距高點${_dispSigned(r.drawdown_from_high, 1)}%</div>
     ${_wave3PriceLine(r)}
-  </button>`;
+    <button type="button" class="disp-detail-toggle" data-ticker="${r.ticker}">▾ 注意/處置詳情</button>
+    <div class="disp-card-detail" hidden></div>
+  </div>`;
 }
 
-function _bindDispCards(container, rows) {}
+function _bindDispCards(container) {
+  container.querySelectorAll('.disp-detail-toggle').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const card = btn.closest('.disp-card');
+      const slot = card.querySelector('.disp-card-detail');
+      if (!slot.hidden) { slot.hidden = true; btn.textContent = '▾ 注意/處置詳情'; return; }
+      if (!slot.dataset.loaded) {
+        slot.innerHTML = '<div class="sv-mut" style="padding:8px">載入中…</div>';
+        slot.hidden = false;
+        slot.innerHTML = await renderDispDetailHtml(btn.dataset.ticker);
+        slot.dataset.loaded = '1';
+      } else {
+        slot.hidden = false;
+      }
+      btn.textContent = '▴ 收起詳情';
+    });
+  });
+}
 
 async function loadDisposition() {
   if (dispState.loaded && dispState.loadedDate === currentDate) {
@@ -3181,7 +3200,22 @@ function _drChip(r) {
     `</button>`;
 }
 
-function _bindDrChips(container, rows) {}
+// 焦點 strip 的 chip / 全市場搜尋結果，都沒有自己的卡片可以內展開，
+// 共用搜尋框下方這個 slot 顯示詳情。
+async function _openDispDetailSlot(ticker) {
+  const slot = document.getElementById('disp-detail-slot');
+  if (!slot) return;
+  slot.hidden = false;
+  slot.innerHTML = '<div class="sv-mut" style="padding:8px">載入中…</div>';
+  slot.innerHTML = await renderDispDetailHtml(ticker);
+  slot.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function _bindDrChips(container) {
+  container.querySelectorAll('.dr-daily-chip[data-ticker]').forEach(chip => {
+    chip.addEventListener('click', () => _openDispDetailSlot(chip.dataset.ticker));
+  });
+}
 
 function renderDispFocusStrip(data) {
   const el = document.getElementById('disp-focus-strip');
@@ -3270,6 +3304,7 @@ function initDispSearch() {
       item.addEventListener('click', () => {
         results.hidden = true;
         input.value = '';
+        _openDispDetailSlot(item.dataset.ticker);
       });
     });
   });
@@ -3279,8 +3314,278 @@ function initDispSearch() {
   });
 }
 
-// 2026-09-17：K線彈窗內「處置風險分析」區塊（_ensureDispDataLoaded/DR_*/_dr*Html/
-// renderDispositionRisk 等一整組）整組移除，隨彈窗一起拿掉，見上方說明。
+// ── 處置/注意詳細條件（卡片內展開，2026-09-17 從舊 K線彈窗搬回）──────
+async function _ensureDispDataLoaded() {
+  if (dispState.data) return dispState.data;
+  const entry = (indexMeta?.dates || []).find(
+    e => e.date === currentDate && (e.has || []).includes('disposition'));
+  const fallback = entry ? null : (indexMeta?.dates || []).find(e => (e.has || []).includes('disposition'));
+  const dDate = entry ? currentDate : (fallback ? fallback.date : null);
+  if (!dDate) return null;
+  try {
+    dispState.data = await fetchJsonGz(`data/daily/${dDate}/disposition.json.gz`);
+    return dispState.data;
+  } catch (err) {
+    return null;
+  }
+}
+
+const DR_LEVEL_MARK = { triggered: '🔴', close: '🟡', far: '⚪', unavailable: '？' };
+const DR_LEVEL_CLS  = { triggered: 'hit-true', close: 'hit-close', far: 'hit-false', unavailable: 'hit-null' };
+
+// 處置雷達前端只顯示「會進處置」的第1~8款；第9~14款(僅公告、不計入處置累計)後端引擎照算，
+// 但前端不呈現。要恢復顯示全部14款：把 DR_SHOW_MAX 改回 14（下方 5 處 helper 會自動跟著還原）。
+const DR_SHOW_MAX = 8;
+const _drInShow = (no) => Number(no) <= DR_SHOW_MAX;
+
+function _drClauseItem(no, c) {
+  const level = c.level || (c.hit === true ? 'triggered' : (c.hit === false ? 'far' : 'unavailable'));
+  const mark = DR_LEVEL_MARK[level] || '？';
+  const cls = DR_LEVEL_CLS[level] || 'hit-null';
+  const windowsTxt = (c.windows || []).map(w =>
+    `${w.days}日${w.level === 'triggered' ? '🔴' : (w.level === 'close' ? '🟡' : '⚪')}`).join(' ');
+  return `<div class="dr-clause-item ${cls}"><span class="dr-mark">${mark}</span>` +
+    `<span>第${no}款 ${svEsc(c.name)}<br><span class="sv-mut">${svEsc(c.text)}</span>` +
+    (windowsTxt ? `<br><span class="sv-mut">${windowsTxt}</span>` : '') + `</span></div>`;
+}
+
+function _drHistoryItem(h) {
+  const shown = (h.clauses || []).filter(_drInShow);
+  if (!shown.length) return '';   // 該日僅第9~14款(不進處置)，過濾後整列不顯示
+  const nos = shown.map(n => `第${n}款`).join('、');
+  return `<div class="dr-hist-row"><span>🕒 ${fmtDate8(h.date)}</span><span class="sv-mut">${svEsc(nos)}</span></div>`;
+}
+
+function _drProgressBar(cur, max, label, dateChips) {
+  const pct = max > 0 ? Math.min(100, (cur / max) * 100) : 0;
+  const cls = cur >= max ? 'full' : (pct >= 60 ? 'high' : '');
+  const chipsHtml = (dateChips && dateChips.length)
+    ? `<div class="dr-progress-dates">${dateChips.map(d => `<span class="dr-progress-date">${fmtDate8(d)}</span>`).join('')}</div>`
+    : '';
+  return `<div class="dr-progress-cell">
+    <div class="dr-progress-label">${label}</div>
+    <div class="dr-progress-track"><div class="dr-progress-fill ${cls}" style="width:${pct}%"></div></div>
+    <div class="dr-progress-num">${cur}/${max}</div>
+    ${chipsHtml}
+  </div>`;
+}
+
+// 從alert_history(近30日逐日觸發款別)回推「哪幾天算進這個計數器」，比對attnup每個gauge旁的日期清單。
+// alert_history只收錄「當天有任何觸發」的日子，但因此只要clause命中就一定會出現在清單裡，
+// 從最新一天往回抓連續run（中間不能被非該clause的日子隔開）就是正確的streak组成日期。
+function _drWindowDates(alertHistory, clauseSet, mode, limit) {
+  if (!limit || limit <= 0) return [];
+  // alert_history的clauses是JSON數字(Python int序列化結果)，clauseSet統一轉字串比對避免型別不符
+  const set = clauseSet.map(String);
+  const isHit = h => (h.clauses || []).some(c => set.includes(String(c)));
+  const sorted = [...(alertHistory || [])].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  if (mode === 'streak') {
+    // streak模式：必須是alert_history裡最前面連續的幾筆(沒有被其他日子插隊)才算連續
+    const out = [];
+    for (const h of sorted) {
+      if (!isHit(h) || out.length >= limit) break;
+      out.push(h.date);
+    }
+    return out;
+  }
+  return sorted.filter(isHit).slice(0, limit).map(h => h.date);
+}
+
+// 預測性風險提示：把現有計數器往前推一步，不是預測股價（見disposition_rules.forecast_disposition_risk）
+function _drForecastHtml(fc) {
+  if (!fc || !fc.checked || fc.already_at_risk || !fc.nearest) return '';
+  const n = fc.nearest;
+  return `<div class="dr-forecast-box">
+    <div class="dr-forecast-title">📈 預測性風險提示</div>
+    <div class="dr-forecast-row">若${svEsc(n.need)}，還差 <b>${n.gap}</b> 次可能達到「${svEsc(n.label)}」門檻</div>
+  </div>`;
+}
+
+// 類股差幅（與大盤/與同類股的差幅，第1/3-5/7款判定用的分母）
+function _drDiffsHtml(diffs) {
+  if (!diffs || (diffs.market_diff_pct == null && diffs.sector_diff_pct == null)) return '';
+  return `<div class="dr-section-title">類股差幅（第1/3-5/7款需≥20%）</div>
+  <div class="dr-val-grid">
+    <div class="dr-val-cell"><b>${diffs.market_diff_pct != null ? diffs.market_diff_pct.toFixed(1) + '%' : '--'}</b><span>與大盤</span></div>
+    <div class="dr-val-cell"><b>${diffs.sector_diff_pct != null ? diffs.sector_diff_pct.toFixed(1) + '%' : '--'}</b><span>與同類股</span></div>
+  </div>`;
+}
+
+// 官方第6條四計數器，用進度條呈現（比對attnup排版），旁邊附上實際計入的觸發日期
+function _drWindowsHtml(w, alertHistory) {
+  if (w.streak3_of_c1 == null) return '';
+  const c1 = ['1'];
+  const c18 = ['1', '2', '3', '4', '5', '6', '7', '8'];
+  return `<div class="dr-section-title">處置期間累計</div>
+    <div class="dr-progress-grid">
+      ${_drProgressBar(w.streak3_of_c1, 3, '連續三次(第1款)', _drWindowDates(alertHistory, c1, 'streak', w.streak3_of_c1 || 0))}
+      ${_drProgressBar(w.streak5_of_c1to8, 5, '連續五次(第1-8款)', _drWindowDates(alertHistory, c18, 'streak', w.streak5_of_c1to8 || 0))}
+      ${_drProgressBar(w.count10_of_c1to8, 6, '10日內(第1-8款)', _drWindowDates(alertHistory, c18, 'count', w.count10_of_c1to8 || 0))}
+      ${_drProgressBar(w.count30_of_c1to8, 12, '30日內(第1-8款)', _drWindowDates(alertHistory, c18, 'count', w.count30_of_c1to8 || 0))}
+    </div>`;
+}
+
+// 今日實際觸發的款別（任一即可），對應attnup橘框「N/N 觸發條件」區塊
+function _drTriggeredHtml(clauses) {
+  // 已觸發 或 接近門檻(含明日可能觸發的價格提示) 都列進來，比對attnup「任一即可」的觸發條件框
+  const active = Object.entries(clauses).filter(([no, c]) => _drInShow(no) && (c.level === 'triggered' || c.level === 'close'));
+  if (!active.length) return '';
+  return `<div class="dr-trigger-box">
+    <div class="dr-trigger-title">◎ 觸發條件（任一即可）</div>
+    ${active.map(([no, c]) => `<div class="dr-trigger-row">${no}. ${svEsc(c.text)} — 第${no}款</div>`).join('')}
+  </div>`;
+}
+
+// 14款總覽checklist：計入處置累計(1-8) / 僅公告不計入累計(9-14)，色塊pill
+// 紅=已觸發／黃=接近門檻／灰=未觸發／－=無法判定；僅公告組(9-14)另加藍色調跟計入累計組(1-8)區隔，比對attnup排版
+function _drOverviewPill(no, c, isAnnounce) {
+  const level = c.level || (c.hit === true ? 'triggered' : (c.hit === false ? 'far' : 'unavailable'));
+  const cls = level === 'triggered' ? 'hit' : (level === 'close' ? 'close' : (level === 'unavailable' ? 'na' : ''));
+  const mark = DR_LEVEL_MARK[level] || '？';
+  return `<div class="dr-pill ${isAnnounce ? 'announce' : ''} ${cls}">${mark} 第${no}款</div>`;
+}
+function _drOverviewHtml(clauses) {
+  if (!Object.keys(clauses).length) return '';
+  const cum = [1, 2, 3, 4, 5, 6, 7, 8].filter(_drInShow)
+    .map(n => _drOverviewPill(n, clauses[String(n)], false)).join('');
+  const ann = [9, 10, 11, 12, 13, 14].filter(_drInShow)
+    .map(n => _drOverviewPill(n, clauses[String(n)], true)).join('');
+  const title = DR_SHOW_MAX >= 14 ? '14款觸發總覽' : '觸發款別總覽（計入處置的第1-8款）';
+  return `<div class="dr-section-title">${title}</div>
+    ${cum ? `<div class="sv-mut" style="margin-bottom:4px">計入處置累計（第1-8款）</div>
+    <div class="dr-pill-grid">${cum}</div>` : ''}
+    ${ann ? `<div class="sv-mut" style="margin:8px 0 4px">僅公告不計入累計（第9-14款）</div>
+    <div class="dr-pill-grid">${ann}</div>` : ''}`;
+}
+
+const dispUniverseCache = {};
+async function _fetchUniverseSnapshot(ticker) {
+  if (ticker in dispUniverseCache) return dispUniverseCache[ticker];
+  try {
+    const d = await fetchJsonGz(`data/disposition_stock/${ticker}.json.gz`);
+    dispUniverseCache[ticker] = d;
+    return d;
+  } catch (err) {
+    dispUniverseCache[ticker] = null;
+    return null;
+  }
+}
+
+function _dispBanner(r, fromUniverse) {
+  const isPunish = r.punish_start_date != null || r.bucket === 'punish';
+  const isWatch = !isPunish && (r.bucket === 'watch' || r.watch_count_10d != null);
+  if (fromUniverse) {
+    const cls = r.banner || r.bucket || 'healthy';
+    const text = {
+      punish: '🚨 處置中（有其他款接近/已觸發，留意升級風險）',
+      punish_stable: '🛡️ 處置中，目前無升級處置風險',
+      watch: '👀 潛在注意股（尚未處置）',
+      healthy: '✅ 狀態良好',
+    }[cls] || '✅ 狀態良好';
+    const sub = cls.startsWith('punish') ? '本頁為全市場搜尋輕量版，不含處置期間累計/注意股歷史' : '';
+    return { cls, text, sub };
+  }
+  const cls = isPunish ? 'punish' : 'watch';
+  const text = isPunish
+    ? `🚨 處置中　撮合${r.matching_cycle_minutes}分盤　處置期${fmtDate8(r.punish_start_date)}起第${r.days_in_punish}天`
+    : `👀 潛在注意股（尚未處置）`;
+  const sub = isPunish
+    ? `估計出關倒數 ${r.est_days_to_exit} 個交易日${r.repeat_disposition_flag ? '（⚠️近期二度以上處置）' : ''}${r.day1_avoid ? '（⚠️處置首日，統計上表現最弱，不建議追價進場）' : ''}`
+    : `近10日觸發注意${r.watch_count_10d}次　近30日${r.watch_count_30d}次`;
+  return { cls, text, sub };
+}
+
+// 「今日自算命中 X/Y 款」摘要（仿 disposal.twquant.com）：Y=算得出來(非unavailable)的第1-8款數，
+// X=其中今天實際觸發(hit===true)的數量。第5~8款常態性大多是 unavailable，如實反映在 Y 而非假裝算得出來。
+function _drSelfCountHtml(clauses) {
+  const computable = [1, 2, 3, 4, 5, 6, 7, 8]
+    .map(n => clauses[String(n)]).filter(c => c && c.level !== 'unavailable');
+  const hitN = computable.filter(c => c.hit === true).length;
+  return `<div class="dr-self-count">今日自算命中 <b>${hitN} / ${computable.length}</b> 款`
+    + `（第 5~8 款多數需盤後券商/估值資料，常無法自算；實際以交易所盤後公告為準）</div>`;
+}
+
+// 組出詳情 HTML（不再塞進彈窗，改由呼叫端塞進卡片內展開區或搜尋下方 slot）
+async function renderDispDetailHtml(ticker) {
+  const data = await _ensureDispDataLoaded();
+  let r = data ? [...(data.punish || []), ...(data.watch || [])]
+    .find(x => String(x.ticker) === String(ticker)) : null;
+  let fromUniverse = false;
+  if (!r) {
+    r = await _fetchUniverseSnapshot(ticker);
+    fromUniverse = true;
+  }
+  if (!r) return '<div class="sv-none">查無此股的處置/注意資料（可能太新或資料不足）</div>';
+
+  const banner = _dispBanner(r, fromUniverse);
+  const clauses = r.clauses || {};
+
+  const triggeredHtml = _drTriggeredHtml(clauses);
+  const windowsHtml = _drWindowsHtml(r.disposition_windows || {}, r.alert_history || []);
+  const clauseHtml = Object.keys(clauses).length
+    ? `<div class="dr-clause-legend">🔴已觸發　🟡接近門檻（近20%內）　⚪未觸發　？資料不足/無法判定</div>
+       <div class="dr-clause-grid">${Object.entries(clauses).filter(([no]) => _drInShow(no)).map(([no, c]) => _drClauseItem(no, c)).join('')}</div>`
+    : '';
+
+  const ex2 = r.exemption_clause2;
+  const exemptionHtml = (ex2 && ex2.checked) ? `<div class="dr-section-title">第2款除外情形（準確度有待驗證）</div>
+    <div class="dr-exemption-summary ${ex2.exempt ? 'exempt' : ''}">
+      ${ex2.exempt ? '✅ 符合除外情形' : '❌ 不符合除外情形'}
+    </div>
+    <div class="dr-exemption-grid">
+      ${(ex2.periods || []).map(p => `<div class="dr-exemption-cell">
+        <div class="dr-exemption-period">${p.days}日期間</div>
+        <div class="sv-mut">${svEsc(p.text)}</div>
+        ${p.tomorrow_hint ? `<div class="dr-exemption-hint">${svEsc(p.tomorrow_hint)}</div>` : ''}
+      </div>`).join('')}
+    </div>
+    <div class="sv-mut" style="margin-top:4px;font-style:italic">
+      * 此為條款尚未觸發時的預測，實際除外仍需符合完整條件</div>` : '';
+
+  const overviewHtml = _drOverviewHtml(clauses);
+  const diffsHtml = _drDiffsHtml(r.category_diffs);
+
+  const val = r.valuation || {};
+  const valCell = (label, v, digits, suffix) =>
+    `<div class="dr-val-cell"><b>${v != null ? v.toFixed(digits) + (suffix || '') : '--'}</b><span>${label}</span></div>`;
+  const changeCell = (label, v) => {
+    const cls = (v || 0) > 0 ? 'num-pos' : ((v || 0) < 0 ? 'num-neg' : '');
+    return `<div class="dr-val-cell"><b class="${cls}">${v != null ? _dispSigned(v, 0) : '--'}</b><span>${label}</span></div>`;
+  };
+  const valHtml = `<div class="dr-section-title">估值與融資融券</div><div class="dr-val-grid">
+    ${valCell('本益比', val.pe_ratio, 1, '')}
+    ${valCell('股價淨值比', val.pbr, 2, '')}
+    ${valCell('週轉率', val.turnover_pct, 1, '%')}
+    ${valCell('融資使用率', val.margin_usage_pct, 1, '%')}
+    ${valCell('融券使用率', val.short_usage_pct, 1, '%')}
+    ${valCell('券資比', val.short_margin_ratio, 1, '%')}
+    ${changeCell('融資增減(張)', val.margin_change)}
+    ${changeCell('融券增減(張)', val.short_change)}
+  </div>`;
+
+  const hist = r.alert_history || [];
+  const histRows = hist.map(_drHistoryItem).filter(Boolean);
+  const histHtml = histRows.length ? `<div class="dr-section-title">注意股歷史（近30日）</div>
+    <div class="dr-hist-list">${histRows.join('')}</div>` : '';
+
+  return `<div class="dr-wrap">
+    <div class="dr-banner ${banner.cls}">${banner.text}<div class="dr-banner-sub">${banner.sub}</div></div>
+    ${_drSelfCountHtml(clauses)}
+    <div class="dr-footnote">${DR_SHOW_MAX >= 14
+      ? 'ℹ️ 第9-14款為公告用途，觸發不計入處置累計次數（僅第1-8款計入）'
+      : 'ℹ️ 僅顯示會進處置的第1-8款；第9-14款(僅公告、不計入處置)已隱藏'}</div>
+    ${_drForecastHtml(r.risk_forecast)}
+    ${windowsHtml}
+    ${triggeredHtml}
+    <div class="dr-section-title">預測細節</div>
+    ${clauseHtml}
+    ${exemptionHtml}
+    ${overviewHtml}
+    ${diffsHtml}
+    ${valHtml}
+    ${histHtml}
+  </div>`;
+}
 
 // ═════════════════════════════════════════════════════════
 //  P2 (2026-07-23)：v2 版面 — 三階段漏斗 stepper + 左抽屜

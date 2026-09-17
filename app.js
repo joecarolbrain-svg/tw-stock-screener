@@ -3024,18 +3024,21 @@ async function loadHandover() {
   }
 }
 
-function _hoRowHtml(r) {
-  const statusClass = r.status === 'success' ? 'num-pos' : (r.status === 'broken' ? 'num-neg' : '');
+const HO_STATUS_CARD_CLASS = { watching: 'ho-card-watching', success: 'ho-card-success', broken: 'ho-card-broken' };
+
+function _hoCardHtml(r) {
   const pctClass = r.pct_from_watch > 0 ? 'num-pos' : (r.pct_from_watch < 0 ? 'num-neg' : '');
-  const breakInfo = r.status === 'broken' ? `　破於 ${r.break_date}` : '';
-  return `<div class="ir-row ho-row" data-code="${r.code}" data-name="${(r.name || '').replace(/"/g, '')}">`
-    + `<span class="ir-nm">${r.code} ${r.name || ''}</span>`
-    + `<span class="ho-dt">漲停 ${r.limit_date}　換手 ${r.date}</span>`
-    + `<span class="ho-low">前低 ${r.low}</span>`
-    + `<span class="ho-cl">現價 ${r.latest_close}</span>`
-    + `<span class="ho-pct ${pctClass}">${r.pct_from_watch > 0 ? '+' : ''}${r.pct_from_watch}%</span>`
-    + `<span class="ho-status ${statusClass}">${HO_STATUS_LABEL[r.status] || r.status}${breakInfo}</span>`
-    + `</div>`;
+  const breakInfo = r.status === 'broken' ? `　破於 ${r.break_date}` : `　撐了 ${r.days_since} 天`;
+  return `<button type="button" class="ho-card ${HO_STATUS_CARD_CLASS[r.status] || ''}" data-code="${r.code}" data-name="${(r.name || '').replace(/"/g, '')}">
+    <div class="ho-card-head">
+      <span class="ho-card-code">${r.code}</span>
+      <span class="ho-card-name">${r.name || ''}</span>
+      <span class="ho-card-badge">${HO_STATUS_LABEL[r.status] || r.status}</span>
+    </div>
+    <div class="ho-card-price">${r.latest_close}<span class="${pctClass}" style="font-size:13px;margin-left:6px">${r.pct_from_watch > 0 ? '+' : ''}${r.pct_from_watch}%</span></div>
+    <div class="ho-card-meta">漲停 ${r.limit_date}　換手 ${r.date}</div>
+    <div class="ho-card-meta">前低 ${r.low}${breakInfo}</div>
+  </button>`;
 }
 
 function renderHandover() {
@@ -3051,12 +3054,10 @@ function renderHandover() {
   const metaEl = document.getElementById('ho-meta');
   if (metaEl) metaEl.textContent = `as of ${d.as_of}｜共 ${d.count} 檔｜觀察中 ${d.watching}／成功 ${d.success}／失敗 ${d.broken}`;
   if (!rows.length) { body.innerHTML = '<div class="muted" style="padding:20px">無符合條件的換手訊號</div>'; return; }
-  const head = `<div class="ir-row ir-hdr ho-row"><span class="ir-nm">名稱</span><span class="ho-dt">漲停日／換手日</span>`
-    + `<span class="ho-low">前低</span><span class="ho-cl">現價</span><span class="ho-pct">距前低</span><span class="ho-status">狀態</span></div>`;
-  body.innerHTML = `<div class="ir-rows">${head}${rows.map(_hoRowHtml).join('')}</div>`;
+  body.innerHTML = `<div class="ho-card-grid">${rows.map(_hoCardHtml).join('')}</div>`;
   const mkt = {};
   ((state.data && state.data.rows) || []).forEach(r => { mkt[String(r.ticker)] = r.market; });
-  document.querySelectorAll('#ho-body .ho-row[data-code]').forEach(el => {
+  document.querySelectorAll('#ho-body .ho-card[data-code]').forEach(el => {
     el.addEventListener('click', () =>
       openKlineModal(el.dataset.code, el.dataset.name, mkt[el.dataset.code] || ''));
   });

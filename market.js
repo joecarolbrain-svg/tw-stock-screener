@@ -4,8 +4,7 @@
              （由 export_market_structure.py 產生）
 
    全部圖形都用 inline SVG 手繪，不依賴任何圖表庫。
-   依賴 app.js 的全域：fetchJsonGz / dailyPath / currentDate /
-                       indexMeta / openKlineModal
+   依賴 app.js 的全域：fetchJsonGz / dailyPath / currentDate / indexMeta
    ══════════════════════════════════════════════════════════════ */
 window.MarketStructure = (function () {
   'use strict';
@@ -849,13 +848,6 @@ window.MarketStructure = (function () {
     }));
     el.querySelectorAll('.ms-kwt').forEach(b => b.addEventListener('click', () => {
       state.kwTab = b.dataset.kw; render();
-    }));
-    // 點個股 → 開既有的 K 線／個股彈窗
-    el.querySelectorAll('[data-code]').forEach(n => n.addEventListener('click', () => {
-      const code = n.dataset.code, name = n.dataset.name || '';
-      if (typeof openKlineModal === 'function' && code) {
-        openKlineModal(code, name, state.heatMarket === 'OTC' ? 'OTC' : 'TSE');
-      }
     }));
   }
 

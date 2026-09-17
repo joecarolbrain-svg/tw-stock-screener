@@ -381,10 +381,6 @@ function renderFocusStrip(data) {
       </button>`;
     }).join('') +
     `</div>`;
-  el.querySelectorAll('.fs-card').forEach((card, i) => {
-    const r = top[i];
-    card.addEventListener('click', () => openKlineModal(r.ticker, r.name, r.market));
-  });
   // 快照沒有 spark 欄位（舊資料日）→ 補抓該檔 kline 畫近10日走勢
   top.forEach(r => {
     if (r.spark) return;
@@ -650,10 +646,6 @@ function renderDiffPanel() {
     + (rows || '<div class="diff-row">無</div>')
     + (diff.dropped.length > CAP ? `<div class="diff-row muted">…僅列前 ${CAP} 檔</div>` : '')
     + `<span class="diff-act" data-act="new">🆕 篩出今日上榜（+${diff.newIn.length}）</span>`;
-  panel.querySelectorAll('.diff-row[data-t]').forEach(row => {
-    row.addEventListener('click', () =>
-      openKlineModal(row.dataset.t, row.dataset.n, row.dataset.m));
-  });
   const act = panel.querySelector('[data-act="new"]');
   if (act) act.addEventListener('click', () => {
     panel.hidden = true;
@@ -887,16 +879,6 @@ function persistBucket(r) {
   return 'flat';
 }
 
-// 分數走勢 unicode sparkline（score_hist = [{d,s}…] 舊→新）
-function persistSparkline(hist) {
-  if (!Array.isArray(hist) || !hist.length) return '';
-  const bars = '▁▂▃▄▅▆▇█';
-  const vals = hist.map(h => h.s).filter(v => v != null);
-  if (!vals.length) return '';
-  const mn = Math.min(...vals), mx = Math.max(...vals), rng = (mx - mn) || 1;
-  return hist.map(h => h.s == null ? ' ' : bars[Math.round((h.s - mn) / rng * 7)]).join('');
-}
-
 // ── 籌碼面建議 ────────────────────────────────────────
 // 只有 foreign_streak/foreign_sum5/trust_streak/trust_sum5 四個欄位可用（broker_net/foreign_net
 // 目前後端沒產，全為 null，不要拿來判斷）。主訊號用 streak：方向持續性與股本大小無關，
@@ -1065,18 +1047,6 @@ function buildTable(data) {
           return `<span class="${cls}">${sign}${txt}</span>`;
         }
         return txt;
-      };
-    }
-    // ticker 欄位：點代號 → 站內 K 線彈窗
-    if (c.id === 'ticker') {
-      def.formatter = (cell) => {
-        const t = cell.getValue();
-        return `<a class="ticker-link" href="#" data-kline-ticker="${t}">${t}</a>`;
-      };
-      def.cellClick = (e, cell) => {
-        e.preventDefault();
-        const row = cell.getRow().getData();
-        openKlineModal(cell.getValue(), row.name, row.market);
       };
     }
     // 命中策略欄：渲染分類色塊
@@ -2466,10 +2436,6 @@ function renderStockCards(containerId, rows, htmlFn) {
   if (!el) return;
   if (!rows.length) { el.innerHTML = '<div class="muted" style="padding:20px">無符合條件的個股</div>'; return; }
   el.innerHTML = rows.map(htmlFn).join('');
-  el.querySelectorAll('.stk-card').forEach((card, i) => {
-    const r = rows[i];
-    card.addEventListener('click', () => openKlineModal(r.ticker, r.name, r.market));
-  });
 }
 
 // ── 每日看板 卡片檢視 ────────────────────────────────
@@ -2732,14 +2698,6 @@ function refreshMainView() {
       html += `<div class="muted" style="padding:8px;grid-column:1/-1">顯示前 ${CAP} / 共 ${active.length} 檔（縮小篩選或切表格看全部）</div>`;
   }
   cardsEl.innerHTML = html || '<div class="muted" style="padding:20px">🔍 沒有符合條件的個股</div>';
-  cardsEl.querySelectorAll('.main-card').forEach((card) => {
-    card.addEventListener('click', (e) => {
-      if (e.target.closest('.sc-pin')) return;
-      const t = card.dataset.ticker;
-      const r = active.find(x => String(x.ticker) === String(t));
-      openKlineModal(t, r ? r.name : '', r ? r.market : '');
-    });
-  });
   const unlistedHead = cardsEl.querySelector('[data-toggle-unlisted]');
   if (unlistedHead) unlistedHead.addEventListener('click', () => {
     state.showUnlisted = !state.showUnlisted;
@@ -2755,13 +2713,7 @@ function refreshMainView() {
 }
 
 const HANKU_COLS = [
-  { title: '代號', field: 'ticker', width: 80, frozen: true,
-    formatter: (cell) => `<a class="ticker-link" href="#" data-kline-ticker="${cell.getValue()}">${cell.getValue()}</a>`,
-    cellClick: (e, cell) => {
-      e.preventDefault();
-      const r = cell.getRow().getData();
-      openKlineModal(cell.getValue(), r.name, r.market);
-    } },
+  { title: '代號', field: 'ticker', width: 80, frozen: true },
   { title: '名稱', field: 'name', width: 100, frozen: true },
   { title: '產業', field: '_ind', width: 110 },
   { title: '狀態', field: 'state', width: 135 },
@@ -2973,14 +2925,7 @@ function renderInstRank() {
   _bindIrRows();
 }
 
-function _bindIrRows() {
-  const mkt = {};
-  ((state.data && state.data.rows) || []).forEach(r => { mkt[String(r.ticker)] = r.market; });
-  document.querySelectorAll('#ir-body .ir-row[data-code]').forEach(el => {
-    el.addEventListener('click', () =>
-      openKlineModal(el.dataset.code, el.dataset.name, mkt[el.dataset.code] || ''));
-  });
-}
+function _bindIrRows() {}
 
 function initInstRankControls() {
   document.querySelectorAll('#ir-inst-toggle .ir-btn').forEach(b => {
@@ -3055,12 +3000,6 @@ function renderHandover() {
   if (metaEl) metaEl.textContent = `as of ${d.as_of}｜共 ${d.count} 檔｜觀察中 ${d.watching}／成功 ${d.success}／失敗 ${d.broken}`;
   if (!rows.length) { body.innerHTML = '<div class="muted" style="padding:20px">無符合條件的換手訊號</div>'; return; }
   body.innerHTML = `<div class="ho-card-grid">${rows.map(_hoCardHtml).join('')}</div>`;
-  const mkt = {};
-  ((state.data && state.data.rows) || []).forEach(r => { mkt[String(r.ticker)] = r.market; });
-  document.querySelectorAll('#ho-body .ho-card[data-code]').forEach(el => {
-    el.addEventListener('click', () =>
-      openKlineModal(el.dataset.code, el.dataset.name, mkt[el.dataset.code] || ''));
-  });
 }
 
 function initHandoverControls() {
@@ -3077,427 +3016,15 @@ function initHandoverControls() {
 document.addEventListener('DOMContentLoaded', initHandoverControls);
 
 
-// ═════════════════════════════════════════════════════════
-//  個股彈窗共用狀態（kline payload 快取：摘要卡籌碼區 / 期貨計算機共用）
-// ═════════════════════════════════════════════════════════
-const klineState = {
-  cache: {},           // ticker -> payload
-};
-
-// ── 個股摘要卡（取代舊 K線/進出場/建倉 三分頁）─────────────
-// 資料：主篩選表 row（訊號/題材/價位）＋ kline payload（法人連買、融資，非同步補上）
+// 2026-09-17：個股彈窗（K線/個股摘要卡）整個拿掉（前端最重的互動、後端最重的
+// export_kline_to_json 步驟一起停用，詳見 deploy_export_all.py）。原本這裡的
+// renderStockSummary/attachResearchCards/openKlineModal 等函式群連同 #kline-modal
+// 一起移除；svEsc/svHas/svNum/svTruthy 因為還被處置雷達搜尋等其他功能用到，保留在下方。
 const svEsc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const svHas = (v) => v != null && String(v).trim() !== '' && String(v).trim() !== '—' && String(v) !== 'None';
 const svNum = (v) => { const n = parseFloat(v); return isFinite(n) ? n : null; };
 const svTruthy = (v) => v === 1 || v === true || v === '1' || v === 1.0;
-
-// 尾端 None 跳過後：連續同向天數 + 近5個有效日合計；回傳 {streak, sum5, asofIdx} 或 null
-function svInstStreak(arr) {
-  if (!arr || !arr.length) return null;
-  let i = arr.length - 1;
-  while (i >= 0 && (arr[i] == null || !isFinite(arr[i]))) i--;
-  if (i < 0) return null;
-  const asofIdx = i;
-  const sign = arr[i] > 0 ? 1 : arr[i] < 0 ? -1 : 0;
-  let streak = 0;
-  for (let j = i; j >= 0; j--) {
-    const v = arr[j];
-    if (v == null || !isFinite(v)) break;
-    if ((v > 0 ? 1 : v < 0 ? -1 : 0) !== sign || sign === 0) break;
-    streak++;
-  }
-  let sum5 = 0, k = 0;
-  for (let j = i; j >= 0 && k < 5; j--) {
-    const v = arr[j];
-    if (v == null || !isFinite(v)) continue;
-    sum5 += v; k++;
-  }
-  return { streak, sign, sum5, asofIdx };
-}
-function svInstBit(label, r) {
-  if (!r || r.sign === 0) return null;
-  const verb = r.sign > 0 ? '連買' : '連賣';
-  const col = r.sign > 0 ? '#ef5350' : '#26a69a';
-  return `${label}<b style="color:${col}">${verb}${r.streak}日</b>` +
-    `（5日${r.sum5 > 0 ? '+' : ''}${Math.round(r.sum5).toLocaleString()}張）`;
-}
-
-// 註：2026-07-26 早先做過一版「可收合卡片堆」（svRow / svNavHtml / svCardState +
-// localStorage.sv_cards_open），同日改成 FinLab 版型後那組已無呼叫者，連同
-// 相關 CSS 一併移除。個股頁的組裝現在在 renderStockSummary + attachResearchCards。
-
-function renderStockSummary(ticker, name, market, row) {
-  const el = document.getElementById('kc-summary');
-  if (!el) return;
-  if (!row) {
-    el.innerHTML = `<div class="sv-none">此標的不在今日篩選結果中（自選/其他分頁點入）。` +
-      `<br>直接開 <a href="${tvUrl(ticker, market)}" target="_blank" class="kline-tv">TradingView ↗</a> 看圖。</div>`;
-    return;
-  }
-  const G = (k) => row[k];
-
-  // ① 價格 + 結論
-  const chg = svNum(G('chg_pct'));
-  const chgCol = chg == null ? '#888' : chg >= 0 ? '#ef5350' : '#26a69a';
-  const priceRow = `<div class="sv-price">收盤 <b>${svHas(G('close')) ? G('close') : '--'}</b>` +
-    (chg != null ? `　<b style="color:${chgCol}">${chg > 0 ? '+' : ''}${chg}%</b>` : '') + `</div>` +
-    (svHas(G('verdict')) ? `<div class="sv-verdict">${svEsc(G('verdict'))}</div>` : '');
-
-  // 延續面板：連續上榜徽章 + 分類軌跡 + 分數走勢 sparkline
-  let persistPanel = '';
-  if (svHas(G('board_streak'))) {
-    const badges = persistBadgesHtml(row);
-    const hist = G('score_hist') || [];
-    const spk = persistSparkline(hist);
-    const first = hist.length ? hist[0].s : null, last = hist.length ? hist[hist.length - 1].s : null;
-    const spkLine = spk
-      ? `<div class="sv-spark">${spk}<span class="sv-mut">　分數 ${first != null ? Math.round(first) : '--'}→${last != null ? Math.round(last) : '--'}</span></div>` : '';
-    const trail = svHas(G('cat_path')) ? `<div class="sv-mut">分類軌跡 ${svEsc(G('cat_path'))}</div>` : '';
-    persistPanel = `<div class="sv-persist-badges">${badges}</div>${trail}${spkLine}`;
-  }
-
-  // ② 入選分類 badge（用主表 categories 的 label/color）
-  const catMeta = {};
-  ((state.data && state.data.categories) || []).forEach(c => { catMeta[c.code] = c; });
-  const badges = (G('categories') || []).map(code => {
-    const m = catMeta[code] || {};
-    return `<span class="sv-badge" style="border-color:${m.color || '#555'}">${svEsc(m.label || code)}</span>`;
-  }).join('');
-  const scoreBits = [];
-  if (svNum(G('score')) != null) scoreBits.push(`分數 <b>${Math.round(svNum(G('score')))}</b>`);
-  if (svNum(G('hits')) != null) scoreBits.push(`命中 ${G('hits')} 類`);
-  const catHtml = (badges || scoreBits.length)
-    ? `${badges}${scoreBits.length ? `<span class="sv-mut" style="margin-left:8px">${scoreBits.join('　')}</span>` : ''}` : '';
-
-  // ③ 訊號明細（為什麼被篩出來）
-  const S = [['s1', 'S1長底'], ['s2', 'S2爆量'], ['s3', 'S3多排'], ['s4', 'S4突破'], ['s5', 'S5題材']];
-  const C = [['c1', 'C1多頭'], ['c2', 'C2黃金交叉'], ['c3', 'C3進場點']];
-  const sLit = S.filter(([k]) => svTruthy(G(k))).map(([, n]) => n);
-  const cLit = C.filter(([k]) => svTruthy(G(k))).map(([, n]) => n);
-  const sig = [];
-  if (svHas(G('mainup_tag'))) sig.push(`<b style="color:#ffd54f">${svEsc(G('mainup_tag'))}</b>`);
-  if (svHas(G('mainup_entry'))) sig.push(`<b style="color:#22c55e">${svEsc(G('mainup_entry'))}</b>`);
-  if (svNum(G('mainup_n')) != null) sig.push(`飆股5訊號 ${G('mainup_n')}/5${sLit.length ? '（' + sLit.join('、') + '）' : ''}`);
-  if (svNum(G('win_n')) != null) sig.push(`高勝率 ${G('win_n')}/3${cLit.length ? '（' + cLit.join('、') + '）' : ''}`);
-  if (svTruthy(G('weekly_lit'))) sig.push('週線亮燈');
-  if (svHas(G('reaction_bar_type'))) sig.push(`反應K：${svEsc(G('reaction_bar_type'))}`);
-  if (svHas(G('strength'))) sig.push(svEsc(G('strength')));
-  if (svHas(G('bb_squeeze')) && G('bb_squeeze') !== '') sig.push(`BB壓縮 ${svEsc(G('bb_squeeze'))}`);
-  if (svHas(G('overhead'))) sig.push(svEsc(G('overhead')));
-  if (svTruthy(G('mainup_dist')) || (svNum(G('dist_risk')) || 0) > 0)
-    sig.push(`<b style="color:#ff5252">⚠出貨警訊${svHas(G('dist_signal')) ? '：' + svEsc(G('dist_signal')) : ''}</b>`);
-  // 圓弧底/黃金分割狀態（欄位下次 export 才有值，缺值不顯示）
-  const rSt = G('rounding_state'), fSt = G('fib_state');
-  if (svHas(rSt)) sig.push(`圓弧底 <b style="color:${/剛突破|回後買點/.test(rSt) ? '#22c55e' : /已達標/.test(rSt) ? '#f5b942' : '#8fa3b8'}">${svEsc(rSt)}</b>`);
-  if (svHas(fSt)) sig.push(`黃金分割 <b style="color:${/買點/.test(fSt) ? '#22c55e' : /失效|過深/.test(fSt) ? '#ff5252' : '#8fa3b8'}">${svEsc(fSt)}</b>` +
-    (svNum(G('fib_retrace')) != null ? `<span class="sv-mut">（回檔${G('fib_retrace')}）</span>` : ''));
-  const gSt = G('gap_state'), nSt = G('nbase_state');
-  if (svHas(gSt)) sig.push(`缺口 <b style="color:${/⛔/.test(gSt) ? '#ff5252' : /✅/.test(gSt) ? '#22c55e' : '#8fa3b8'}">${svEsc(gSt)}</b>`);
-  if (svHas(nSt)) sig.push(`N字底 <b style="color:${/🔥|回後/.test(nSt) ? '#22c55e' : /已達標/.test(nSt) ? '#f5b942' : '#8fa3b8'}">${svEsc(nSt)}</b>`);
-  const sSt = G('sr_state'), oSt = G('sr_overhead');
-  if (svHas(oSt)) sig.push(`上檔 <b style="color:${/✅/.test(oSt) ? '#22c55e' : /⚠/.test(oSt) ? '#f5b942' : '#8fa3b8'}">${svEsc(oSt)}</b>`);
-  if (svHas(sSt)) sig.push(`支撐 <b style="color:${/⛔/.test(sSt) ? '#ff5252' : /撐住/.test(sSt) ? '#22c55e' : '#8fa3b8'}">${svEsc(sSt)}</b>`);
-
-  // ④ 題材 / 族群
-  const th = [];
-  if (svHas(G('industry'))) th.push(`${svEsc(G('industry'))}${svHas(G('sub_industry')) ? ' › ' + svEsc(G('sub_industry')) : ''}`);
-  if (svHas(G('hot_sector'))) th.push(`🔥 ${svEsc(G('hot_sector'))}`);
-  if (svHas(G('hot_concept'))) th.push(`💡 ${svEsc(G('hot_concept'))}`);
-  const dConcept = (G('d_concept') || []).filter(x => svHas(x));
-  if (dConcept.length) th.push(`題材：${dConcept.map(svEsc).join('、')}`);
-
-  // ⑤ 關鍵價位（帶去 TradingView 畫線用）
-  const px = [];
-  if (svHas(G('buy_point'))) px.push(`買點 <b style="color:#22c55e">${svEsc(G('buy_point'))}</b>`);
-  if (svNum(G('defense')) != null) px.push(`防守 <b>${G('defense')}</b>`);
-  if (svNum(G('stop_loss')) != null) px.push(`停損 <b style="color:#ff5252">${G('stop_loss')}</b>` +
-    (svNum(G('stop_loss_pct')) != null ? `（−${G('stop_loss_pct')}%）` : ''));
-  if (svNum(G('target')) != null) px.push(`目標 <b style="color:#ffd54f">${G('target')}</b>`);
-  if (svNum(G('rounding_target')) != null)
-    px.push(`圓弧測幅 <b style="color:#ffd54f">${G('rounding_target')}</b><span class="sv-mut">（120根內達標≈66%）</span>`);
-  if (svNum(G('nbase_target')) != null)
-    px.push(`N字測幅 <b style="color:#ffd54f">${G('nbase_target')}</b><span class="sv-mut">（停損守第二腳低，勿守突破K低）</span>`);
-  if (svNum(G('gap_support')) != null) px.push(`缺口支撐 <b>${G('gap_support')}</b>`);
-  if (svNum(G('sr_support')) != null)
-    px.push(`支撐位 <b>${G('sr_support')}</b>` +
-      ((svNum(G('sr_confluence')) || 0) > 1 ? `<span class="sv-mut">（疊撐${G('sr_confluence')}層）</span>` : ''));
-  const rrV = svNum(G('rr_ratio')) != null ? svNum(G('rr_ratio')) : svNum(G('rr'));
-  if (rrV != null) px.push(`R:R <b style="color:${rrV >= 2 ? '#22c55e' : rrV >= 1 ? '#f5b942' : '#888'}">${rrV.toFixed(2)}</b>`);
-  const pxNote = svHas(G('entry_method')) ? `<div class="sv-mut" style="margin-top:3px">${svEsc(G('entry_method'))}</div>` : '';
-
-  // ⑥ 個股期貨（大型/小型）＋ 直達期貨計算機（自動帶每口股數）
-  let futHtml = '';
-  if (svTruthy(G('stf')) || G('stf') === true || svTruthy(G('stf_mini')) || G('stf_mini') === true) {
-    const isMini = G('stf_mini') === true || svTruthy(G('stf_mini'));
-    const bits = [];
-    if (G('stf') === true || svTruthy(G('stf'))) bits.push('大型 <b>2,000</b>股/口');
-    if (isMini) bits.push('<b style="color:#ffd7a8">小型 100股/口</b>');
-    // 2026-09-13：期貨計算機分頁已拿掉，這顆深連結按鈕跟著移除(留著只會點了沒反應)
-    futHtml = `${stfBadgeHtml(row)}　${bits.join('　·　')}`;
-  }
-
-  // P3-⑬ 決策對帳：你標記過這檔嗎？標記日基準收盤 → 至今表現
-  let pinLine = '';
-  const pm = pinnedMeta[ticker];
-  if (state.pinned.has(ticker) && pm && pm.d) {
-    const ret = _pinRetPct(ticker, svNum(G('close')));
-    const retHtml = ret != null
-      ? `→ 至今 <b style="color:${ret >= 0 ? '#ef5350' : '#26a69a'}">${ret >= 0 ? '+' : ''}${ret.toFixed(1)}%</b>`
-      : '';
-    pinLine = `⭐ <b>${pm.d}</b> 標記` +
-      (pm.c != null ? `（當日收盤 ${pm.c}）` : '') + `　${retHtml}` +
-      `<span class="sv-mut">　基準=標記日收盤；檢驗判斷用，非績效</span>`;
-  }
-
-  // ── FinLab 版型（2026-07-26）─────────────────────────────
-  //  照 finlab.finance/stocks/3231 的區塊分段重排，內容全部沿用贏窟自有。
-  //  贏窟獨有的部分（訊號明細/關鍵價位/延續/對帳/處置/題材/期貨）併進對應區塊：
-  //    · 訊號明細·關鍵價位·延續·對帳·處置 → 「現在的操作依據」（FinLab 沒有這段）
-  //    · 籌碼建議·融資維持率·逐日明細     → 「籌碼流向」
-  //    · 題材族群·個股期貨                → 「基本資料」
-  //  英雄區、體質、歷史證據、方法與限制由 StockCards 非同步補上。
-  const blk = (t, html) => html ? `<div class="fl-block">
-    <h3 class="fl-h3">${t}</h3><div class="fl-block-b">${html}</div></div>` : '';
-
-  const actionBlocks = [
-    blk('訊號明細', sig.join('　·　')),
-    blk('關鍵價位', px.length ? px.join('　｜　') + pxNote : ''),
-    blk('排名延續', persistPanel),
-    blk('決策對帳', pinLine),
-  ].join('');
-
-  // 處置風險：#dr-block 由 renderDispositionRisk() 填，openKlineModal 再把那個
-  // 節點搬進插槽（沿用專案既有的「DOM 節點搬移保留綁定」作法）
-  const dispBlock = `<div class="fl-block" id="fl-disp" hidden>
-    <h3 class="fl-h3">處置風險</h3><div class="fl-block-b" id="dr-slot"></div></div>`;
-
-  el.innerHTML = `<div class="fl-page">
-    <div id="fl-hero"></div>
-    ${actionBlocks || dispBlock ? `<section class="fl-sec" data-sec="操作依據">
-      <h2 class="fl-h2">現在的操作依據</h2>
-      ${catHtml ? `<div class="fl-cats">${catHtml}</div>` : ''}
-      <div class="fl-blocks">${actionBlocks}${dispBlock}</div>
-    </section>` : ''}
-    <div id="fl-quality"></div>
-    <div id="fl-chip"></div>
-    <div id="fl-broker"></div>
-    <div id="fl-jibao"></div>
-    <div id="fl-evidence"></div>
-    <div id="fl-about"></div>
-    <div id="fl-method"></div>
-    <div class="fl-foot">訊號為策略輔助、非投資建議 — 進出場請至 TradingView 自行判斷。</div>
-  </div>`;
-
-  // 贏窟自有的籌碼內容，等 StockCards 組「籌碼流向」區塊時當 extraHtml 插進去
-  el.__flChipExtra = `<div class="fl-blocks">
-    ${blk('籌碼結論', chipAdviceBlockHtml(row))}
-    ${blk('融資維持率', maintBlockHtml(row))}
-    ${blk('逐日法人明細', '<div id="sv-chip" class="fl-mut">載入中…</div>')}
-  </div>`;
-  el.__flAboutExtra = `<div class="fl-blocks">
-    ${blk('題材族群', th.join('　｜　'))}
-    ${blk('個股期貨', futHtml)}
-  </div>`;
-}
-
-/** 非同步補上 FinLab 版型的四個區塊（英雄區/體質/歷史證據/基本資料/方法） */
-async function attachResearchCards(ticker) {
-  const el = document.getElementById('kc-summary');
-  if (!el || typeof StockCards === 'undefined') return;
-  const slot = id => document.getElementById(id);
-  let d, shared;
-  try {
-    [d, shared] = await Promise.all([StockCards.load(ticker), StockCards.loadShared()]);
-  } catch (err) {
-    if (slot('fl-quality')) {
-      slot('fl-quality').innerHTML = `<section class="fl-sec"><p class="fl-none">
-        體質資料未產生 —— 跑 finlab_port/run_all.py --daily 後出現。</p></section>`;
-    }
-    return;
-  }
-  if (slot('fl-hero')) slot('fl-hero').innerHTML = StockCards.heroHtml(d);
-  if (slot('fl-quality')) slot('fl-quality').innerHTML = StockCards.qualityHtml(d);
-  if (slot('fl-chip')) slot('fl-chip').innerHTML =
-    StockCards.chipFlowHtml(d, el.__flChipExtra || '');
-  // 分點（日頻）緊接在法人籌碼後面，集保（週頻）再接著——籌碼三張由快到慢排
-  if (slot('fl-broker')) slot('fl-broker').innerHTML = StockCards.brokerHtml(d);
-  if (slot('fl-jibao')) slot('fl-jibao').innerHTML = StockCards.jibaoHtml(d);
-  if (slot('fl-evidence')) slot('fl-evidence').innerHTML = StockCards.evidenceHtml(d, shared);
-  if (slot('fl-about')) slot('fl-about').innerHTML =
-    StockCards.aboutHtml(d, el.__flAboutExtra || '');
-  if (slot('fl-method')) slot('fl-method').innerHTML = StockCards.methodHtml(d, shared);
-  StockCards.bindTabs(el);
-  flRefreshNav();
-}
-
-/** 區塊跳轉列：依實際存在的 section 重建 */
-function flRefreshNav() {
-  const el = document.getElementById('kc-summary');
-  const page = el && el.querySelector('.fl-page');
-  if (!page) return;
-  let nav = page.querySelector('.fl-nav');
-  if (!nav) {
-    nav = document.createElement('div');
-    nav.className = 'fl-nav';
-    page.insertBefore(nav, page.firstChild);
-  }
-  const secs = [...page.querySelectorAll('.fl-sec[data-sec]')];
-  nav.innerHTML = secs.map(s =>
-    `<button type="button" class="fl-navb" data-goto="${s.dataset.sec}">${s.dataset.sec}</button>`
-  ).join('');
-}
-
-// 彈窗籌碼建議區塊：結論一句話 + 依據（用主表 row，不必等 kline payload）
-function chipAdviceBlockHtml(row) {
-  if (!row) return '';
-  const ca = chipAdvice(row);
-  if (ca.key === 'na') return '';
-  const asof = (state.data && state.data.chip_asof) || {};
-  const stale = asof.broker && asof.margin && asof.broker !== asof.margin
-    ? `<div class="sv-chip-asof">⚠️ 分點主力籌碼資料僅到 ${asof.broker}（來源停更中）；法人/融資為 ${asof.margin}</div>` : '';
-  return `<div class="sv-chip-advice chip-${ca.key}">
-    <div class="sca-verdict">${ca.icon} <b>${ca.label}</b></div>
-    ${ca.advice ? `<div class="sca-advice">${svEsc(ca.advice)}</div>` : ''}
-    ${ca.detail ? `<div class="sca-detail sv-mut">${svEsc(ca.detail)}</div>` : ''}
-    ${stale}
-  </div>`;
-}
-
-// 彈窗融資維持率區塊：全歷史危機表（每檔跟自己的四次危機比，不是統一門檻）
-function maintBlockHtml(row) {
-  if (!row) return '';
-  // 彈窗吃 detail（全部通過 gate 的 ~1,000 檔），不是只吃進榜桶 —— 查個股時
-  // 🟡鬆動/⚪安全 的股票也要看得到自己的危機表。
-  const d = maintState.detail[String(row.ticker)];
-  if (!d) return '';
-  const m = d;
-  const t = maintTone(m);
-  const rows = (d.crisis || []).map(c =>
-    `<tr class="${c.is_base ? 'mt-base' : ''}"><td>${c.label}${c.is_base ? ' 關稅' : ''}</td>`
-    + `<td class="mt-num">${c.mr}%</td><td class="mt-num">${c.px}</td>`
-    + `<td class="mt-num ${c.gap_pct >= 0 ? 'neg' : ''}">${c.gap_pct >= 0 ? '+' : ''}${c.gap_pct}%</td></tr>`
-  ).join('');
-  return `<div class="sv-maint ${t.cls}">
-    <div class="svm-verdict">${t.ico} <b>融資維持率 ${m.mr}%</b>
-      <span class="sv-mut">（推估平均融資成本 ${d.cost ?? '--'}，餘額 ${m.bal.toLocaleString()} 張，全期百分位 ${m.pctile}%）</span></div>
-    <table class="svm-table"><thead><tr><th>事件</th><th>當時最低</th><th>今日對應價</th><th>距今</th></tr></thead>
-    <tbody>${rows}<tr class="mt-now"><td>今天</td><td class="mt-num">${m.mr}%</td><td class="mt-num">${m.close}</td><td class="mt-num">—</td></tr></tbody></table>
-    <div class="svm-note sv-mut">維持率到位是<b>必要非充分條件</b>：2018 年國巨到達後仍磨了 48 個交易日才落底。這是風險溫度計，不是買進訊號。</div>
-  </div>`;
-}
-
-// 籌碼區塊：kline payload 載完後補上（逐日法人明細 + 融資）
-function patchChipBlock(d) {
-  const el = document.getElementById('sv-chip');
-  if (!el) return;
-  if (!d || !d.has_inst) { el.textContent = '無逐日法人明細'; return; }
-  const f = svInstStreak(d.inst_foreign), t = svInstStreak(d.inst_trust);
-  const bits = [svInstBit('外資', f), svInstBit('投信', t)].filter(Boolean);
-  // 融資5日增減
-  const mb = (d.margin_bal || []).filter(v => v != null && isFinite(v));
-  if (d.has_margin && mb.length >= 6) {
-    const diff = mb[mb.length - 1] - mb[mb.length - 6];
-    bits.push(`融資5日${diff > 0 ? '+' : ''}${Math.round(diff).toLocaleString()}張`);
-  }
-  // 法人資料落後標註
-  let lag = '';
-  if (f && d.dates && f.asofIdx < d.dates.length - 1)
-    lag = `<span class="sv-mut">（法人至 ${svEsc(d.dates[f.asofIdx])}）</span>`;
-
-  // ⚠️ 整包 kline payload 過期的標註。
-  //    上面那個 lag 只偵測「payload 內部法人陣列比價格短」，偵測不到整包過期。
-  //    web/data/kline/ 沒有被 deploy_export_all 納入每日流程，實測整個資料夾停在
-  //    2026-07-10，比主表晚 15 天——會讓這一列的「外資連賣1日」跟上方籌碼建議的
-  //    「外資連買5日」看起來互相矛盾，其實只是兩個不同日期的實況。
-  const payloadEnd = (d.dates && d.dates.length) ? d.dates[d.dates.length - 1] : null;
-  const boardDate = (state.data && state.data.trading_date) || null;
-  let stale = '';
-  if (payloadEnd) {
-    const pd = String(payloadEnd).replace(/-/g, '');
-    const bd = boardDate ? String(boardDate).replace(/-/g, '') : null;
-    stale = (bd && pd < bd)
-      ? `<span class="sv-stale">⚠ 此列為 ${svEsc(payloadEnd)} 的明細，主表已是 ${svEsc(boardDate)}（kline 快取未更新）</span>`
-      : `<span class="sv-mut">（明細至 ${svEsc(payloadEnd)}）</span>`;
-  }
-  el.innerHTML = (bits.length ? bits.join('　｜　') : '外資/投信近日無明顯方向') +
-    '　' + lag + stale;
-}
-
-// K線彈窗「🧮 期貨計算機試算」：切到頂部期貨計算機分頁，帶入代號＋每口股數(2000/100)
-window.openCalcFor = function (ticker, mult) {
-  const modal = document.getElementById('kline-modal');
-  if (modal) modal.hidden = true;               // 收掉彈窗，露出分頁
-  const btn = document.querySelector('.tab-btn[data-tab="calc"]');
-  if (btn) btn.click();                          // 走既有切分頁流程
-  if (window.QEFCalc && QEFCalc.loadTicker) QEFCalc.loadTicker(String(ticker), mult);
-};
-
-async function openKlineModal(ticker, name, market) {
-  const modal = document.getElementById('kline-modal');
-  modal.hidden = false;
-  document.getElementById('kline-title').textContent = `${ticker}　${name || ''}`;
-  document.getElementById('kline-tv').href = tvUrl(ticker, market);
-
-  // 主表權威列（不論從哪個表點開）
-  const row = (state.data && state.data.rows)
-    ? state.data.rows.find(r => String(r.ticker) === String(ticker)) || null : null;
-  renderStockSummary(ticker, name, market, row);
-  renderDispositionRisk(ticker);
-  svAdoptDispBlock();
-  attachResearchCards(ticker);
-
-  try {
-    let d = klineState.cache[ticker];
-    if (!d) {
-      d = await fetchJsonGz(`data/kline/${ticker}.json.gz`);
-      klineState.cache[ticker] = d;
-    }
-    patchChipBlock(d);
-  } catch (err) {
-    const el = document.getElementById('sv-chip');
-    if (el) el.textContent = '籌碼資料載入失敗';
-  }
-}
-
-/** 把 #dr-block 搬進處置風險區塊的插槽；沒內容就把整塊藏起來 */
-function svAdoptDispBlock() {
-  const blk = document.getElementById('dr-block');
-  const slot = document.getElementById('dr-slot');
-  const box = document.getElementById('fl-disp');
-  if (!blk || !slot || !box) return;
-  slot.appendChild(blk);
-  box.hidden = !blk.textContent.trim();
-}
-
-function closeKlineModal() {
-  document.getElementById('kline-modal').hidden = true;
-  // #dr-block 還在卡片插槽裡，搬回 kline-body 才不會被下次 innerHTML 清掉
-  const blk = document.getElementById('dr-block');
-  const body = document.querySelector('#kline-modal .kline-body');
-  if (blk && body && blk.parentElement !== body) body.appendChild(blk);
-}
-
-function initKlineModal() {
-  document.querySelectorAll('[data-kline-close]').forEach(el =>
-    el.addEventListener('click', closeKlineModal));
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !document.getElementById('kline-modal').hidden)
-      closeKlineModal();
-  });
-
-  const summary = document.getElementById('kc-summary');
-  if (summary) {
-    // 區塊跳轉列
-    summary.addEventListener('click', (e) => {
-      const b = e.target.closest('.fl-navb');
-      if (!b) return;
-      const sec = summary.querySelector(`.fl-sec[data-sec="${CSS.escape(b.dataset.goto)}"]`);
-      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  }
-}
-document.addEventListener('DOMContentLoaded', initKlineModal);
 
 // ── P1-⑮ 鍵盤快速鍵（每日看板）────────────────────────
 //   j / k = 卡片上下移動選取　Enter = 開選取卡的 K 線
@@ -3521,13 +3048,11 @@ function initHotkeys() {
     const dashActive =
       document.querySelector('.tab-btn.active')?.dataset.tab === 'dashboard';
     if (!dashActive) return;
-    const modalOpen = !document.getElementById('kline-modal').hidden;
     const k = e.key.toLowerCase();
     if (e.key === '/') {
       e.preventDefault();
       document.getElementById('search-input')?.focus();
     } else if (k === 'j' || k === 'k') {
-      if (modalOpen) return;
       const cards = _kbCards();
       if (!cards.length) return;
       e.preventDefault();
@@ -3537,7 +3062,6 @@ function initHotkeys() {
       cards.forEach((c, i) => c.classList.toggle('kb-sel', i === _kbIdx));
       cards[_kbIdx].scrollIntoView({ block: 'nearest' });
     } else if (e.key === 'Enter') {
-      if (modalOpen) return;
       if (ae && /BUTTON|A/.test(ae.tagName)) return;  // 焦點在按鈕/連結上 → 讓瀏覽器處理
       const cards = _kbCards();
       if (_kbIdx >= 0 && cards[_kbIdx]) cards[_kbIdx].click();
@@ -3617,13 +3141,7 @@ function _dispCardHtml(r, bucket) {
   </button>`;
 }
 
-function _bindDispCards(container, rows) {
-  container.querySelectorAll('.disp-card').forEach(card => {
-    const t = card.dataset.ticker;
-    const r = rows.find(x => String(x.ticker) === t);
-    if (r) card.addEventListener('click', () => openKlineModal(r.ticker, r.name, r.market));
-  });
-}
+function _bindDispCards(container, rows) {}
 
 async function loadDisposition() {
   if (dispState.loaded && dispState.loadedDate === currentDate) {
@@ -3663,13 +3181,7 @@ function _drChip(r) {
     `</button>`;
 }
 
-function _bindDrChips(container, rows) {
-  container.querySelectorAll('.dr-daily-chip').forEach(chip => {
-    const t = chip.dataset.ticker;
-    const r = rows.find(x => String(x.ticker) === t);
-    if (r) chip.addEventListener('click', () => openKlineModal(r.ticker, r.name, r.market));
-  });
-}
+function _bindDrChips(container, rows) {}
 
 function renderDispFocusStrip(data) {
   const el = document.getElementById('disp-focus-strip');
@@ -3756,7 +3268,6 @@ function initDispSearch() {
     ).join('');
     results.querySelectorAll('.disp-search-item[data-ticker]').forEach(item => {
       item.addEventListener('click', () => {
-        openKlineModal(item.dataset.ticker, item.dataset.name, item.dataset.market);
         results.hidden = true;
         input.value = '';
       });
@@ -3768,285 +3279,8 @@ function initDispSearch() {
   });
 }
 
-// ── K線彈窗內「處置風險分析」區塊（點任何分頁的個股都會查一次）──
-async function _ensureDispDataLoaded() {
-  if (dispState.data) return dispState.data;
-  const entry = (indexMeta?.dates || []).find(
-    e => e.date === currentDate && (e.has || []).includes('disposition'));
-  const fallback = entry ? null : (indexMeta?.dates || []).find(e => (e.has || []).includes('disposition'));
-  const dDate = entry ? currentDate : (fallback ? fallback.date : null);
-  if (!dDate) return null;
-  try {
-    dispState.data = await fetchJsonGz(`data/daily/${dDate}/disposition.json.gz`);
-    return dispState.data;
-  } catch (err) {
-    return null;
-  }
-}
-
-const DR_LEVEL_MARK = { triggered: '🔴', close: '🟡', far: '⚪', unavailable: '？' };
-const DR_LEVEL_CLS  = { triggered: 'hit-true', close: 'hit-close', far: 'hit-false', unavailable: 'hit-null' };
-
-// 處置雷達前端只顯示「會進處置」的第1~8款；第9~14款(僅公告、不計入處置累計)後端引擎照算，
-// 但前端不呈現。要恢復顯示全部14款：把 DR_SHOW_MAX 改回 14（下方 5 處 helper 會自動跟著還原）。
-const DR_SHOW_MAX = 8;
-const _drInShow = (no) => Number(no) <= DR_SHOW_MAX;
-
-function _drClauseItem(no, c) {
-  const level = c.level || (c.hit === true ? 'triggered' : (c.hit === false ? 'far' : 'unavailable'));
-  const mark = DR_LEVEL_MARK[level] || '？';
-  const cls = DR_LEVEL_CLS[level] || 'hit-null';
-  const windowsTxt = (c.windows || []).map(w =>
-    `${w.days}日${w.level === 'triggered' ? '🔴' : (w.level === 'close' ? '🟡' : '⚪')}`).join(' ');
-  return `<div class="dr-clause-item ${cls}"><span class="dr-mark">${mark}</span>` +
-    `<span>第${no}款 ${svEsc(c.name)}<br><span class="sv-mut">${svEsc(c.text)}</span>` +
-    (windowsTxt ? `<br><span class="sv-mut">${windowsTxt}</span>` : '') + `</span></div>`;
-}
-
-function _drHistoryItem(h) {
-  const shown = (h.clauses || []).filter(_drInShow);
-  if (!shown.length) return '';   // 該日僅第9~14款(不進處置)，過濾後整列不顯示
-  const nos = shown.map(n => `第${n}款`).join('、');
-  return `<div class="dr-hist-row"><span>🕒 ${fmtDate8(h.date)}</span><span class="sv-mut">${svEsc(nos)}</span></div>`;
-}
-
-function _drProgressBar(cur, max, label, dateChips) {
-  const pct = max > 0 ? Math.min(100, (cur / max) * 100) : 0;
-  const cls = cur >= max ? 'full' : (pct >= 60 ? 'high' : '');
-  const chipsHtml = (dateChips && dateChips.length)
-    ? `<div class="dr-progress-dates">${dateChips.map(d => `<span class="dr-progress-date">${fmtDate8(d)}</span>`).join('')}</div>`
-    : '';
-  return `<div class="dr-progress-cell">
-    <div class="dr-progress-label">${label}</div>
-    <div class="dr-progress-track"><div class="dr-progress-fill ${cls}" style="width:${pct}%"></div></div>
-    <div class="dr-progress-num">${cur}/${max}</div>
-    ${chipsHtml}
-  </div>`;
-}
-
-// 從alert_history(近30日逐日觸發款別)回推「哪幾天算進這個計數器」，比對attnup每個gauge旁的日期清單。
-// alert_history只收錄「當天有任何觸發」的日子，但因此只要clause命中就一定會出現在清單裡，
-// 從最新一天往回抓連續run（中間不能被非該clause的日子隔開）就是正確的streak组成日期。
-function _drWindowDates(alertHistory, clauseSet, mode, limit) {
-  if (!limit || limit <= 0) return [];
-  // alert_history的clauses是JSON數字(Python int序列化結果)，clauseSet統一轉字串比對避免型別不符
-  const set = clauseSet.map(String);
-  const isHit = h => (h.clauses || []).some(c => set.includes(String(c)));
-  const sorted = [...(alertHistory || [])].sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  if (mode === 'streak') {
-    // streak模式：必須是alert_history裡最前面連續的幾筆(沒有被其他日子插隊)才算連續
-    const out = [];
-    for (const h of sorted) {
-      if (!isHit(h) || out.length >= limit) break;
-      out.push(h.date);
-    }
-    return out;
-  }
-  return sorted.filter(isHit).slice(0, limit).map(h => h.date);
-}
-
-// 預測性風險提示：把現有計數器往前推一步，不是預測股價（見disposition_rules.forecast_disposition_risk）
-function _drForecastHtml(fc) {
-  if (!fc || !fc.checked || fc.already_at_risk || !fc.nearest) return '';
-  const n = fc.nearest;
-  return `<div class="dr-forecast-box">
-    <div class="dr-forecast-title">📈 預測性風險提示</div>
-    <div class="dr-forecast-row">若${svEsc(n.need)}，還差 <b>${n.gap}</b> 次可能達到「${svEsc(n.label)}」門檻</div>
-  </div>`;
-}
-
-// 類股差幅（與大盤/與同類股的差幅，第1/3-5/7款判定用的分母）
-function _drDiffsHtml(diffs) {
-  if (!diffs || (diffs.market_diff_pct == null && diffs.sector_diff_pct == null)) return '';
-  return `<div class="dr-section-title">類股差幅（第1/3-5/7款需≥20%）</div>
-  <div class="dr-val-grid">
-    <div class="dr-val-cell"><b>${diffs.market_diff_pct != null ? diffs.market_diff_pct.toFixed(1) + '%' : '--'}</b><span>與大盤</span></div>
-    <div class="dr-val-cell"><b>${diffs.sector_diff_pct != null ? diffs.sector_diff_pct.toFixed(1) + '%' : '--'}</b><span>與同類股</span></div>
-  </div>`;
-}
-
-// 官方第6條四計數器，用進度條呈現（比對attnup排版），旁邊附上實際計入的觸發日期
-function _drWindowsHtml(w, alertHistory) {
-  if (w.streak3_of_c1 == null) return '';
-  const c1 = ['1'];
-  const c18 = ['1', '2', '3', '4', '5', '6', '7', '8'];
-  return `<div class="dr-section-title">處置期間累計</div>
-    <div class="dr-progress-grid">
-      ${_drProgressBar(w.streak3_of_c1, 3, '連續三次(第1款)', _drWindowDates(alertHistory, c1, 'streak', w.streak3_of_c1 || 0))}
-      ${_drProgressBar(w.streak5_of_c1to8, 5, '連續五次(第1-8款)', _drWindowDates(alertHistory, c18, 'streak', w.streak5_of_c1to8 || 0))}
-      ${_drProgressBar(w.count10_of_c1to8, 6, '10日內(第1-8款)', _drWindowDates(alertHistory, c18, 'count', w.count10_of_c1to8 || 0))}
-      ${_drProgressBar(w.count30_of_c1to8, 12, '30日內(第1-8款)', _drWindowDates(alertHistory, c18, 'count', w.count30_of_c1to8 || 0))}
-    </div>`;
-}
-
-// 今日實際觸發的款別（任一即可），對應attnup橘框「N/N 觸發條件」區塊
-function _drTriggeredHtml(clauses) {
-  // 已觸發 或 接近門檻(含明日可能觸發的價格提示) 都列進來，比對attnup「任一即可」的觸發條件框
-  const active = Object.entries(clauses).filter(([no, c]) => _drInShow(no) && (c.level === 'triggered' || c.level === 'close'));
-  if (!active.length) return '';
-  return `<div class="dr-trigger-box">
-    <div class="dr-trigger-title">◎ 觸發條件（任一即可）</div>
-    ${active.map(([no, c]) => `<div class="dr-trigger-row">${no}. ${svEsc(c.text)} — 第${no}款</div>`).join('')}
-  </div>`;
-}
-
-// 14款總覽checklist：計入處置累計(1-8) / 僅公告不計入累計(9-14)，色塊pill
-// 紅=已觸發／黃=接近門檻／灰=未觸發／－=無法判定；僅公告組(9-14)另加藍色調跟計入累計組(1-8)區隔，比對attnup排版
-function _drOverviewPill(no, c, isAnnounce) {
-  const level = c.level || (c.hit === true ? 'triggered' : (c.hit === false ? 'far' : 'unavailable'));
-  const cls = level === 'triggered' ? 'hit' : (level === 'close' ? 'close' : (level === 'unavailable' ? 'na' : ''));
-  const mark = DR_LEVEL_MARK[level] || '？';
-  return `<div class="dr-pill ${isAnnounce ? 'announce' : ''} ${cls}">${mark} 第${no}款</div>`;
-}
-function _drOverviewHtml(clauses) {
-  if (!Object.keys(clauses).length) return '';
-  const cum = [1, 2, 3, 4, 5, 6, 7, 8].filter(_drInShow)
-    .map(n => _drOverviewPill(n, clauses[String(n)], false)).join('');
-  const ann = [9, 10, 11, 12, 13, 14].filter(_drInShow)
-    .map(n => _drOverviewPill(n, clauses[String(n)], true)).join('');
-  const title = DR_SHOW_MAX >= 14 ? '14款觸發總覽' : '觸發款別總覽（計入處置的第1-8款）';
-  return `<div class="dr-section-title">${title}</div>
-    ${cum ? `<div class="sv-mut" style="margin-bottom:4px">計入處置累計（第1-8款）</div>
-    <div class="dr-pill-grid">${cum}</div>` : ''}
-    ${ann ? `<div class="sv-mut" style="margin:8px 0 4px">僅公告不計入累計（第9-14款）</div>
-    <div class="dr-pill-grid">${ann}</div>` : ''}`;
-}
-
-const dispUniverseCache = {};
-async function _fetchUniverseSnapshot(ticker) {
-  if (ticker in dispUniverseCache) return dispUniverseCache[ticker];
-  try {
-    const d = await fetchJsonGz(`data/disposition_stock/${ticker}.json.gz`);
-    dispUniverseCache[ticker] = d;
-    return d;
-  } catch (err) {
-    dispUniverseCache[ticker] = null;
-    return null;
-  }
-}
-
-function _dispBanner(r, fromUniverse) {
-  const isPunish = r.punish_start_date != null || r.bucket === 'punish';
-  const isWatch = !isPunish && (r.bucket === 'watch' || r.watch_count_10d != null);
-  if (fromUniverse) {
-    const cls = r.banner || r.bucket || 'healthy';
-    const text = {
-      punish: '🚨 處置中（有其他款接近/已觸發，留意升級風險）',
-      punish_stable: '🛡️ 處置中，目前無升級處置風險',
-      watch: '👀 潛在注意股（尚未處置）',
-      healthy: '✅ 狀態良好',
-    }[cls] || '✅ 狀態良好';
-    const sub = cls.startsWith('punish') ? '本頁為全市場搜尋輕量版，不含處置期間累計/注意股歷史' : '';
-    return { cls, text, sub };
-  }
-  const cls = isPunish ? 'punish' : 'watch';
-  const text = isPunish
-    ? `🚨 處置中　撮合${r.matching_cycle_minutes}分盤　處置期${fmtDate8(r.punish_start_date)}起第${r.days_in_punish}天`
-    : `👀 潛在注意股（尚未處置）`;
-  const sub = isPunish
-    ? `估計出關倒數 ${r.est_days_to_exit} 個交易日${r.repeat_disposition_flag ? '（⚠️近期二度以上處置）' : ''}${r.day1_avoid ? '（⚠️處置首日，統計上表現最弱，不建議追價進場）' : ''}`
-    : `近10日觸發注意${r.watch_count_10d}次　近30日${r.watch_count_30d}次`;
-  return { cls, text, sub };
-}
-
-async function renderDispositionRisk(ticker) {
-  const el = document.getElementById('dr-block');
-  if (!el) return;
-  el.innerHTML = '';
-  const data = await _ensureDispDataLoaded();
-  let r = data ? [...(data.punish || []), ...(data.watch || [])]
-    .find(x => String(x.ticker) === String(ticker)) : null;
-  let fromUniverse = false;
-  if (!r) {
-    r = await _fetchUniverseSnapshot(ticker);
-    fromUniverse = true;
-  }
-  if (!r) return;   // 全市場快照也查無此股(可能太新/資料不足)，不顯示這個區塊
-
-  const banner = _dispBanner(r, fromUniverse);
-  const bannerCls = banner.cls;
-  const bannerText = banner.text;
-  const bannerSub = banner.sub;
-
-  const clauses = r.clauses || {};
-
-  // ① 觸發條件（今日任一即可，只列有實際觸發的款）
-  const triggeredHtml = _drTriggeredHtml(clauses);
-
-  // ② 處置期間累計（官方第6條四計數器，進度條+觸發日期）
-  const windowsHtml = _drWindowsHtml(r.disposition_windows || {}, r.alert_history || []);
-
-  // ③ 預測細節（14款逐款詳解，含30/60/90日子窗與色階）
-  const clauseHtml = Object.keys(clauses).length
-    ? `<div class="dr-clause-legend">🔴已觸發　🟡接近門檻（近20%內）　⚪未觸發　？資料不足/無法判定</div>
-       <div class="dr-clause-grid">${Object.entries(clauses).filter(([no]) => _drInShow(no)).map(([no, c]) => _drClauseItem(no, c)).join('')}</div>`
-    : '';
-
-  // ④ 除外情形（目前只做第2款，官方規則第3條第3/4款，見disposition_rules.py）——
-  // 三個獨立框(30/60/90日)＋明日方向提示，比對attnup排版
-  const ex2 = r.exemption_clause2;
-  const exemptionHtml = (ex2 && ex2.checked) ? `<div class="dr-section-title">第2款除外情形（準確度有待驗證）</div>
-    <div class="dr-exemption-summary ${ex2.exempt ? 'exempt' : ''}">
-      ${ex2.exempt ? '✅ 符合除外情形' : '❌ 不符合除外情形'}
-    </div>
-    <div class="dr-exemption-grid">
-      ${(ex2.periods || []).map(p => `<div class="dr-exemption-cell">
-        <div class="dr-exemption-period">${p.days}日期間</div>
-        <div class="sv-mut">${svEsc(p.text)}</div>
-        ${p.tomorrow_hint ? `<div class="dr-exemption-hint">${svEsc(p.tomorrow_hint)}</div>` : ''}
-      </div>`).join('')}
-    </div>
-    <div class="sv-mut" style="margin-top:4px;font-style:italic">
-      * 此為條款尚未觸發時的預測，實際除外仍需符合完整條件</div>` : '';
-
-  // ⑤ 14款觸發總覽（計入/不計入處置累計 分組色塊）
-  const overviewHtml = _drOverviewHtml(clauses);
-
-  // ⑥ 類股差幅
-  const diffsHtml = _drDiffsHtml(r.category_diffs);
-
-  // ⑦ 估值與融資融券
-  const val = r.valuation || {};
-  const valCell = (label, v, digits, suffix) =>
-    `<div class="dr-val-cell"><b>${v != null ? v.toFixed(digits) + (suffix || '') : '--'}</b><span>${label}</span></div>`;
-  const changeCell = (label, v) => {
-    const cls = (v || 0) > 0 ? 'num-pos' : ((v || 0) < 0 ? 'num-neg' : '');
-    return `<div class="dr-val-cell"><b class="${cls}">${v != null ? _dispSigned(v, 0) : '--'}</b><span>${label}</span></div>`;
-  };
-  const valHtml = `<div class="dr-section-title">估值與融資融券</div><div class="dr-val-grid">
-    ${valCell('本益比', val.pe_ratio, 1, '')}
-    ${valCell('股價淨值比', val.pbr, 2, '')}
-    ${valCell('週轉率', val.turnover_pct, 1, '%')}
-    ${valCell('融資使用率', val.margin_usage_pct, 1, '%')}
-    ${valCell('融券使用率', val.short_usage_pct, 1, '%')}
-    ${valCell('券資比', val.short_margin_ratio, 1, '%')}
-    ${changeCell('融資增減(張)', val.margin_change)}
-    ${changeCell('融券增減(張)', val.short_change)}
-  </div>`;
-
-  // ⑧ 注意股歷史（近30日，逐日觸發哪幾款）
-  const hist = r.alert_history || [];
-  const histRows = hist.map(_drHistoryItem).filter(Boolean);
-  const histHtml = histRows.length ? `<div class="dr-section-title">注意股歷史（近30日）</div>
-    <div class="dr-hist-list">${histRows.join('')}</div>` : '';
-
-  el.innerHTML = `<div class="dr-wrap">
-    <div class="dr-banner ${bannerCls}">${bannerText}<div class="dr-banner-sub">${bannerSub}</div></div>
-    <div class="dr-footnote">${DR_SHOW_MAX >= 14
-      ? 'ℹ️ 第9-14款為公告用途，觸發不計入處置累計次數（僅第1-8款計入）'
-      : 'ℹ️ 僅顯示會進處置的第1-8款；第9-14款(僅公告、不計入處置)已隱藏'}</div>
-    ${_drForecastHtml(r.risk_forecast)}
-    ${windowsHtml}
-    ${triggeredHtml}
-    <div class="dr-section-title">預測細節</div>
-    ${clauseHtml}
-    ${exemptionHtml}
-    ${overviewHtml}
-    ${diffsHtml}
-    ${valHtml}
-    ${histHtml}
-  </div>`;
-}
+// 2026-09-17：K線彈窗內「處置風險分析」區塊（_ensureDispDataLoaded/DR_*/_dr*Html/
+// renderDispositionRisk 等一整組）整組移除，隨彈窗一起拿掉，見上方說明。
 
 // ═════════════════════════════════════════════════════════
 //  P2 (2026-07-23)：v2 版面 — 三階段漏斗 stepper + 左抽屜

@@ -571,7 +571,7 @@
       <div class="filter-row legend-row">
         <span class="legend-label">說明：</span>
         <span class="legend-item">⚠️ 14款依證交所/櫃買中心官方規則計算；第5款券商集中度為分點層級近似值(非整券商加總)；投資人集中度、TDR無資料來源固定顯示「？無法判定」；當日沖銷已接管線待TEJ資料到位</span>
-        <span class="legend-item"><b>出關倒數</b> 一般處置約10個交易日（曾觸第13款則12日）</span>
+        <span class="legend-item"><b>處置期</b> 一般5個營業日（處置基數期間曾觸第13款且為連3/連5路徑則7日）；撮合約每2分鐘；出關日以證交所/櫃買官方公告為準</span>
         <span class="legend-item"><b>位階</b> 布林通道位置，0=月線，+10=上軌，-10=下軌</span>
         <span class="legend-item"><b>注意密集度</b> 期間內被列注意股的天數</span>
         <span class="filler"></span>
@@ -579,11 +579,16 @@
       </div>
     </div>
     <main>
-      <div id="disp-focus-strip" class="focus-strip" hidden></div>
-      <h3 style="padding:8px 12px;margin:0;color:#e0e0e0">🚨 處置中</h3>
-      <div id="disp-punish-table"></div>
-      <h3 style="padding:16px 12px 8px;margin:0;color:#e0e0e0">👀 潛在注意股（未處置）</h3>
-      <div id="disp-watch-table"></div>
+      <nav id="disp-nav" class="dl-nav" aria-label="處置雷達四個區塊"></nav>
+      <div id="disp-lanes"></div>
+      <details id="disp-others" class="dl-fold"></details>
+      <details class="dl-fold"><summary id="disp-rest-sum">其餘官方注意股</summary><div id="disp-watch-table"></div></details>
+      <ul class="dl-foot">
+        <li>路徑：A=連續3個營業日皆第1款；B=連續5個營業日皆第1~8款；C=10個營業日內6天；D=30個營業日內12天。「差N次」＝離該路徑門檻還差幾個注意日（紅=差1、黃=差2）。</li>
+        <li>只有第1~8款計入路徑；第9~13款只是注意公告，交易所認定異常時可另採專案處置，無法用公式預測。</li>
+        <li>候選只來自TEJ已標記的官方注意股；路徑計數已達門檻但並未處置者，計數疑含前次處置期間的注意日，不列為候選依據。</li>
+        <li>「加重」＝最近30個營業日內曾發布處置，再處置即為第2次以上（所有委託全額預收）。</li>
+      </ul>
     </main>
   </section>
 

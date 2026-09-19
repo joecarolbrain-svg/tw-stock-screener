@@ -3079,7 +3079,7 @@ function initHotkeys() {
 document.addEventListener('DOMContentLoaded', initHotkeys);
 
 // ── 處置雷達：處置股 / 潛在注意股（卡片格線，仿attnup排版）───
-const dispState = { loaded: false, loadedDate: null, data: null };
+const dispState = { loaded: false, loadedDate: null, data: null, official: null };
 
 function _dispSigned(v, digits) {
   if (v == null) return '--';
@@ -3174,7 +3174,7 @@ async function loadDisposition() {
     const fallback = (indexMeta?.dates || []).find(e => (e.has || []).includes('disposition'));
     if (!fallback) {
       metaEl.textContent = '無處置雷達資料';
-      document.getElementById('disp-punish-table').innerHTML = '';
+      document.getElementById('disp-lanes').innerHTML = '';
       document.getElementById('disp-watch-table').innerHTML = '';
       return;
     }
@@ -3183,21 +3183,17 @@ async function loadDisposition() {
   metaEl.textContent = '載入中...';
   try {
     dispState.data = await fetchJsonGz(`data/daily/${dDate}/disposition.json.gz`);
+    // 官方處置公告(證交所/櫃買OpenAPI)：起訖日/第幾次/出關日的權威來源；缺檔時退回TEJ估算
+    try { dispState.official = await fetchJsonGz(`data/daily/${dDate}/disposition_official.json.gz`); }
+    catch (e) { dispState.official = null; }
     dispState.loaded = true;
     dispState.loadedDate = currentDate;
-    metaEl.textContent = `資料日 ${dispState.data.trading_date}　|　處置中 ${dispState.data.punish.length} 檔　|　`
-      + `潛在注意股 ${dispState.data.watch.length} 檔　|　更新 ${dispState.data.generated_at.slice(11, 16)}`;
+    metaEl.textContent = `資料日 ${dispState.data.trading_date}　|　更新 ${dispState.data.generated_at.slice(11, 16)}`
+      + (dispState.official ? '　|　官方處置公告已載入' : '　|　⚠️ 無官方處置公告檔，出關日為估算');
     renderDisposition();
   } catch (err) {
     metaEl.textContent = `載入失敗：${err.message}`;
   }
-}
-
-function _drChip(r) {
-  const cycleTxt = r.matching_cycle_minutes ? `${r.matching_cycle_minutes}分盤` : '';
-  return `<button type="button" class="dr-daily-chip" data-ticker="${r.ticker}">` +
-    `${r.ticker} ${r.name || ''}${cycleTxt ? ` <span class="disp-badge disp-badge-amber">${cycleTxt}</span>` : ''}` +
-    `</button>`;
 }
 
 // 焦點 strip 的 chip / 全市場搜尋結果，都沒有自己的卡片可以內展開，
@@ -3211,60 +3207,220 @@ async function _openDispDetailSlot(ticker) {
   slot.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-function _bindDrChips(container) {
-  container.querySelectorAll('.dr-daily-chip[data-ticker]').forEach(chip => {
-    chip.addEventListener('click', () => _openDispDetailSlot(chip.dataset.ticker));
+// ── 處置雷達四區塊（2026-09-19 改版）──────────────────────────
+// 即將加重處置 / 即將首次處置 / 明日出關 / 後天出關。
+// 出關日、第幾次處置、處置期(5或7日)以官方公告(disposition_official.json.gz)為準；
+// 候選股(即將處置)來自TEJ官方注意股的第6條四路徑計數，顯示「差1~2次」。
+const DL_PATHS = [
+  { label: 'A 連3日',   need: 3,  f: 'streak3_of_c1',     tip: '連續3個營業日皆第1款' },
+  { label: 'B 連5日',   need: 5,  f: 'streak5_of_c1to8',  tip: '連續5個營業日皆第1~8款任一款' },
+  { label: 'C 10日6次', need: 6,  f: 'count10_of_c1to8',  tip: '最近10個營業日內6天(第1~8款)' },
+  { label: 'D 30日12次', need: 12, f: 'count30_of_c1to8', tip: '最近30個營業日內12天(第1~8款)' },
+];
+const DL_LANES = [
+  { id: 'heavy', cls: 'dl-heavy', title: '即將加重處置',
+    rule: '出關後 30 日內再處置,觸發即加重:所有人全額預收(約每 2 分鐘撮合)' },
+  { id: 'first', cls: 'dl-first', title: '即將首次處置',
+    rule: '再觸發 1 項注意即首次進處置(約每 2 分鐘撮合,大額預收)' },
+  { id: 'exit1', cls: 'dl-exit1', title: '明日出關', rule: '處置期滿,明日恢復正常交易' },
+  { id: 'exit2', cls: 'dl-exit2', title: '後天出關', rule: '處置期滿,後天恢復正常交易' },
+];
+const dlRowMap = {};   // ticker → TEJ 技術面資料列（供詳情附加交易輔助）
+
+function _dlOfficialByTicker(off) {
+  const map = {};
+  for (const r of (off && off.rows) || []) {
+    const cur = map[r.ticker];
+    if (!cur || String(r.end_date) > String(cur.end_date)) map[r.ticker] = r;   // 同股多筆取最新一筆
+  }
+  return map;
+}
+
+// 四路徑差幾次。gap<=0 但股票並未處置＝計數含前次處置期間的注意日(TEJ計數不歸零)，視為不可靠、不列為候選依據
+function _dlGaps(r) {
+  const w = r.disposition_windows || {};
+  return DL_PATHS.map(p => {
+    const v = w[p.f];
+    if (v == null) return { ...p, v: null, gap: null, ok: false };
+    const gap = p.need - v;
+    return { ...p, v, gap, ok: gap >= 1 };
   });
 }
 
-function renderDispFocusStrip(data) {
-  const el = document.getElementById('disp-focus-strip');
-  if (!el) return;
-  const upcoming = data.upcoming || [];
-  const newToday = data.new_today || [];
-  const exiting = (data.punish || []).slice()
-    .sort((a, b) => (a.est_days_to_exit ?? 999) - (b.est_days_to_exit ?? 999))
-    .slice(0, 12);
-
-  if (!upcoming.length && !newToday.length && !exiting.length) {
-    el.hidden = true; el.innerHTML = ''; return;
+function _dlBuildCandidates(data, punishSet) {
+  const heavy = [], first = [];
+  for (const r of data.watch || []) {
+    if (punishSet.has(r.ticker)) continue;
+    const gaps = _dlGaps(r);
+    const near = gaps.filter(g => g.ok && g.gap <= 2);
+    if (!near.length) continue;
+    const best = near.reduce((a, b) => (b.gap < a.gap ? b : a));
+    const lp = r.last_punishment;
+    // 官方：最近30個營業日內「曾發布處置」→ 再處置為第2次以上(加重)。距離以上次處置公告日(=起始日前一天)起算到明日公告
+    const dist = lp ? (lp.trading_days_ago + lp.days_in_punish + 1) : null;
+    const isHeavy = dist != null && dist <= 30;
+    const item = { r, gaps, best, near: near.length, dist };
+    (isHeavy ? heavy : first).push(item);
   }
-  el.hidden = false;
-  el.innerHTML = `<div class="dr-daily-wrap">
-    <div class="dr-daily-col">
-      <div class="dr-daily-title">⚠️ 即將處置 <span class="fs-sub">${upcoming.length}</span></div>
-      <div class="dr-daily-chips">${upcoming.length ? upcoming.map(_drChip).join('') : '<span class="sv-mut">目前無</span>'}</div>
-    </div>
-    <div class="dr-daily-col">
-      <div class="dr-daily-title">🔶 今日進處置 <span class="fs-sub">${newToday.length}</span></div>
-      <div class="dr-daily-chips">${newToday.length ? newToday.map(_drChip).join('') : '<span class="sv-mut">目前無</span>'}</div>
-    </div>
-    <div class="dr-daily-col">
-      <div class="dr-daily-title">🔷 近期出關 <span class="fs-sub">${exiting.length}</span></div>
-      <div class="dr-daily-chips">${exiting.length ? exiting.map(_drChip).join('') : '<span class="sv-mut">目前無</span>'}</div>
-    </div>
-  </div>`;
-  _bindDrChips(el, [...upcoming, ...newToday, ...exiting]);
+  const sorter = (a, b) => a.best.gap - b.best.gap || b.near - a.near
+    || (b.r.watch_count_10d || 0) - (a.r.watch_count_10d || 0);
+  heavy.sort(sorter); first.sort(sorter);
+  return { heavy, first };
+}
+
+function _dlBuildExits(data, official) {
+  const byTicker = {}; (data.punish || []).forEach(r => { byTicker[r.ticker] = r; });
+  const exit1 = [], exit2 = [], others = [];
+  if (official) {
+    const seen = new Set();
+    for (const o of Object.values(_dlOfficialByTicker(official))) {
+      const n = o.exit_in_trading_days;
+      if (n == null || n < 1) continue;   // 已出關(<1)不列
+      seen.add(o.ticker);
+      const item = { r: byTicker[o.ticker] || { ticker: o.ticker, name: o.name, market: o.market === 'TPEX' ? '上櫃' : '上市' }, o, est: false };
+      (n === 1 ? exit1 : n === 2 ? exit2 : others).push(item);
+    }
+    others.sort((a, b) => a.o.exit_in_trading_days - b.o.exit_in_trading_days);
+  } else {
+    // 沒有官方檔：退回TEJ估算(標示「估算」)
+    for (const r of data.punish || []) {
+      const n = r.est_days_to_exit;
+      const item = { r, o: null, est: true };
+      (n === 1 ? exit1 : n === 2 ? exit2 : others).push(item);
+    }
+  }
+  return { exit1, exit2, others };
+}
+
+function _dlPathsHtml(gaps) {
+  return '<div class="dl-paths">' + gaps.map(g => {
+    if (g.v == null) return `<div class="dl-path na" title="${g.tip}"><div class="dl-pl">${g.label}</div><div class="dl-pv">--</div></div>`;
+    let cls = '', txt = `差 ${g.gap}`;
+    if (!g.ok) { cls = 'muted'; txt = '計數含前次處置'; }
+    else if (g.gap === 1) cls = 'r1';
+    else if (g.gap === 2) cls = 'r2';
+    return `<div class="dl-path ${cls}" title="${g.tip}"><div class="dl-pl">${g.label}</div>
+      <div class="dl-pv">${g.v}<small>/${g.need}</small></div><div class="dl-pg">${txt}</div>
+      <div class="dl-bar"><i style="width:${Math.min(100, g.v / g.need * 100)}%"></i></div></div>`;
+  }).join('') + '</div>';
+}
+
+function _dlHead(r) {
+  const chgCls = (r.chg_pct || 0) > 0 ? 'num-pos' : ((r.chg_pct || 0) < 0 ? 'num-neg' : '');
+  const px = r.close != null
+    ? `<span class="dl-px">${r.close}<span class="${chgCls}">${_dispSigned(r.chg_pct, 2)}%</span></span>` : '';
+  return `<div class="dl-head"><span class="dl-code">${r.ticker}</span><span class="dl-name">${svEsc(r.name || '')}</span>
+    <span class="dl-mkt">${svEsc(r.market || '')}</span>${px}</div>`;
+}
+
+function _dlFoot(r) {
+  const vol = r.volume != null ? `量${Math.round(r.volume).toLocaleString()}張` : '';
+  const to = r.turnover_pct != null ? `週轉${r.turnover_pct.toFixed(1)}%` : '';
+  const sub = [vol, to].filter(Boolean).join('　');
+  return `${sub ? `<div class="dl-sub">${sub}</div>` : ''}
+    <button type="button" class="dl-toggle" data-ticker="${r.ticker}" aria-expanded="false">▾ 注意/處置詳情</button>
+    <div class="dl-slot" hidden></div>`;
+}
+
+function _dlCandCard(item, laneId) {
+  const { r, gaps, best, dist } = item;
+  const what = laneId === 'heavy'
+    ? `上次處置公告約 <b>${dist}</b> 個營業日前(30日內)，再處置＝第2次以上`
+    : '最近30個營業日內無處置紀錄';
+  return `<article class="dl-card">${_dlHead(r)}
+    <div class="dl-msg">最近路徑 <b>${best.label}，差 ${best.gap} 次</b><br><span class="sv-mut">${what}</span></div>
+    ${_dlPathsHtml(gaps)}${_dlFoot(r)}</article>`;
+}
+
+function _dlExitCard(item, laneId) {
+  const { r, o, est } = item;
+  let body = '';
+  if (o) {
+    const len = o.period_days || 5;
+    const day = Math.min(len, Math.max(1, len - o.exit_in_trading_days + 1));
+    let cells = '';
+    for (let i = 1; i <= 7; i++) {
+      cells += i > len ? '<span class="off"></span>'
+        : `<span class="${i === len ? 'last' : (i <= day ? 'on' : '')}">${i}</span>`;
+    }
+    const nth = o.disposition_no >= 2 ? '第2次以上(全額預收)' : '第1次(大額預收)';
+    body = `<div class="dl-msg">處置 <b>${day}/${len}</b> 日（${fmtDate8(o.start_date)}～${fmtDate8(o.end_date)}）｜${nth}
+        ${o.has_clause13 ? '｜含第13款，處置期 ' + len + ' 日' : ''}</div>
+      <div class="dl-period" aria-label="處置期間 ${len} 日">${cells}</div>
+      <div class="dl-recur sv-mut">出關 ${fmtDate8(o.exit_date)}${o.exit_date_estimated ? '(依行事曆推算)' : ''}；公告日 ${fmtDate8(o.announce_date)} 起 30 個營業日內再處置＝<b>第${o.disposition_no + 1 > 2 ? '2次以上' : '2次'}(加重)</b></div>`;
+  } else {
+    body = `<div class="dl-msg">處置第 ${r.days_in_punish != null ? r.days_in_punish + 1 : '?'} 日｜<b>估算</b>剩 ${r.est_days_to_exit} 日出關（缺官方公告檔）</div>`;
+  }
+  return `<article class="dl-card">${_dlHead(r)}${body}${_dlFoot(r)}</article>`;
+}
+
+function _dlLaneHtml(lane, items, renderer) {
+  return `<section class="dl-lane ${lane.cls}" id="dl-${lane.id}">
+    <div class="dl-lane-head"><h3>${lane.title}</h3><span class="dl-cnt">${items.length} 檔</span><p>${lane.rule}</p></div>
+    ${items.length ? `<div class="dl-grid">${items.map(it => renderer(it, lane.id)).join('')}</div>`
+      : '<div class="sv-none">目前沒有符合的股票</div>'}
+  </section>`;
 }
 
 function renderDisposition() {
-  if (!dispState.data) return;
-  renderDispFocusStrip(dispState.data);
-  const punishRows = dispState.data.punish || [];
-  const watchRows = dispState.data.watch || [];
+  const data = dispState.data;
+  if (!data) return;
+  const official = dispState.official;
+  const exits = _dlBuildExits(data, official);
+  const punishSet = new Set([...exits.exit1, ...exits.exit2, ...exits.others].map(x => x.r.ticker));
+  const cands = _dlBuildCandidates(data, punishSet);
+  const laneItems = { heavy: cands.heavy, first: cands.first, exit1: exits.exit1, exit2: exits.exit2 };
 
-  const pEl = document.getElementById('disp-punish-table');
-  pEl.innerHTML = punishRows.length
-    ? `<div class="disp-card-grid">${punishRows.map(r => _dispCardHtml(r, 'punish')).join('')}</div>`
-    : `<div class="sv-none">目前無處置中股票</div>`;
-  _bindDispCards(pEl, punishRows);
+  // 詳情附加「交易輔助」用的技術面資料
+  [...(data.punish || []), ...(data.watch || [])].forEach(r => { dlRowMap[r.ticker] = r; });
 
+  const nav = document.getElementById('disp-nav');
+  nav.innerHTML = DL_LANES.map(l => `<button type="button" class="dl-nav-btn ${l.cls}" data-target="dl-${l.id}">
+    <span class="dl-nav-n">${laneItems[l.id].length}</span><span class="dl-nav-l">${l.title}</span></button>`).join('');
+  nav.querySelectorAll('.dl-nav-btn').forEach(b => b.addEventListener('click', () => {
+    document.getElementById(b.dataset.target)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+
+  document.getElementById('disp-lanes').innerHTML =
+    _dlLaneHtml(DL_LANES[0], cands.heavy, _dlCandCard) + _dlLaneHtml(DL_LANES[1], cands.first, _dlCandCard)
+    + _dlLaneHtml(DL_LANES[2], exits.exit1, _dlExitCard) + _dlLaneHtml(DL_LANES[3], exits.exit2, _dlExitCard);
+
+  // 其他處置中(出關日≥3個交易日)
+  const oEl = document.getElementById('disp-others');
+  oEl.innerHTML = exits.others.length
+    ? `<summary>其他處置中 ${exits.others.length} 檔（3 個交易日後出關）</summary><div class="dl-grid">${exits.others.map(it => _dlExitCard(it, 'others')).join('')}</div>`
+    : '<summary>其他處置中 0 檔</summary><div class="sv-none">目前無</div>';
+
+  // 其餘官方注意股(不在上面候選裡的)
+  const shown = new Set([...cands.heavy, ...cands.first].map(x => x.r.ticker));
+  const rest = (data.watch || []).filter(r => !shown.has(r.ticker) && !punishSet.has(r.ticker));
   const wEl = document.getElementById('disp-watch-table');
-  wEl.innerHTML = watchRows.length
-    ? `<div class="disp-card-grid">${watchRows.map(r => _dispCardHtml(r, 'watch')).join('')}</div>`
-    : `<div class="sv-none">目前無潛在注意股</div>`;
-  _bindDispCards(wEl, watchRows);
+  document.getElementById('disp-rest-sum').textContent = `其餘官方注意股 ${rest.length} 檔（離處置門檻還遠）`;
+  wEl.innerHTML = rest.length
+    ? `<div class="disp-card-grid">${rest.map(r => _dispCardHtml(r, 'watch')).join('')}</div>`
+    : '<div class="sv-none">目前無</div>';
+  _bindDispCards(wEl, rest);
 }
+
+// 卡片「注意/處置詳情」展開(事件委派；四區塊與其他處置中共用)
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.dl-toggle');
+  if (!btn) return;
+  const slot = btn.nextElementSibling;
+  if (!slot.hidden) { slot.hidden = true; btn.setAttribute('aria-expanded', 'false'); btn.textContent = '▾ 注意/處置詳情'; return; }
+  if (!slot.dataset.loaded) {
+    slot.hidden = false;
+    slot.innerHTML = '<div class="sv-mut" style="padding:8px">載入中…</div>';
+    let html = await renderDispDetailHtml(btn.dataset.ticker);
+    const row = dlRowMap[btn.dataset.ticker];
+    const w3 = row ? _wave3PriceLine(row) : '';
+    if (w3) html += `<div class="dr-section-title">交易輔助（與處置判定無關）</div>${w3}`;
+    slot.innerHTML = html;
+    slot.dataset.loaded = '1';
+  } else slot.hidden = false;
+  btn.setAttribute('aria-expanded', 'true');
+  btn.textContent = '▴ 收起詳情';
+});
 
 // ── 處置雷達搜尋（全市場任意股票，含健康股）──────────────
 let dispSearchInited = false;

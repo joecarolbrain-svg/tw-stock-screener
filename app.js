@@ -3231,7 +3231,10 @@ function _dlOfficialByTicker(off) {
   const map = {};
   for (const r of (off && off.rows) || []) {
     const cur = map[r.ticker];
-    if (!cur || String(r.end_date) > String(cur.end_date)) map[r.ticker] = r;   // 同股多筆取最新一筆
+    if (!cur) { map[r.ticker] = { ...r }; continue; }
+    // 同股多筆(處置期間內又被再處置)：以迄日較晚的為準，出關日取決於最晚結束的那筆；另記前一筆供徽章顯示
+    const [late, early] = String(r.end_date) > String(cur.end_date) ? [r, cur] : [cur, r];
+    map[r.ticker] = { ...late, overlap_prev: { start_date: early.start_date, end_date: early.end_date } };
   }
   return map;
 }
@@ -3332,6 +3335,17 @@ function _dlCandCard(item, laneId) {
     ${_dlPathsHtml(gaps)}${_dlFoot(r)}</article>`;
 }
 
+// 官方公告補充：觸發路徑、專案處置措施(第六條第5項)、撮合頻率、公告全文
+function _dlOfficialBadges(o) {
+  const b = [];
+  if ((o.cause_paths || []).length) b.push(`<span class="bd info" title="處置原因對應第六條路徑">觸發路徑 ${o.cause_paths.join('+')}</span>`);
+  if (o.matching_minutes) b.push(`<span class="bd">約每 ${o.matching_minutes} 分鐘撮合</span>`);
+  if (o.overlap_prev) b.push(`<span class="bd warn" title="處置期間內又被再處置，出關日以較晚結束的那筆為準">處置中再處置（前筆 ${fmtDate8(o.overlap_prev.start_date)}～${fmtDate8(o.overlap_prev.end_date)}）</span>`);
+  if (o.is_special) b.push(`<span class="bd danger" title="第六條第5項專案處置">專案處置：${svEsc(o.special_measures.join('、'))}</span>`);
+  const detail = o.detail_text ? `<details class="dl-detail-text"><summary>公告全文</summary><div class="sv-mut">${svEsc(o.detail_text)}</div></details>` : '';
+  return b.length || detail ? `<div class="dl-badges">${b.join('')}</div>${detail}` : '';
+}
+
 function _dlExitCard(item, laneId) {
   const { r, o, est } = item;
   let body = '';
@@ -3346,6 +3360,7 @@ function _dlExitCard(item, laneId) {
     const nth = o.disposition_no >= 2 ? '第2次以上(全額預收)' : '第1次(大額預收)';
     body = `<div class="dl-msg">處置 <b>${day}/${len}</b> 日（${fmtDate8(o.start_date)}～${fmtDate8(o.end_date)}）｜${nth}
         ${o.has_clause13 ? '｜含第13款，處置期 ' + len + ' 日' : ''}</div>
+      ${_dlOfficialBadges(o)}
       <div class="dl-period" aria-label="處置期間 ${len} 日">${cells}</div>
       <div class="dl-recur sv-mut">出關 ${fmtDate8(o.exit_date)}${o.exit_date_estimated ? '(依行事曆推算)' : ''}；公告日 ${fmtDate8(o.announce_date)} 起 30 個營業日內再處置＝<b>第${o.disposition_no + 1 > 2 ? '2次以上' : '2次'}(加重)</b></div>`;
   } else {

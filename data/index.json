@@ -1,8 +1,22 @@
 {
   "schema_version": "2.0",
-  "generated_at": "2026-09-19T22:11:37+08:00",
-  "latest_date": "20260918",
+  "generated_at": "2026-09-21T22:52:00+08:00",
+  "latest_date": "20260921",
   "dates": [
+    {
+      "date": "20260921",
+      "has": [
+        "disposition",
+        "hanku",
+        "inst_rank",
+        "latest",
+        "margin_maint",
+        "market",
+        "market_chips",
+        "market_structure",
+        "txf_map"
+      ]
+    },
     {
       "date": "20260918",
       "has": [

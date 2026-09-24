@@ -3222,6 +3222,8 @@ const DL_LANES = [
     rule: '出關後 30 日內再處置,觸發即加重:所有人全額預收(約每 2 分鐘撮合)' },
   { id: 'first', cls: 'dl-first', title: '即將首次處置',
     rule: '再觸發 1 項注意即首次進處置(約每 2 分鐘撮合,大額預收)' },
+  { id: 'pending', cls: 'dl-pending', title: '已公告・尚未起算',
+    rule: '官方已公告處置,起算日在今天之後(下一個交易日或更晚才開始處置)' },
   { id: 'exit1', cls: 'dl-exit1', title: '明日出關', rule: '處置期滿,明日恢復正常交易' },
   { id: 'exit2', cls: 'dl-exit2', title: '後天出關', rule: '處置期滿,後天恢復正常交易' },
 ];
@@ -3272,8 +3274,9 @@ function _dlBuildCandidates(data, punishSet) {
 }
 
 function _dlBuildExits(data, official) {
+  const todayStr = String(data.trading_date || '').replace(/-/g, '');
   const byTicker = {}; (data.punish || []).forEach(r => { byTicker[r.ticker] = r; });
-  const exit1 = [], exit2 = [], others = [];
+  const exit1 = [], exit2 = [], others = [], pending = [];
   if (official) {
     const seen = new Set();
     for (const o of Object.values(_dlOfficialByTicker(official))) {
@@ -3281,8 +3284,10 @@ function _dlBuildExits(data, official) {
       if (n == null || n < 1) continue;   // 已出關(<1)不列
       seen.add(o.ticker);
       const item = { r: byTicker[o.ticker] || { ticker: o.ticker, name: o.name, market: o.market === 'TPEX' ? '上櫃' : '上市' }, o, est: false };
+      if (todayStr && String(o.start_date) > todayStr) { pending.push(item); continue; }
       (n === 1 ? exit1 : n === 2 ? exit2 : others).push(item);
     }
+    pending.sort((a, b) => String(a.o.start_date).localeCompare(String(b.o.start_date)));
     others.sort((a, b) => a.o.exit_in_trading_days - b.o.exit_in_trading_days);
   } else {
     // 沒有官方檔：退回TEJ估算(標示「估算」)
@@ -3292,7 +3297,7 @@ function _dlBuildExits(data, official) {
       (n === 1 ? exit1 : n === 2 ? exit2 : others).push(item);
     }
   }
-  return { exit1, exit2, others };
+  return { exit1, exit2, others, pending };
 }
 
 function _dlPathsHtml(gaps) {
@@ -3349,7 +3354,13 @@ function _dlOfficialBadges(o) {
 function _dlExitCard(item, laneId) {
   const { r, o, est } = item;
   let body = '';
-  if (o) {
+  if (o && laneId === 'pending') {
+    const len = o.period_days || 5;
+    const nth = o.disposition_no >= 2 ? '第2次以上(全額預收)' : '第1次(大額預收)';
+    body = `<div class="dl-msg">官方已公告，<b>${fmtDate8(o.start_date)}</b> 起處置（${fmtDate8(o.start_date)}～${fmtDate8(o.end_date)}，共 ${len} 日）｜${nth}${o.is_heavy ? '｜<b>加重</b>' : ''}</div>
+      ${_dlOfficialBadges(o)}
+      <div class="dl-recur sv-mut">公告日 ${fmtDate8(o.announce_date)}；原因：${svEsc(o.reason || '')}</div>`;
+  } else if (o) {
     const len = o.period_days || 5;
     const day = Math.min(len, Math.max(1, len - o.exit_in_trading_days + 1));
     let cells = '';
@@ -3382,9 +3393,9 @@ function renderDisposition() {
   if (!data) return;
   const official = dispState.official;
   const exits = _dlBuildExits(data, official);
-  const punishSet = new Set([...exits.exit1, ...exits.exit2, ...exits.others].map(x => x.r.ticker));
+  const punishSet = new Set([...exits.exit1, ...exits.exit2, ...exits.others, ...exits.pending].map(x => x.r.ticker));
   const cands = _dlBuildCandidates(data, punishSet);
-  const laneItems = { heavy: cands.heavy, first: cands.first, exit1: exits.exit1, exit2: exits.exit2 };
+  const laneItems = { heavy: cands.heavy, first: cands.first, pending: exits.pending, exit1: exits.exit1, exit2: exits.exit2 };
 
   // 詳情附加「交易輔助」用的技術面資料
   [...(data.punish || []), ...(data.watch || [])].forEach(r => { dlRowMap[r.ticker] = r; });
@@ -3398,7 +3409,8 @@ function renderDisposition() {
 
   document.getElementById('disp-lanes').innerHTML =
     _dlLaneHtml(DL_LANES[0], cands.heavy, _dlCandCard) + _dlLaneHtml(DL_LANES[1], cands.first, _dlCandCard)
-    + _dlLaneHtml(DL_LANES[2], exits.exit1, _dlExitCard) + _dlLaneHtml(DL_LANES[3], exits.exit2, _dlExitCard);
+    + _dlLaneHtml(DL_LANES[2], exits.pending, _dlExitCard)
+    + _dlLaneHtml(DL_LANES[3], exits.exit1, _dlExitCard) + _dlLaneHtml(DL_LANES[4], exits.exit2, _dlExitCard);
 
   // 其他處置中(出關日≥3個交易日)
   const oEl = document.getElementById('disp-others');

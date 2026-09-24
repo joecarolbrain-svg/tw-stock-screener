@@ -2547,7 +2547,7 @@ body.ui-v2 {
 
 /* ── 處置雷達四區塊（2026-09-19）──────────────────────── */
 .dl-heavy { --dl-c: #ff7a45; } .dl-first { --dl-c: #f5b942; }
-.dl-exit1 { --dl-c: #4fc3f7; } .dl-exit2 { --dl-c: #8f9bff; }
+.dl-pending { --dl-c: #ffb74d; } .dl-exit1 { --dl-c: #4fc3f7; } .dl-exit2 { --dl-c: #8f9bff; }
 .dl-nav { position: sticky; top: 0; z-index: 4; background: var(--bg); padding: 8px 12px;
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .dl-nav-btn { font: inherit; color: var(--text); text-align: left; cursor: pointer; padding: 8px 12px;
